@@ -1,0 +1,4 @@
+.build/
+*.dSYM
+main
+build/
