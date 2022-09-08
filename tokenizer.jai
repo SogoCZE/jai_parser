@@ -51,6 +51,10 @@ print_token :: (token: Token) -> string {
         value = token.value;
     }
 
+    if token.kind == .KEYWORD {
+        value = sprint("%", token.keyword);
+    }
+
     print("% -> %\n", token.kind, value);
 }
 
@@ -78,6 +82,8 @@ is_identifier_char :: (char: u8) -> bool {
 }
 
 next_token :: (character_iterator: *Character_Iterator) -> Token {
+    next_while(character_iterator, is_space); // Přeskočíme všechny whitespace charaktery.
+
     char := peek(character_iterator);
 
     if is_identifier_char(char) {
