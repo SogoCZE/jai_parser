@@ -3,7 +3,7 @@
 
 #load "character_iterator.jai";
 #load "tokenizer.jai";
-// #load "ast.jai";
+#load "ast.jai";
 
 main :: () {
     cmd_arguments := get_command_line_arguments();
