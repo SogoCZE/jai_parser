@@ -47,7 +47,7 @@ print_token :: (token: Token) -> string {
         }
     }
 
-    if token.kind == .IDENTIFIER || token.kind == .STRING {
+    if token.kind == .IDENTIFIER || token.kind == .STRING || token.kind == .NUMBER {
         value = token.value;
     }
 
@@ -93,6 +93,10 @@ next_token :: (character_iterator: *Character_Iterator) -> Token {
 
     if char == #char "\"" {
         return parse_string(character_iterator);
+    }
+
+    if is_digit(char) {
+        return parse_digit(character_iterator);
     }
 
     token: Token;
@@ -144,6 +148,16 @@ parse_string :: (using character_iterator: *Character_Iterator) -> Token {
     token: Token;
     token.kind = .STRING;
     token.value = builder_to_string(*builder);
+
+    return token;
+}
+
+parse_digit :: (using character_iterator: *Character_Iterator) -> Token {
+    token: Token;
+    number := next_while(character_iterator, char => is_digit(char) || char == #char ".");
+
+    token.kind = .NUMBER;
+    token.value = number;
 
     return token;
 }
