@@ -1,21 +1,21 @@
 #import "Basic";
 #import "String";
 
-Character_Iterator :: struct {
+Iterator :: struct {
     line := 1;
     column := 0;
     buffer: string;
     file_path: string;
 }
 
-create_character_iterator :: (source: string, file_path: string) -> Character_Iterator {
-    iterator:  Character_Iterator;
+create_iterator :: (source: string, file_path: string) -> Iterator {
+    iterator:  Iterator;
     iterator.buffer = source;
     iterator.file_path = file_path;
     return iterator;
 }
 
-next :: (using iterator: *Character_Iterator) -> u8 {
+next :: (using iterator: *Iterator) -> u8 {
     assert(buffer.count != 0);
 
     char := buffer[0];
@@ -31,15 +31,15 @@ next :: (using iterator: *Character_Iterator) -> u8 {
     return char;
 }
 
-peek :: (using iterator: *Character_Iterator) -> u8 {
-    assert(buffer.count != 0);
-    return buffer[0];
+peek :: (using iterator: *Iterator, to := 1) -> u8 {
+    assert(buffer.count > to-1);
+    return buffer[to-1];
 }
 
-end :: (using iterator: *Character_Iterator) -> bool {
+end :: (using iterator: *Iterator) -> bool {
     return buffer.count == 0;
 }
 
-error :: (using iterator: *Character_Iterator, message: string) {
+error :: (using iterator: *Iterator, message: string) {
     print("%:%:%: Error: %\n", file_path, line, column, message);
 }

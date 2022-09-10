@@ -1,7 +1,7 @@
 #import "Basic";
 #import "File";
 
-#load "character_iterator.jai";
+#load "iterator.jai";
 #load "tokenizer.jai";
 #load "ast.jai";
 
@@ -14,10 +14,10 @@ main :: () {
 
     print("Parsing %...\n", cmd_arguments[1]);
 
-    character_iterator := create_character_iterator(read_entire_file(cmd_arguments[1]), cmd_arguments[1]);
+    iterator := create_iterator(read_entire_file(cmd_arguments[1]), cmd_arguments[1]);
+    tokenizer := create_tokenizer(*iterator);
 
-    while !end(*character_iterator) {
-        token := next_token(*character_iterator);
-        print_token(token);
+    while !end(*iterator) {
+        next_node(*iterator);
     }
 }
