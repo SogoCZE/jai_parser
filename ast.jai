@@ -21,16 +21,15 @@ Struct_Member :: struct {
     type: string;
 }
 
-next_node :: (iterator: *Iterator) -> Node {
-    token := next_token(iterator);
-
-    if token.kind == .IDENTIFIER return parse_declaration(iterator);
-
+next_node :: (tokenizer: *Tokenizer) -> Node {
+    token := next_token(tokenizer);
     print_token(token);
-    return .{};
 }
 
-parse_declaration :: (iterator: *Iterator) -> Node {
+parse_declaration :: (tokenizer: *Tokenizer) -> Node {
+    name := peek_token(tokenizer);
+
+    print("Ident: %\n", name);
     
 
     return .{};

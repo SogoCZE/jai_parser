@@ -38,13 +38,19 @@ Keyword :: enum {
 }
 
 Tokenizer :: struct {
-    using #as iterator: *Iterator;
-    current: *Token;
+    tokens: [..]Token;
+    cursor: int;
 }
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     tokenizer: Tokenizer;
-    tokenizer.iterator = iterator;
+    tokenizer.cursor = -1;
+    
+    while !end(iterator) {
+        token := parse_next_token(iterator);
+        array_add(*tokenizer.tokens, token);
+    }
+
     return tokenizer;
 }
 
@@ -95,7 +101,21 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
-next_token :: (iterator: *Iterator) -> Token {
+next_token :: (using tokenizer: *Tokenizer) -> Token {
+    assert(!end(tokenizer));
+    cursor += 1;
+    return tokens[cursor];
+}
+
+end :: (using tokenizer: *Tokenizer) -> bool {
+    return cursor + 1 >= tokens.count;
+}
+
+peek_token :: (using tokenizer: *Tokenizer) -> Token {
+    return tokens[cursor];
+}
+
+parse_next_token :: (iterator: *Iterator) -> Token {
     next_while(iterator, is_space); // Přeskočíme všechny whitespace charaktery.
 
     if is_comment(iterator) {
@@ -126,14 +146,6 @@ next_token :: (iterator: *Iterator) -> Token {
     token: Token;
     token.char = next(iterator);
     return token;
-}
-
-peek_token :: (tokenizer: *Tokenizer) -> Token {
-    if tokenizer.current == null {
-        return next_token(tokenizer);
-    }
-
-    return tokenizer.current;
 }
 
 parse_comment :: (using iterator: *Iterator) -> Token {

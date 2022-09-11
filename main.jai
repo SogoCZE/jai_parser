@@ -17,7 +17,7 @@ main :: () {
     iterator := create_iterator(read_entire_file(cmd_arguments[1]), cmd_arguments[1]);
     tokenizer := create_tokenizer(*iterator);
 
-    while !end(*iterator) {
-        next_node(*iterator);
+    while !end(*tokenizer) {
+        next_node(*tokenizer);
     }
 }
