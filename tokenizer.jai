@@ -15,6 +15,9 @@ Token_Kind :: enum {
 
 Token :: struct {
     kind: Token_Kind;
+    line: int;
+    column: int;
+    
     union {
         keyword: Keyword;
         value: string;
@@ -54,7 +57,7 @@ create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     return tokenizer;
 }
 
-print_token :: (token: Token) -> string {
+print_token :: (token: Token) {
     value := token.value;
 
     if token.kind == .UNKNOWN || token.kind == .PUNCTUATION || token.kind == .OPERATOR {
@@ -111,8 +114,9 @@ end :: (using tokenizer: *Tokenizer) -> bool {
     return cursor + 1 >= tokens.count;
 }
 
-peek_token :: (using tokenizer: *Tokenizer) -> Token {
-    return tokens[cursor];
+peek_token :: (using tokenizer: *Tokenizer, $count := 1) -> Token {
+    assert(cursor + count <= tokens.count);
+    return tokens[cursor+count];
 }
 
 parse_next_token :: (iterator: *Iterator) -> Token {
