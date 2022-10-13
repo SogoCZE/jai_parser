@@ -2,13 +2,20 @@ Node_Kind :: enum {
     STRUCT_DECLARATION;
     ENUM_DECLARATION;
     PROCEDURE_DECLARATION;
+    CONSTANT_DECLARATION;
 }
 
 Node :: struct {
     kind: Node_Kind; 
     union {
         struct_declaration: Struct_Declaration;
+        constant_declaration: Constant_Declaration;
     }
+}
+
+Constant_Declaration :: struct {
+    name: string;
+    value: string;
 }
 
 Struct_Declaration :: struct {
@@ -27,7 +34,6 @@ next_node :: (tokenizer: *Tokenizer) -> Node {
     if is_declaration(tokenizer) {
         parse_declaration(tokenizer);
     }
-
 }
 
 is_declaration :: (tokenizer: *Tokenizer) -> bool {
@@ -38,6 +44,8 @@ is_declaration :: (tokenizer: *Tokenizer) -> bool {
 }
 
 parse_declaration :: (tokenizer: *Tokenizer) -> Node {
+    node: Node;
+    
     name := peek_token(tokenizer);
     next_token(tokenizer); // :
     next_token(tokenizer); // :
@@ -45,6 +53,14 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     content := next_token(tokenizer);
 
     if content.kind == .NUMBER || content.kind == .STRING {
+        // constant_declaration: Constant_Declaration;
+        // constant_declaration.name = name.value;
+        // constant_declaration.value = content.value;
+        
+        // node.kind = .CONSTANT_DECLARATION;
+        // node.constant_declaration = constant_declaration;
+        
+        // return node;
         print("% :: %;\n", name.value, content.value);
     } 
 
