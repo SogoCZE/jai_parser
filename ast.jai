@@ -23,14 +23,38 @@ Struct_Member :: struct {
 
 next_node :: (tokenizer: *Tokenizer) -> Node {
     token := next_token(tokenizer);
-    print_token(token);
+
+    if is_declaration(tokenizer) {
+        parse_declaration(tokenizer);
+    }
+
+}
+
+is_declaration :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer).kind != .IDENTIFIER return false;
+    if peek_token(tokenizer, 1).char != #char ":" return false;
+    if peek_token(tokenizer, 2).char != #char ":" return false;
+    return true;
 }
 
 parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     name := peek_token(tokenizer);
-
-    print("Ident: %\n", name);
+    next_token(tokenizer); // :
+    next_token(tokenizer); // :
     
+    content := next_token(tokenizer);
+
+    if content.kind == .NUMBER || content.kind == .STRING {
+        print("% :: %;\n", name.value, content.value);
+    } 
+
+    if content.kind == .PUNCTUATION {
+        print("% :: procedure;\n", name.value);
+    }
+  
+    if content.kind == .KEYWORD {
+        print("% :: %;\n", name.value, content.keyword);
+    }
 
     return .{};
 }

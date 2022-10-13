@@ -114,7 +114,7 @@ end :: (using tokenizer: *Tokenizer) -> bool {
     return cursor + 1 >= tokens.count;
 }
 
-peek_token :: (using tokenizer: *Tokenizer, $count := 1) -> Token {
+peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> Token {
     assert(cursor + count <= tokens.count);
     return tokens[cursor+count];
 }
