@@ -9,3 +9,7 @@ say_hi :: () {
 Person :: struct {
 
 }
+
+PersonType :: enum {
+    
+}
