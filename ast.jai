@@ -15,12 +15,12 @@ Node :: struct {
 
 Constant_Declaration :: struct {
     name: string;
-    value: string;
+    children: []Node;
 }
 
 Struct_Declaration :: struct {
     name: string;
-    members: []Struct_Member;
+    children: []Node;
 }
 
 Struct_Member :: struct {
@@ -43,6 +43,12 @@ is_declaration :: (tokenizer: *Tokenizer) -> bool {
     return true;
 }
 
+is_directive :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer).char != #char "#" return false;
+    if peek_token(tokenizer).kind != .IDENTIFIER return false;
+    return true;
+ }
+
 parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     node: Node;
     
@@ -53,15 +59,11 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     content := next_token(tokenizer);
 
     if content.kind == .NUMBER || content.kind == .STRING {
-        // constant_declaration: Constant_Declaration;
-        // constant_declaration.name = name.value;
-        // constant_declaration.value = content.value;
-        
-        // node.kind = .CONSTANT_DECLARATION;
-        // node.constant_declaration = constant_declaration;
-        
-        // return node;
+
+
         print("% :: %;\n", name.value, content.value);
+        
+        return node;
     } 
 
     if content.kind == .PUNCTUATION {

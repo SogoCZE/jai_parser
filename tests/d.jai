@@ -1,4 +1,4 @@
-age :: 20;
+age :: #neco 20;
 
 name :: "Patrik Smělý";
 
