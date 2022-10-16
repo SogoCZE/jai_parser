@@ -34,6 +34,10 @@ next_node :: (tokenizer: *Tokenizer) -> Node {
     if is_declaration(tokenizer) {
         parse_declaration(tokenizer);
     }
+
+    if is_directive(tokenizer) {
+        print("Directive!\n");
+    }
 }
 
 is_declaration :: (tokenizer: *Tokenizer) -> bool {
