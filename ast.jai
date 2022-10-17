@@ -3,6 +3,10 @@ Node_Kind :: enum {
     ENUM_DECLARATION;
     PROCEDURE_DECLARATION;
     CONSTANT_DECLARATION;
+    DIRECTIVE;
+    STRING;
+    NUMBER;
+    UNDEFINED;
 }
 
 Node :: struct {
@@ -10,6 +14,8 @@ Node :: struct {
     union {
         struct_declaration: Struct_Declaration;
         constant_declaration: Constant_Declaration;
+        directive: Directive;
+        value: string;
     }
 }
 
@@ -28,16 +34,48 @@ Struct_Member :: struct {
     type: string;
 }
 
+Directive :: struct {
+    name: string;
+}
+
 next_node :: (tokenizer: *Tokenizer) -> Node {
     token := next_token(tokenizer);
+
+    if token.kind == .STRING {
+        node: Node;
+        node.kind = .STRING;
+        node.value = token.value;
+        return node;
+    }
+
+    if token.kind == .NUMBER {
+        node: Node;
+        node.kind = .NUMBER;
+        node.value = token.value;
+        return node;
+    }
+    
+    if is_directive(tokenizer) {
+        return parse_directive(tokenizer);
+    }
 
     if is_declaration(tokenizer) {
         parse_declaration(tokenizer);
     }
 
-    if is_directive(tokenizer) {
-        print("Directive!\n");
+    return .{kind=.UNDEFINED};
+}
+
+next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) -> []Node {
+    nodes: [..]Node;
+
+    while !end(tokenizer) && predicate(peek_token(tokenizer)) {
+        array_add(*nodes, next_node(tokenizer));
     }
+
+    pop(*nodes); // Nechceme last one
+
+    return nodes;
 }
 
 is_declaration :: (tokenizer: *Tokenizer) -> bool {
@@ -49,9 +87,17 @@ is_declaration :: (tokenizer: *Tokenizer) -> bool {
 
 is_directive :: (tokenizer: *Tokenizer) -> bool {
     if peek_token(tokenizer).char != #char "#" return false;
-    if peek_token(tokenizer).kind != .IDENTIFIER return false;
+    if peek_token(tokenizer, 1).kind != .IDENTIFIER return false;
     return true;
- }
+}
+
+parse_directive :: (tokenizer: *Tokenizer) -> Node {
+    node: Node;
+    node.kind = .DIRECTIVE;
+    node.directive.name = next_token(tokenizer).value;
+    print("Directive Node: %\n", node);
+    return node;
+}
 
 parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     node: Node;
@@ -60,23 +106,23 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     next_token(tokenizer); // :
     next_token(tokenizer); // :
     
-    content := next_token(tokenizer);
-
-    if content.kind == .NUMBER || content.kind == .STRING {
-
-
-        print("% :: %;\n", name.value, content.value);
-        
-        return node;
-    } 
+    content := peek_token(tokenizer, 1);
 
     if content.kind == .PUNCTUATION {
         print("% :: procedure;\n", name.value);
+        return .{};
     }
   
     if content.kind == .KEYWORD {
         print("% :: %;\n", name.value, content.keyword);
+        return .{};
     }
+
+    // constant
+
+    children := next_node_while(tokenizer, (token) => token.char != #char ";");
+
+    print("Contast name % child nodes: %\n", name.value, children);
 
     return .{};
 }

@@ -76,7 +76,7 @@ print_token :: (token: Token) {
 }
 
 is_operator :: inline (char: u8) -> bool {
-    return is_any(char, "+-/%$<>!=*");
+    return is_any(char, "+-/%$<>!=*#");
 }
 
 is_punctuation :: inline (char: u8) -> bool {
