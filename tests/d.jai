@@ -1,15 +1,14 @@
-age :: #neco 20;
-
+age :: #run 20;
 name :: "Patrik Smělý";
 
-say_hi :: () {
-    print("hello!");
+main :: () {
+    // print("hello!");
 }
 
 Person :: struct {
 
 }
 
-PersonType :: enum {
+Gender :: enum {
     
 }

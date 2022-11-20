@@ -18,6 +18,26 @@ main :: () {
     tokenizer := create_tokenizer(*iterator);
 
     while !end(*tokenizer) {
-        next_node(*tokenizer);
+        node := next_node(*tokenizer);
+
+        if node.kind == .UNDEFINED {
+            continue;
+        }
+        
+        print("Node: %\n", node);
     }
+}
+
+// Build
+#run {
+    #import "Compiler";
+    #import "File_Utilities";
+    #import "String";
+
+	make_directory_if_it_does_not_exist("./bin/");	
+
+    set_build_options_dc (.{ 
+        output_executable_name = "jai_lsp",
+		output_path = "./bin/"
+	});
 }
