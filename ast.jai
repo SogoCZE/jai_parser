@@ -60,7 +60,7 @@ next_node :: (tokenizer: *Tokenizer) -> Node {
     }
 
     if is_declaration(tokenizer) {
-        parse_declaration(tokenizer);
+        return parse_declaration(tokenizer);
     }
 
     return .{kind=.UNDEFINED};
@@ -95,7 +95,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> Node {
     node: Node;
     node.kind = .DIRECTIVE;
     node.directive.name = next_token(tokenizer).value;
-    print("Directive Node: %\n", node);
+
     return node;
 }
 
@@ -105,24 +105,28 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     name := peek_token(tokenizer);
     next_token(tokenizer); // :
     next_token(tokenizer); // :
-    
+
     content := peek_token(tokenizer, 1);
 
+    // Procedure
     if content.kind == .PUNCTUATION {
-        print("% :: procedure;\n", name.value);
         return .{};
     }
   
+    // Struct, Enum, Union
     if content.kind == .KEYWORD {
-        print("% :: %;\n", name.value, content.keyword);
+        
+ 
         return .{};
     }
 
-    // constant
+    // Constant
+    constant: Constant_Declaration;
+    constant.name = name.value;
+    constant.children = next_node_while(tokenizer, (token) => token.char != #char ";");
 
-    children := next_node_while(tokenizer, (token) => token.char != #char ";");
+    node.kind = .CONSTANT_DECLARATION;
+    node.constant_declaration = constant;
 
-    print("Contast name % child nodes: %\n", name.value, children);
-
-    return .{};
+    return node;
 }
