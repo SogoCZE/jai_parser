@@ -29,6 +29,11 @@ Struct_Declaration :: struct {
     children: []Node;
 }
 
+Enum_Declaration :: struct {
+    name: string;
+    children: []Node;
+}
+
 Struct_Member :: struct {
     name: string;
     type: string;
