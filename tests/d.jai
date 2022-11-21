@@ -6,7 +6,8 @@ main :: () {
 }
 
 Person :: struct {
-
+    name: string;
+    age: int;
 }
 
 Gender :: enum {

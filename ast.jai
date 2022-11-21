@@ -6,16 +6,18 @@ Node_Kind :: enum {
     DIRECTIVE;
     STRING;
     NUMBER;
-    UNDEFINED;
+    TOKEN;
 }
 
 Node :: struct {
     kind: Node_Kind; 
     union {
         struct_declaration: Struct_Declaration;
+        enum_declaration: Enum_Declaration;
         constant_declaration: Constant_Declaration;
         directive: Directive;
         value: string;
+        token: Token;
     }
 }
 
@@ -46,20 +48,6 @@ Directive :: struct {
 next_node :: (tokenizer: *Tokenizer) -> Node {
     token := next_token(tokenizer);
 
-    if token.kind == .STRING {
-        node: Node;
-        node.kind = .STRING;
-        node.value = token.value;
-        return node;
-    }
-
-    if token.kind == .NUMBER {
-        node: Node;
-        node.kind = .NUMBER;
-        node.value = token.value;
-        return node;
-    }
-    
     if is_directive(tokenizer) {
         return parse_directive(tokenizer);
     }
@@ -68,7 +56,15 @@ next_node :: (tokenizer: *Tokenizer) -> Node {
         return parse_declaration(tokenizer);
     }
 
-    return .{kind=.UNDEFINED};
+    if is_variable_declaration(tokenizer) {
+        return parse_variable_declaration(tokenizer);
+    }
+
+    node: Node;
+    node.kind = .TOKEN;
+    node.token = token;
+
+    return node;
 }
 
 next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) -> []Node {
@@ -96,6 +92,12 @@ is_directive :: (tokenizer: *Tokenizer) -> bool {
     return true;
 }
 
+is_variable_declaration :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer).kind != .IDENTIFIER return false;
+    if peek_token(tokenizer, 1).char != #char ":" return false;
+    return true;
+}
+
 parse_directive :: (tokenizer: *Tokenizer) -> Node {
     node: Node;
     node.kind = .DIRECTIVE;
@@ -120,9 +122,28 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
   
     // Struct, Enum, Union
     if content.kind == .KEYWORD {
-        
- 
-        return .{};
+        if content.keyword == .STRUCT {
+            _struct: Struct_Declaration;
+            _struct.name = name.value;
+            _struct.children = next_node_while(tokenizer, (token) => token.char != #char "}");
+
+            print("Children: %\n", _struct.children);
+
+            node.kind = .STRUCT_DECLARATION;
+            node.struct_declaration = _struct;
+        }
+
+        if content.keyword == .ENUM {
+            _enum: Enum_Declaration;
+            _enum.name = name.value;
+            _enum.children = next_node_while(tokenizer, (token) => token.char != #char "}");
+
+
+            node.kind = .ENUM_DECLARATION;
+            node.enum_declaration = _enum;
+        }
+
+        return node;
     }
 
     // Constant
@@ -134,4 +155,12 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
     node.constant_declaration = constant;
 
     return node;
+}
+
+parse_variable_declaration :: (tokenizer: *Tokenizer) -> Node {
+    name := peek_token(tokenizer);  
+    next_token(tokenizer); // :
+
+    children := next_node_while(tokenizer, (token) => token.char != #char ";");
+    print("Variable: %\n", children);
 }

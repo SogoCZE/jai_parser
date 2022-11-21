@@ -20,11 +20,12 @@ main :: () {
     while !end(*tokenizer) {
         node := next_node(*tokenizer);
 
-        if node.kind == .UNDEFINED {
-            continue;
+        if node.kind == .STRUCT_DECLARATION {
+            print("Struct: %\n", node.struct_declaration);
+        } else {
+            print("Node: %\n", node);
         }
-        
-        print("Node: %\n", node);
+
     }
 }
 
