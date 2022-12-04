@@ -117,7 +117,9 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
 
     // Procedure
     if content.kind == .PUNCTUATION {
-        return .{};
+        
+
+        return .{kind=.PROCEDURE_DECLARATION};
     }
   
     // Struct, Enum, Union
@@ -127,7 +129,7 @@ parse_declaration :: (tokenizer: *Tokenizer) -> Node {
             _struct.name = name.value;
             _struct.children = next_node_while(tokenizer, (token) => token.char != #char "}");
 
-            print("Children: %\n", _struct.children);
+            //print("Children: %\n", _struct.children);
 
             node.kind = .STRUCT_DECLARATION;
             node.struct_declaration = _struct;
@@ -162,5 +164,5 @@ parse_variable_declaration :: (tokenizer: *Tokenizer) -> Node {
     next_token(tokenizer); // :
 
     children := next_node_while(tokenizer, (token) => token.char != #char ";");
-    print("Variable: %\n", children);
+    //print("Variable: %\n", children);
 }
