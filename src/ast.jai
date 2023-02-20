@@ -130,8 +130,8 @@ parse_directive :: (tokenizer: *Tokenizer) -> Directive {
     return directive;
 }
 
-parse_declaration :: (tokenizer: *Tokenizer) -> *Node {
-    node := New(Node);
+parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
+    decl := New(Declaration);
     
     name := peek_token(tokenizer);
     next_token(tokenizer); // :
@@ -141,6 +141,8 @@ parse_declaration :: (tokenizer: *Tokenizer) -> *Node {
 
     // Procedure
     if content.kind == .PUNCTUATION || content.kind == .KEYWORD && content.keyword == .INLINE {
+
+
         return .{kind=.PROCEDURE};
     }
   
