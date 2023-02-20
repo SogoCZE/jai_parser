@@ -38,6 +38,7 @@ Keyword :: enum {
     CONTINUE; 
     IMPORT;
     LOAD;
+    INLINE;
 }
 
 Tokenizer :: struct {

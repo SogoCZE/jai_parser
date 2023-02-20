@@ -19,26 +19,7 @@ main :: () {
 
     while !end(*tokenizer) {
         node := next_node(*tokenizer);
-
-        if node.kind == .STRUCT_DECLARATION {
-            print("Struct: %\n", node.struct_declaration);
-        } else {
-            print("Node: %\n", node);
-        }
-
+        print("Kind: %\n", node.kind);
     }
 }
 
-// Build
-#run {
-    #import "Compiler";
-    #import "File_Utilities";
-    #import "String";
-
-	make_directory_if_it_does_not_exist("./bin/");	
-
-    set_build_options_dc (.{ 
-        output_executable_name = "jai_lsp",
-		output_path = "./bin/"
-	});
-}

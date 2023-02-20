@@ -1,15 +1,15 @@
-age :: #run 20;
-name :: "Patrik Smělý";
+// age :: #run 20;
+// name :: "Patrik Smělý";
 
-main :: () {
-    // print("hello!");
-}
+// main :: inline () {
+//     print("hello!");
+// }
 
 Person :: struct {
     name: string;
     age: int;
 }
 
-Gender :: enum {
+// Gender :: enum {
     
-}
+// }
