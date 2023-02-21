@@ -171,6 +171,8 @@ parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
             //_struct.name = name.value;
         }
 
+    
+
         if expression.keyword == .ENUM {
             _enum: Enum;
             //_enum.name = name.value;
