@@ -9,7 +9,6 @@ Node :: struct {
         PROCEDURE;
         PROCEDURE_CALL;
         TYPE_INSTANTIATION;
-        EXPRESSION;
         DIRECTIVE;
         LITERAL;
 
@@ -37,18 +36,14 @@ Declaration :: struct {
 }
 
 Block :: struct {
+    using #as node: Node;
+    kind = .BLOCK;
 
+    members: []*Node;
 }
 
 Type_Instantiation :: struct {
 
-}
-
-Expression :: struct {
-    using #as node: Node;
-    kind = .EXPRESSION;
-    
-    name: string;
 }
 
 Struct :: struct {
@@ -74,12 +69,22 @@ Directive :: struct {
     name: string;
 }
 
-next_node :: (tokenizer: *Tokenizer) -> Node {
+next_node :: (tokenizer: *Tokenizer) -> *Node {
     token := next_token(tokenizer);
 
     // if is_directive(tokenizer) {
     //     return parse_directive(tokenizer);
     // }
+
+    if is_start_block(tokenizer) {
+        return parse_block(tokenizer);
+    }
+
+    if is_type_inst(tokenizer) {
+        name := peek_token(tokenizer);
+        print("Type inst: %\n", name.value);
+        return null;
+    }
 
     if is_declaration(tokenizer) {
         return parse_declaration(tokenizer);
@@ -89,19 +94,40 @@ next_node :: (tokenizer: *Tokenizer) -> Node {
     //     return parse_variable_declaration(tokenizer);
     // }
 
-    return .{};
+    return null;
 }
 
-next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) -> []Node {
-    nodes: [..]Node;
+next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) -> []*Node {
+    nodes: [..]*Node;
 
     while !end(tokenizer) && predicate(peek_token(tokenizer)) {
-        array_add(*nodes, next_node(tokenizer));
+        node := next_node(tokenizer);
+        if !node continue;
+        array_add(*nodes, node);
     }
 
-    pop(*nodes); // Nechceme last one
+    if nodes.count > 1 pop(*nodes); // Nechceme last one
+
+    
 
     return nodes;
+}
+
+is_start_block :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer, 1).char != #char "{" return false;
+    return true;
+}
+
+is_end_block :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer).char != #char "}" return false;
+    return true;
+}
+
+is_type_inst :: (tokenizer: *Tokenizer) -> bool {
+    if peek_token(tokenizer).kind != .IDENTIFIER return false;
+    if peek_token(tokenizer, 1).char != #char ":" return false;
+    if peek_token(tokenizer, 2).char == #char ":" return false;
+    return true;
 }
 
 is_declaration :: (tokenizer: *Tokenizer) -> bool {
@@ -117,12 +143,6 @@ is_directive :: (tokenizer: *Tokenizer) -> bool {
     return true;
 }
 
-is_variable_declaration :: (tokenizer: *Tokenizer) -> bool {
-    if peek_token(tokenizer).kind != .IDENTIFIER return false;
-    if peek_token(tokenizer, 1).char != #char ":" return false;
-    return true;
-}
-
 parse_directive :: (tokenizer: *Tokenizer) -> Directive {
     directive: Directive;
     directive.name = next_token(tokenizer).value;
@@ -133,46 +153,43 @@ parse_directive :: (tokenizer: *Tokenizer) -> Directive {
 parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
     decl := New(Declaration);
     
-    name := peek_token(tokenizer);
+    decl.name = peek_token(tokenizer).value;
     next_token(tokenizer); // :
     next_token(tokenizer); // :
 
-    content := peek_token(tokenizer, 1);
+    expression := next_token(tokenizer);
 
     // Procedure
-    if content.kind == .PUNCTUATION || content.kind == .KEYWORD && content.keyword == .INLINE {
-
-
-        return .{kind=.PROCEDURE};
+    if expression.kind == .PUNCTUATION || expression.kind == .KEYWORD && expression.keyword == .INLINE {
+        return decl;
     }
   
     // Struct, Enum, Union
-    if content.kind == .KEYWORD {
-        if content.keyword == .STRUCT {
+    if expression.kind == .KEYWORD {
+        if expression.keyword == .STRUCT {
             _struct: Struct;
-            _struct.name = name.value;
+            //_struct.name = name.value;
         }
 
-        if content.keyword == .ENUM {
+        if expression.keyword == .ENUM {
             _enum: Enum;
-            _enum.name = name.value;
+            //_enum.name = name.value;
+
+            if is_start_block(tokenizer) {
+                parse_block(tokenizer);
+            }
         }
 
-        return node;
     }
 
     // Constant
-    expression: Expression;
-    expression.name = name.value;
     // constant.children = next_node_while(tokenizer, (token) => token.char != #char ";");
 
-    return node;
+    return decl;
 }
 
-parse_variable_declaration :: (tokenizer: *Tokenizer) -> Node {
-    name := peek_token(tokenizer);  
-    next_token(tokenizer); // :
-
-    children := next_node_while(tokenizer, (token) => token.char != #char ";");
-    //print("Variable: %\n", children);
-} 
+parse_block :: (tokenizer: *Tokenizer) -> *Block {
+    block := New(Block);
+    block.members = next_node_while(tokenizer, (token) => token.char != #char "}");
+    return block;
+}

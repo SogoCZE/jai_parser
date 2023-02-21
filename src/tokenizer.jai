@@ -1,5 +1,6 @@
 #import "Basic";
 #import "String";
+#import "Reflection";
 
 Token_Kind :: enum {
     UNKNOWN;
@@ -24,7 +25,7 @@ Token :: struct {
     }
 }
 
-Keyword :: enum {
+Keyword :: enum u8 {
     STRUCT;
     ENUM;
     UNION;

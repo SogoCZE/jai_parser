@@ -19,7 +19,15 @@ main :: () {
 
     while !end(*tokenizer) {
         node := next_node(*tokenizer);
-        print("Kind: %\n", node.kind);
+        if !node continue;
+
+        if node.kind == .DECLARATION {
+            decl := cast(*Declaration) node;
+            print("Decl: %\n", decl.name);
+        } else {
+            print("Kind: %\n", node.kind);
+        }
+        
     }
 }
 
