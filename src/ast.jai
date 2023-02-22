@@ -43,7 +43,16 @@ Block :: struct {
 }
 
 Type_Instantiation :: struct {
+    using #as node: Node;
+    kind = .TYPE_INSTANTIATION;
+}
 
+Procedure :: struct {
+    using #as node: Node;
+    kind = .PROCEDURE;
+
+    arguments: []*Node;
+    body: Block; // Body asi budemem uset defernout!
 }
 
 Struct :: struct {
@@ -81,18 +90,12 @@ next_node :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if is_type_inst(tokenizer) {
-        name := peek_token(tokenizer);
-        print("Type inst: %\n", name.value);
-        return null;
+        return parse_type_type_inst(tokenizer);
     }
 
     if is_declaration(tokenizer) {
         return parse_declaration(tokenizer);
     }
-
-    // if is_variable_declaration(tokenizer) {
-    //     return parse_variable_declaration(tokenizer);
-    // }
 
     return null;
 }
@@ -113,13 +116,8 @@ next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) ->
     return nodes;
 }
 
-is_start_block :: (tokenizer: *Tokenizer) -> bool {
-    if peek_token(tokenizer, 1).char != #char "{" return false;
-    return true;
-}
-
-is_end_block :: (tokenizer: *Tokenizer) -> bool {
-    if peek_token(tokenizer).char != #char "}" return false;
+is_start_block :: (tokenizer: *Tokenizer, $count := 0) -> bool {
+    if peek_token(tokenizer, count).char != #char "{" return false;
     return true;
 }
 
@@ -143,10 +141,22 @@ is_directive :: (tokenizer: *Tokenizer) -> bool {
     return true;
 }
 
+is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool {
+    peeked_token := peek_token(tokenizer);
+    if peeked_token.kind != .KEYWORD || peeked_token.keyword != keyword return false;
+    return true;
+}
+
+// TODO: inlined
+is_procedure :: (tokenizer: *Tokenizer) -> bool {
+    peeked_token := peek_token(tokenizer);
+    if peeked_token.kind != .PUNCTUATION || peeked_token.char != #char "(" return false;
+    return true; 
+}
+
 parse_directive :: (tokenizer: *Tokenizer) -> Directive {
     directive: Directive;
     directive.name = next_token(tokenizer).value;
-
     return directive;
 }
 
@@ -160,38 +170,73 @@ parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
     expression := next_token(tokenizer);
 
     // Procedure
-    if expression.kind == .PUNCTUATION || expression.kind == .KEYWORD && expression.keyword == .INLINE {
+    if is_procedure(tokenizer) {
+        decl.expression = parse_procedure(tokenizer);
         return decl;
     }
   
-    // Struct, Enum, Union
-    if expression.kind == .KEYWORD {
-        if expression.keyword == .STRUCT {
-            _struct: Struct;
-            //_struct.name = name.value;
-        }
-
-    
-
-        if expression.keyword == .ENUM {
-            _enum: Enum;
-            //_enum.name = name.value;
-
-            if is_start_block(tokenizer) {
-                parse_block(tokenizer);
-            }
-        }
-
+    if is_keyword(tokenizer, .STRUCT) {
+        decl.expression = parse_struct(tokenizer);
+        return decl;
     }
 
-    // Constant
-    // constant.children = next_node_while(tokenizer, (token) => token.char != #char ";");
+    if is_keyword(tokenizer, .ENUM) {
+        decl.expression = parse_enum(tokenizer);
+        return decl;
+    }
 
     return decl;
+}
+
+parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
+    procedure := New(Procedure);
+
+    procedure.arguments = next_node_while(tokenizer, (token) => token.char != #char ")");
+    
+    // TODO: returns!
+    // TODO: direktivy za procedurou
+
+    if is_start_block(tokenizer, 1) {
+        procedure.body = parse_block(tokenizer);
+    } else {
+        print("Error expected proceudre body!\n", to_standard_error = true);
+    }
+
+    return procedure;
+}
+
+parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
+    _struct := New(Struct);
+
+    if is_start_block(tokenizer, 1) {
+        _struct.block = parse_block(tokenizer);
+    } else {
+        print("Error expected struct body!\n", to_standard_error = true);
+    }
+
+    return _struct;
+}
+
+parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
+    _enum := New(Enum);
+
+    if is_start_block(tokenizer, 1) {
+        _enum.block = parse_block(tokenizer);
+    } else {
+        print("Error expected enum body!\n", to_standard_error = true);
+    }
+
+    return _enum;
 }
 
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block := New(Block);
     block.members = next_node_while(tokenizer, (token) => token.char != #char "}");
     return block;
+}
+
+parse_type_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
+    type_inst := New(Type_Instantiation);
+
+    return type_inst;
 }
