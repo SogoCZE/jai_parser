@@ -11,8 +11,6 @@ Node :: struct {
         TYPE_INSTANTIATION;
         DIRECTIVE;
         LITERAL;
-
-        // TOKEN;
     }
 
     Location :: struct {
@@ -142,16 +140,43 @@ is_directive :: (tokenizer: *Tokenizer) -> bool {
 }
 
 is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool {
-    peeked_token := peek_token(tokenizer);
-    if peeked_token.kind != .KEYWORD || peeked_token.keyword != keyword return false;
+    current_token := peek_token(tokenizer);
+    if current_token.kind != .KEYWORD || current_token.keyword != keyword return false;
     return true;
 }
 
 // TODO: inlined
 is_procedure :: (tokenizer: *Tokenizer) -> bool {
-    peeked_token := peek_token(tokenizer);
-    if peeked_token.kind != .PUNCTUATION || peeked_token.char != #char "(" return false;
+    current_token := peek_token(tokenizer);
+    if current_token.kind != .PUNCTUATION || current_token.char != #char "(" return false;
     return true; 
+}
+
+is_literal :: (tokenizer: *Tokenizer) -> bool {
+    current_token := peek_token(tokenizer);
+
+    // "string", 10, 30
+    if current_token.kind == .STRING || current_token.kind == .NUMBER return true;
+
+    // true, false
+    if current_token.kind == .KEYWORD && (current_token.keyword == .FALSE || current_token.keyword == .TRUE) return true; 
+
+    // .{}, .[], 
+    if current_token.kind == .PUNCTUATION && current_token.char == #char "." {
+        next_token := peek_token(tokenizer, 1);
+        if next_token.kind == .PUNCTUATION && (next_token.char == #char "{" || next_token.char == #char "[") return true;    
+    }
+
+    // Person.{}, Person.[]
+    if current_token.kind == .IDENTIFIER {
+        next_token := peek_token(tokenizer, 1);
+        if next_token.kind != .PUNCTUATION || next_token.char != #char "." return false;
+
+        next_token = peek_token(tokenizer, 2);
+        if next_token.kind == .PUNCTUATION && (next_token.char == #char "{" || next_token.char == #char "[") return true;    
+    }
+
+    return false;
 }
 
 parse_directive :: (tokenizer: *Tokenizer) -> Directive {
@@ -183,6 +208,10 @@ parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
     if is_keyword(tokenizer, .ENUM) {
         decl.expression = parse_enum(tokenizer);
         return decl;
+    }
+
+    if is_literal(tokenizer) {
+        print("literal!\n");
     }
 
     return decl;

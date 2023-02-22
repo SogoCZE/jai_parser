@@ -4,6 +4,7 @@
 
 Token_Kind :: enum {
     UNKNOWN;
+    NULL;
     KEYWORD;
     IDENTIFIER;
     PUNCTUATION;
@@ -39,6 +40,8 @@ Keyword :: enum u8 {
     IMPORT;
     LOAD;
     INLINE;
+    FALSE;
+    TRUE;
 }
 
 Tokenizer :: struct {
@@ -182,7 +185,7 @@ parse_comment :: (using iterator: *Iterator) -> Token {
 parse_identifier :: (using iterator: *Iterator) -> Token {
     token: Token;
     identifier := next_while(iterator, is_identifier_char);
-    identifier_uppercased := to_upper_copy(identifier);
+    identifier_uppercased := to_upper_copy(identifier); // TODO: není dobré, že tohle děláme protože pak jsou keywordy case-insensitive...
     keyword := contains_any_string(identifier_uppercased, ..enum_names(Keyword));
 
     if keyword {
