@@ -51,7 +51,7 @@ Tokenizer :: struct {
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     tokenizer: Tokenizer;
-    tokenizer.cursor = 0;
+    tokenizer.cursor = -1;
     
     while !end(iterator) {
         token := parse_next_token(iterator);

@@ -23,24 +23,8 @@ main :: () {
 
         if node.kind == .DECLARATION {
             decl := cast(*Declaration) node;
-
-            if !decl.expression continue;
-
-            print("expression kind = %\n", decl.expression.kind);
-
-            if decl.expression.kind == {
-                case .PROCEDURE;
-                    proc := cast(*Procedure) decl.expression;
-
-                    print("Proc: %\n", decl.name);
-                    for argument: proc.arguments {
-                        print("Argument: %\n", argument.kind);
-                    }
-            }
-        } else {
-            print("Kind: %\n", node.kind);
         }
-        
+
     }
 }
 

@@ -29,7 +29,7 @@ Declaration :: struct {
 
     name: string;
 
-    type_inst: *Node;
+    type_inst: *Type_Instantiation;
     expression: *Node;
 }
 
@@ -43,6 +43,8 @@ Block :: struct {
 Type_Instantiation :: struct {
     using #as node: Node;
     kind = .TYPE_INSTANTIATION;
+
+    result: string; 
 }
 
 Procedure :: struct {
@@ -82,7 +84,7 @@ Literal :: struct {
 }
 
 next_node :: (tokenizer: *Tokenizer) -> *Node {
-    //token := next_token(tokenizer);
+    token := next_token(tokenizer);
 
     if is_procedure(tokenizer) {
         return parse_procedure(tokenizer);
@@ -104,7 +106,8 @@ next_node :: (tokenizer: *Tokenizer) -> *Node {
         return parse_declaration(tokenizer);
     }
 
-    next_token(tokenizer);
+    // print("Skipped:");
+    // print_token(token);
 
     return null;
 }
@@ -118,7 +121,12 @@ next_node_while :: (tokenizer: *Tokenizer, predicate: (token: Token) -> bool) ->
         array_add(*nodes, node);
     }
 
-    next_token(tokenizer); // Skip end token
+    while_skipped := next_token(tokenizer); // Skip end token
+
+    print("next_node_while skipped:");
+    if while_skipped {
+        print_token(while_skipped);
+    }
 
     return nodes;
 }
@@ -193,25 +201,26 @@ parse_directive :: (tokenizer: *Tokenizer) -> Directive {
 // Decl: type_inst = expression;
 parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
     decl := New(Declaration);
-    
-    decl.name = next_token(tokenizer).value;
-    next_token(tokenizer); // :
 
-    token := next_token(tokenizer);
+    decl.name = peek_token(tokenizer).value;
+
+    print("Decl %\n", decl.name);
+
+    next_token(tokenizer); // skip :
+
+    token := peek_token(tokenizer, 1);
 
     // Decl :: expression, Decl := expression
     if token.kind == .PUNCTUATION && (token.char == #char ":" || token.char == #char "=") {
+        next_token(tokenizer); // skip :,=
         decl.expression = next_node(tokenizer);
         return decl;
     } 
 
-    decl.type_inst = next_node(tokenizer);
+    decl.type_inst = parse_type_inst(tokenizer);
 
     // Decl: type_inst;
-    token = peek_token(tokenizer);
-    if token.kind == .PUNCTUATION && token.char == #char ";" {
-        return decl;
-    }
+    token = peek_token(tokenizer, 1);
 
     // Decl: type_inst = expression;
     if token.kind == .PUNCTUATION && token.char == #char "=" {
@@ -227,9 +236,17 @@ parse_declaration :: (tokenizer: *Tokenizer) -> *Declaration {
 parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     procedure := New(Procedure);
 
-    next_token(tokenizer); // (
+    // next_token(tokenizer); // (
 
     procedure.arguments = next_node_while(tokenizer, token => token.char != #char ")");
+
+    print("Children (%): ", procedure.arguments.count);
+
+    for procedure.arguments {
+        print("%, ", it.kind);
+    }
+
+    print("\n");
 
     // TODO: returns!
     // TODO: direktivy za procedurou
@@ -237,7 +254,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     if is_block(tokenizer) {
         procedure.body = parse_block(tokenizer);
     } else {
-        print("Error expected procedure body! %\n", to_string(*(<<peek_token(tokenizer)).char), to_standard_error = true);
+        print("Error expected procedure body!\n", to_standard_error = true);
     }
 
     return procedure;
@@ -245,8 +262,6 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
 
 parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
     _struct := New(Struct);
-
-    next_token(tokenizer);
 
     if is_block(tokenizer) {
         _struct.block = parse_block(tokenizer);
@@ -260,8 +275,6 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
 parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
     _enum := New(Enum);
 
-    next_token(tokenizer);
-
     if is_block(tokenizer) {
         _enum.block = parse_block(tokenizer);
     } else {
@@ -272,15 +285,26 @@ parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
 }
 
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
-    next_token(tokenizer);
+    //next_token(tokenizer);
 
     block := New(Block);
-    block.members = next_node_while(tokenizer, (token) => token.char != #char "}");
+    block.members = next_node_while(tokenizer, token => token.char != #char "}");
+    print_token(peek_token(tokenizer));
     return block;
 }
 
-parse_type_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
+parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
     type_inst := New(Type_Instantiation);
+
+
+    token := next_token(tokenizer);
+
+    if token.kind == .IDENTIFIER {
+        type_inst.result = token.value;
+        // return type_inst;
+    } 
+
+    print("Type inst! (%)\n", type_inst.result);
 
     return type_inst;
 }
