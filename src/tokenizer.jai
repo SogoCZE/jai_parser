@@ -51,7 +51,7 @@ Tokenizer :: struct {
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     tokenizer: Tokenizer;
-    tokenizer.cursor = -1;
+    tokenizer.cursor = 0;
     
     while !end(iterator) {
         token := parse_next_token(iterator);
@@ -108,19 +108,19 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
-next_token :: (using tokenizer: *Tokenizer) -> Token {
-    assert(!end(tokenizer));
+next_token :: (using tokenizer: *Tokenizer) -> *Token {
+    if end(tokenizer) return null;
     cursor += 1;
-    return tokens[cursor];
+    return *tokens[cursor];
 }
 
 end :: (using tokenizer: *Tokenizer) -> bool {
     return cursor + 1 >= tokens.count;
 }
 
-peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> Token {
-    assert(cursor + count <= tokens.count);
-    return tokens[cursor+count];
+peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
+    if cursor + count >= tokens.count return null;
+    return *tokens[cursor+count];
 }
 
 parse_next_token :: (iterator: *Iterator) -> Token {

@@ -1,3 +1,4 @@
+/* 
 Person :: struct {
     name: string;
     age: int;
@@ -9,16 +10,20 @@ RESTRICTED_AGE :: 18;
 PI :: 3.14159265359;
 // Komentář
 
-/* 
     Více 
     řádkový
     Komentář
-*/
+
 
 Gender :: enum {
     Male;
     Woman;
     Other;
+}
+*/
+
+some :: (age: int, name: string) {
+    
 }
 
 main :: () {
