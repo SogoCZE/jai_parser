@@ -237,7 +237,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     if is_block(tokenizer) {
         procedure.body = parse_block(tokenizer);
     } else {
-        print("Error expected procedure body! %\n", to_string(*(<<peek_token(tokenizer)).char, 1), to_standard_error = true);
+        print("Error expected procedure body! %\n", to_string(*(<<peek_token(tokenizer)).char), to_standard_error = true);
     }
 
     return procedure;

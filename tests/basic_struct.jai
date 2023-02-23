@@ -22,9 +22,9 @@ Gender :: enum {
 }
 */
 
-some :: (age: int, name: string) {
+/*some :: (age: int, name: string) {
     
-}
+}*/
 
 main :: () {
 
