@@ -3,7 +3,7 @@
 
 #load "iterator.jai";
 #load "tokenizer.jai";
-#load "ast.jai";
+#load "parser.jai";
 
 main :: () {
     cmd_arguments := get_command_line_arguments();
@@ -18,7 +18,7 @@ main :: () {
     tokenizer := create_tokenizer(*iterator);
 
     while !end(*tokenizer) {
-        node := next_node(*tokenizer);
+        node := parse(*tokenizer);
         if !node continue;
 
         if node.kind == .DECLARATION {

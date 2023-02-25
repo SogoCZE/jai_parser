@@ -51,7 +51,7 @@ Tokenizer :: struct {
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     tokenizer: Tokenizer;
-    tokenizer.cursor = -1;
+    tokenizer.cursor = 0;
     
     while !end(iterator) {
         token := parse_next_token(iterator);
@@ -108,10 +108,28 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
-next_token :: (using tokenizer: *Tokenizer) -> *Token {
+eat_token :: (using tokenizer: *Tokenizer) -> *Token {
     if end(tokenizer) return null;
     cursor += 1;
-    return *tokens[cursor];
+    return *tokens[cursor-1];
+}
+
+eat_identifier :: (tokenizer: *Tokenizer) -> *Token {
+    token := eat_token(tokenizer);
+    assert(token.kind == .IDENTIFIER);
+    return token;
+}
+
+eat_punction :: (tokenizer: *Tokenizer, punction: u8) -> *Token {
+    token := eat_token(tokenizer);
+    assert(token.kind == .PUNCTUATION && token.char == punction);
+    return token;
+}   
+
+eat_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> *Token {
+    token := eat_token(tokenizer);
+    assert(token.kind == .KEYWORD && token.keyword == keyword);
+    return token;
 }
 
 end :: (using tokenizer: *Tokenizer) -> bool {
@@ -121,6 +139,20 @@ end :: (using tokenizer: *Tokenizer) -> bool {
 peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
     if cursor + count >= tokens.count return null;
     return *tokens[cursor+count];
+}
+
+is_punctuation :: (tokenizer: *Tokenizer, char: u8) -> bool {
+    token := peek_token(tokenizer);
+    return token.kind == .PUNCTUATION && token.char == char;
+}
+
+is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool  {
+    token := peek_token(tokenizer);
+    return token.kind == .KEYWORD && token.keyword == keyword;
+}
+
+is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
+    return peek_token(tokenizer).kind == .IDENTIFIER;
 }
 
 parse_next_token :: (iterator: *Iterator) -> Token {
