@@ -16,7 +16,8 @@ create_iterator :: (source: string, file_path: string) -> Iterator {
 }
 
 next :: (using iterator: *Iterator) -> u8 {
-    assert(buffer.count != 0);
+    if buffer.count == 0 return 0;
+    // assert(buffer.count != 0);
 
     char := buffer[0];
     advance(*buffer);
@@ -32,7 +33,8 @@ next :: (using iterator: *Iterator) -> u8 {
 }
 
 peek :: (using iterator: *Iterator, to := 1) -> u8 {
-    assert(buffer.count > to-1);
+    if buffer.count <= to-1 return 0;
+    // assert(buffer.count > to-1);
     return buffer[to-1];
 }
 

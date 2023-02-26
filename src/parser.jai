@@ -60,7 +60,6 @@ Struct :: struct {
     kind = .STRUCT;
 
     block: *Block;
-    name: string;
 }
 
 Enum :: struct {
@@ -68,7 +67,6 @@ Enum :: struct {
     kind = .ENUM;
 
     block: *Block;
-    name: string;
 }
 
 Directive :: struct {
@@ -81,33 +79,47 @@ Directive :: struct {
 Literal :: struct {
     using #as node: Node; 
     kind = .LITERAL;
-}
 
-
-delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8) -> []*Node {
-    nodes: [..]*Node;
-
-    eat_punction(tokenizer, open);
-
-    while !end(tokenizer) {
-        if is_punctuation(tokenizer, close) break;
-
-        node := parse(tokenizer);
-        if node == null continue;
-        array_add(*nodes, node);
-        
-        if is_punctuation(tokenizer, close) break;
+    value_type: enum s16 {
+        UNINITIALIZED :: 0;
+        NUMBER        :: 1;
+        STRING        :: 2;
+        TRUE          :: 4;
+        FALSE         :: 5;
+        ARRAY         :: 6;
+        STRUCT        :: 7;
+        POINTER       :: 8;
+        // DATA_FIELD_PLUS_OFFSET :: 9;
     }
 
-    eat_punction(tokenizer, close);
-
-    print_token(peek_token(tokenizer));
-
-    return nodes;
+    using values: union {
+        _string:  string;
+        _float64: float64;
+        _s64:     s64;
+        _u64:     u64;
+        
+        struct\_literal_info: *Struct\_Literal_Info;
+        array\ _literal_info: *Array\ _Literal_Info;
+        pointer_literal_info: *Pointer_Literal_Info;
+    };
 }
 
+Struct_Literal_Info :: struct {
+    type_expression: *Type_Instantiation;  // May be null if it's the unary dot version of struct literals.
+    arguments: [] *Node;
+}
 
-delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8) -> []*Node {
+Array_Literal_Info :: struct {
+    element_type: *Type_Instantiation;
+    // alignment: *Node;
+    array_members: [] *Node;
+}
+
+Pointer_Literal_Info :: struct {
+    // TODO: ?
+}
+
+delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
 
     eat_punction(tokenizer, open);
@@ -115,8 +127,8 @@ delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8) -> []*N
     while !end(tokenizer) {
         if is_punctuation(tokenizer, close) break;
 
-        if is_punctuation(tokenizer, seperator) {
-            eat_token(tokenizer);
+        if seperator != 0 && is_punctuation(tokenizer, seperator) {
+            eat_punction(tokenizer, seperator);
             continue;
         }
 
@@ -153,10 +165,22 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_procedure(tokenizer);
     }
 
+    if is_keyword(tokenizer, .STRUCT) {
+        return parse_struct(tokenizer);
+    }
+    
+    if is_keyword(tokenizer, .ENUM) {
+        return parse_enum(tokenizer);
+    }
+
+    // print("Eaten non match:\n");
+    // print_token(eat_token(tokenizer));
+
     eat_token(tokenizer);
 
     return null;
 }
+
 
 parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
     decl := New(Declaration);
@@ -169,25 +193,29 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
         eat_punction(tokenizer, #char ":");
         print("% :: exp\n", decl.name);
         decl.expression = parse(tokenizer);
+        return decl;
     }
 
     if is_operator(tokenizer, #char "=") {
         print("% := exp\n", decl.name);
+        decl.expression = parse(tokenizer);
+        return decl;
     }
 
     if is_identifier(tokenizer) {
         print("%: type_inst\n", decl.name);
+        decl.type_inst = parse_type_inst(tokenizer);
+        return decl;
     }
 
     return decl;
 }
 
+// Pravá
 parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     proc := New(Procedure);
 
     proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
-
-    print("Argument count: %\n", proc.arguments.count);
 
     if is_punctuation(tokenizer, #char "{") {
         proc.body = parse_block(tokenizer);
@@ -199,11 +227,45 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     return proc;
 }
 
+parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
+    _struct := New(Struct);
+
+    eat_keyword(tokenizer, .STRUCT);
+
+    if is_punctuation(tokenizer, #char "{") {
+        _struct.block = parse_block(tokenizer);
+    } else {
+        print("Exprected struct body! Got:");
+        print_token(peek_token(tokenizer));
+    }
+
+    return _struct;
+}
+
+parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
+    _enum := New(Enum);
+
+    eat_keyword(tokenizer, .ENUM);
+
+    if is_punctuation(tokenizer, #char "{") {
+        _enum.block = parse_block(tokenizer);
+    } else {
+        print("Exprected enum body! Got:");
+        print_token(peek_token(tokenizer));
+    }
+
+    return _enum;
+}
+
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block := New(Block);
-    
     block.members = delimeted(tokenizer, #char "{", #char "}");
-
     return block;
+}
+
+parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
+    type_inst := New(Type_Instantiation);
+    type_inst.result = eat_identifier(tokenizer).value;
+    return type_inst;
 }
  

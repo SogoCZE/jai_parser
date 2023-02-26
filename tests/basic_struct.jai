@@ -1,7 +1,7 @@
-// Person :: struct {
-//     name: string;
-//     age: int;
-// }
+Person :: struct {
+    name: string;
+    age: int;
+}
 
 // TOKEN :: "x60992xllop";
 // ESCAPED_STRING :: ">>> 20202 Some string inside string \"haha!\";";
@@ -22,7 +22,7 @@
 
 jej := "d";
 
-some :: (age: int, name: string) {
+parse :: (file: string, line: int, column: int) {
     
 }
 
