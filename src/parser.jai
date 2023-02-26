@@ -83,6 +83,55 @@ Literal :: struct {
     kind = .LITERAL;
 }
 
+
+delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8) -> []*Node {
+    nodes: [..]*Node;
+
+    eat_punction(tokenizer, open);
+
+    while !end(tokenizer) {
+        if is_punctuation(tokenizer, close) break;
+
+        node := parse(tokenizer);
+        if node == null continue;
+        array_add(*nodes, node);
+        
+        if is_punctuation(tokenizer, close) break;
+    }
+
+    eat_punction(tokenizer, close);
+
+    print_token(peek_token(tokenizer));
+
+    return nodes;
+}
+
+
+delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8) -> []*Node {
+    nodes: [..]*Node;
+
+    eat_punction(tokenizer, open);
+
+    while !end(tokenizer) {
+        if is_punctuation(tokenizer, close) break;
+
+        if is_punctuation(tokenizer, seperator) {
+            eat_token(tokenizer);
+            continue;
+        }
+
+        node := parse(tokenizer);
+        if node == null continue;
+        array_add(*nodes, node);
+
+        if is_punctuation(tokenizer, close) break;
+    }
+
+    eat_punction(tokenizer, close);
+
+    return nodes;
+}
+
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_identifier(tokenizer) {
@@ -100,10 +149,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
     }
 
-    eat_token(tokenizer);
+    if is_punctuation(tokenizer, #char "(") { 
+        return parse_procedure(tokenizer);
+    }
 
-    // print("Skipped:");
-    // print_token(token);
+    eat_token(tokenizer);
 
     return null;
 }
@@ -116,10 +166,12 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
     eat_punction(tokenizer, #char ":"); 
 
     if is_punctuation(tokenizer, #char ":") {
+        eat_punction(tokenizer, #char ":");
         print("% :: exp\n", decl.name);
+        decl.expression = parse(tokenizer);
     }
 
-    if is_punctuation(tokenizer, #char "=") {
+    if is_operator(tokenizer, #char "=") {
         print("% := exp\n", decl.name);
     }
 
@@ -127,7 +179,31 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
         print("%: type_inst\n", decl.name);
     }
 
-
-
     return decl;
 }
+
+parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
+    proc := New(Procedure);
+
+    proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+
+    print("Argument count: %\n", proc.arguments.count);
+
+    if is_punctuation(tokenizer, #char "{") {
+        proc.body = parse_block(tokenizer);
+    } else {
+        print("Exprected procedure body! Got:");
+        print_token(peek_token(tokenizer));
+    }
+
+    return proc;
+}
+
+parse_block :: (tokenizer: *Tokenizer) -> *Block {
+    block := New(Block);
+    
+    block.members = delimeted(tokenizer, #char "{", #char "}");
+
+    return block;
+}
+ 

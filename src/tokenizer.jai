@@ -116,18 +116,28 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
 
 eat_identifier :: (tokenizer: *Tokenizer) -> *Token {
     token := eat_token(tokenizer);
+    if token == null return null;
     assert(token.kind == .IDENTIFIER);
     return token;
 }
 
 eat_punction :: (tokenizer: *Tokenizer, punction: u8) -> *Token {
     token := eat_token(tokenizer);
+    if token == null return null;
     assert(token.kind == .PUNCTUATION && token.char == punction);
+    return token;
+} 
+
+eat_operator :: (tokenizer: *Tokenizer, char: u8) -> *Token {
+    token := eat_token(tokenizer);
+    if token == null return null;
+    assert(token.kind == .OPERATOR && token.char == char);
     return token;
 }   
 
 eat_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> *Token {
     token := eat_token(tokenizer);
+    if token == null return null;
     assert(token.kind == .KEYWORD && token.keyword == keyword);
     return token;
 }
@@ -144,6 +154,11 @@ peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
 is_punctuation :: (tokenizer: *Tokenizer, char: u8) -> bool {
     token := peek_token(tokenizer);
     return token.kind == .PUNCTUATION && token.char == char;
+}
+
+is_operator :: (tokenizer: *Tokenizer, char: u8) -> bool {
+    token := peek_token(tokenizer);
+    return token.kind == .OPERATOR && token.char == char;
 }
 
 is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool  {
