@@ -44,7 +44,7 @@ print_decl :: (decl: *Declaration) {
                     print_decl(xx argument);
                 }
                 
-                printo(")");
+                printo(") ");
                 print_block(*proc.body);
             case .ENUM;
                 printo("% :: enum", decl.name);
@@ -55,12 +55,12 @@ print_decl :: (decl: *Declaration) {
     }
 
     if !decl.expression && decl.type_inst {
-        printo("%: %;", decl.name, decl.type_inst.kind);
+        printo("%: %", decl.name, decl.type_inst.result);
         return;
     }
 
     if decl.expression && decl.type_inst {
-        printo("%: % = %;", decl.name, decl.type_inst.kind, decl.expression.kind);            
+        printo("%: % = %", decl.name, decl.type_inst.kind, decl.expression.kind);            
     }
 }
 
