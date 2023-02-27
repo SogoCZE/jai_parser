@@ -3,6 +3,7 @@
 Person :: struct {
     name: string;
     age: int;
+    age: int;
 }
 
 // TOKEN :: "x60992xllop";

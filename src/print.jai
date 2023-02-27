@@ -13,38 +13,55 @@ printo :: (format: string, args: ..Any) {
 } @PrintLike
 
 print_node :: (node: *Node) {
-        if node.kind == .DECLARATION {
-            decl := cast(*Declaration) node;
+    if node.kind == {
+        case .DECLARATION;
+            print_decl(xx node);
+            print("\n");
+    }
+}
 
-            if decl.expression && decl.type_inst == null {
+print_decl :: (decl: *Declaration) {
+    if decl.expression && decl.type_inst == null {
 
-                if decl.expression.kind == {
-                    case .STRUCT;
-                        printo("% :: struct ", decl.name);
-                        _struct := cast(*Struct) decl.expression;
-                        print_block(_struct.block);
-                    case .PROCEDURE;
-                        printo("% :: ()", decl.name);
-                        proc := cast(*Procedure) decl.expression;
-                        print_block(*proc.body);
-                    case .ENUM;
-                        printo("% :: enum\n", decl.name);
-                } 
+        if decl.expression.kind == {
+            case .STRUCT;
+                printo("% :: struct ", decl.name);
+                _struct := cast(*Struct) decl.expression;
+                print_block(_struct.block);
+            case .PROCEDURE;
+                proc := cast(*Procedure) decl.expression;
+                printo("% :: (", decl.name);
+                
+                first := true;
+
+                for argument: proc.arguments {
+                    if first {
+                        first = false;
+                    } else {
+                        print(", ");
+                    }
+                    
+                    print_decl(xx argument);
+                }
+                
+                printo(")");
+                print_block(*proc.body);
+            case .ENUM;
+                printo("% :: enum", decl.name);
+        } 
 
 
-                return;
-            }
+        return;
+    }
 
-            if !decl.expression && decl.type_inst {
-                printo("%: %;\n", decl.name, decl.type_inst.kind);
-                return;
-            }
+    if !decl.expression && decl.type_inst {
+        printo("%: %;", decl.name, decl.type_inst.kind);
+        return;
+    }
 
-            if decl.expression && decl.type_inst {
-                printo("%: % = %;\n", decl.name, decl.type_inst.kind, decl.expression.kind);            
-            }
-
-        }
+    if decl.expression && decl.type_inst {
+        printo("%: % = %;", decl.name, decl.type_inst.kind, decl.expression.kind);            
+    }
 }
 
 print_block :: (block: *Block) {
