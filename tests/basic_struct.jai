@@ -1,4 +1,4 @@
-#import "Basic";
+// #import "Basic";
 
 Person :: struct {
     name: string;
@@ -22,7 +22,7 @@ Person :: struct {
 //     Other;
 // }
 
-jej := "d";
+// jej := "d";
 
 parse :: (file: string, line: int, column: int) {
     

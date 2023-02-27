@@ -239,11 +239,18 @@ parse_comment :: (using iterator: *Iterator) -> Token {
 parse_identifier :: (using iterator: *Iterator) -> Token {
     token: Token;
     identifier := next_while(iterator, is_identifier_char);
-    identifier_uppercased := to_upper_copy(identifier); // TODO: není dobré, že tohle děláme protože pak jsou keywordy case-insensitive...
-    keyword := contains_any_string(identifier_uppercased, ..enum_names(Keyword));
+    keyword := false;
+
+    for keyword_name: enum_names(Keyword) {
+        if identifier == to_lower_copy(keyword_name) {
+            keyword = true;
+            break;
+        }
+    }
 
     if keyword {
         token.kind = .KEYWORD;
+        identifier_uppercased := to_upper_copy(identifier);
         enum_value, ok := enum_name_to_value(Keyword, identifier_uppercased);
         assert(ok, "invalid keyword %", identifier_uppercased);
         token.keyword = enum_value;

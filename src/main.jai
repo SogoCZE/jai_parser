@@ -4,6 +4,7 @@
 #load "iterator.jai";
 #load "tokenizer.jai";
 #load "parser.jai";
+#load "print.jai";
 
 main :: () {
     cmd_arguments := get_command_line_arguments();
@@ -17,26 +18,15 @@ main :: () {
     iterator := create_iterator(read_entire_file(cmd_arguments[1]), cmd_arguments[1]);
     tokenizer := create_tokenizer(*iterator);
 
+    nodes: [..]*Node;
+
     while !end(*tokenizer) {
         node := parse(*tokenizer);
         if !node continue;
-
-        if node.kind == .DECLARATION {
-            decl := cast(*Declaration) node;
-
-            if decl.expression && !decl.type_inst {
-                print("% :: exp\n", decl.name);
-                continue;
-            }
-
-            if !decl.expression && decl.type_inst {
-                print("%: type_inst;\n", decl.name);
-                continue;
-            }
-
-            print("%: type_inst = exp;\n", decl.name);            
-
-        }
-
+        array_add(*nodes, node);
     }
+
+    print("\n-- AST -- \n\n");
+    for nodes print_node(it);
 }
+

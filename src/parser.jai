@@ -214,19 +214,29 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
 
     eat_punction(tokenizer, #char ":"); 
 
+    // decl :: exp;
     if is_punctuation(tokenizer, #char ":") {
         eat_punction(tokenizer, #char ":");
         decl.expression = parse(tokenizer);
+
         return decl;
     }
 
+    // decl := exp;
     if is_operator(tokenizer, #char "=") {
         decl.expression = parse(tokenizer);
         return decl;
     }
 
+    // decl: type_inst;
     if is_identifier(tokenizer) {
         decl.type_inst = parse_type_inst(tokenizer);
+
+        // decl: type_inst = exp;
+        if is_punctuation(tokenizer, #char "=") {
+            decl.expression = parse(tokenizer);
+        }
+
         return decl;
     }
 
