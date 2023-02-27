@@ -23,6 +23,19 @@ main :: () {
 
         if node.kind == .DECLARATION {
             decl := cast(*Declaration) node;
+
+            if decl.expression && !decl.type_inst {
+                print("% :: exp\n", decl.name);
+                continue;
+            }
+
+            if !decl.expression && decl.type_inst {
+                print("%: type_inst;\n", decl.name);
+                continue;
+            }
+
+            print("%: type_inst = exp;\n", decl.name);            
+
         }
 
     }

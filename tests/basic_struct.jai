@@ -1,3 +1,5 @@
+#import "Basic";
+
 Person :: struct {
     name: string;
     age: int;

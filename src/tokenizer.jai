@@ -121,6 +121,13 @@ eat_identifier :: (tokenizer: *Tokenizer) -> *Token {
     return token;
 }
 
+eat_string :: (tokenizer: *Tokenizer) -> *Token {
+    token := eat_token(tokenizer);
+    if token == null return null;
+    assert(token.kind == .STRING);
+    return token;
+}
+
 eat_punction :: (tokenizer: *Tokenizer, punction: u8) -> *Token {
     token := eat_token(tokenizer);
     if token == null return null;

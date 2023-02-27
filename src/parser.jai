@@ -10,6 +10,7 @@ Node :: struct {
         PROCEDURE_CALL;
         TYPE_INSTANTIATION;
         DIRECTIVE;
+        IMPORT_OR_LOAD;
         LITERAL;
     }
 
@@ -55,6 +56,14 @@ Procedure :: struct {
     body: Block; // Body asi budemem uset defernout!
 }
 
+Procedure_Call :: struct {
+    using #as node: Node;
+    kind = .PROCEDURE_CALL;
+
+    name: string;
+    arguments: [] *Node;
+}
+
 Struct :: struct {
     using #as node: Node; 
     kind = .STRUCT;
@@ -74,6 +83,14 @@ Directive :: struct {
     kind = .DIRECTIVE;
 
     name: string;
+}
+
+Import_Or_Load :: struct {
+    using #as node: Node; 
+    kind = .IMPORT_OR_LOAD;
+
+    load: bool;
+    file: string;
 }
 
 Literal :: struct {
@@ -119,6 +136,7 @@ Pointer_Literal_Info :: struct {
     // TODO: ?
 }
 
+
 delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -149,10 +167,8 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     if is_identifier(tokenizer) {
         ident := eat_identifier(tokenizer);
 
-        // Declaration
-        // Statement
         if is_punctuation(tokenizer, #char "(") {
-            print("procedure call!\n");
+            return parse_procedure_call(ident.value, tokenizer);
         }
 
         if is_punctuation(tokenizer, #char ":") {
@@ -173,6 +189,15 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_enum(tokenizer);
     }
 
+    // Directive
+    if is_operator(tokenizer, #char "#") {
+        return parse_directive(tokenizer);
+    }
+
+    if peek_token(tokenizer).kind == .STRING {
+    
+    }
+
     // print("Eaten non match:\n");
     // print_token(eat_token(tokenizer));
 
@@ -191,19 +216,16 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
 
     if is_punctuation(tokenizer, #char ":") {
         eat_punction(tokenizer, #char ":");
-        print("% :: exp\n", decl.name);
         decl.expression = parse(tokenizer);
         return decl;
     }
 
     if is_operator(tokenizer, #char "=") {
-        print("% := exp\n", decl.name);
         decl.expression = parse(tokenizer);
         return decl;
     }
 
     if is_identifier(tokenizer) {
-        print("%: type_inst\n", decl.name);
         decl.type_inst = parse_type_inst(tokenizer);
         return decl;
     }
@@ -211,7 +233,6 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
     return decl;
 }
 
-// Pravá
 parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     proc := New(Procedure);
 
@@ -269,3 +290,32 @@ parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
     return type_inst;
 }
  
+parse_procedure_call :: (procedure_name: string, tokenizer: *Tokenizer) -> *Procedure_Call {
+    proc_call := New(Procedure_Call);
+    proc_call.name = procedure_name;
+    proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    return proc_call;
+}
+
+parse_directive :: (tokenizer: *Tokenizer) -> *Node {
+    eat_operator(tokenizer, #char "#");
+
+    if is_keyword(tokenizer, .IMPORT) {
+        return parse_import_or_load(tokenizer, false);
+    }
+
+    if is_keyword(tokenizer, .LOAD) {
+        return parse_import_or_load(tokenizer, true);
+    }
+
+    // TODO:
+
+    return null;
+}
+
+parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
+    import_or_load := New(Import_Or_Load);
+    eat_keyword(tokenizer, ifx load then Keyword.LOAD else .IMPORT);
+    import_or_load.file = eat_string(tokenizer).value;
+    return import_or_load;
+}
