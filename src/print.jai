@@ -13,8 +13,12 @@ printo :: (format: string, args: ..Any) {
 } @PrintLike
 
 print_node :: (node: *Node) {
-        if node.kind == .DECLARATION {
-            decl := cast(*Declaration) node;
+    if node.kind == {
+        case .DECLARATION;
+            print_decl(xx node);
+            print("\n");
+    }
+}
 
             if decl.expression && !decl.type_inst {
 
@@ -43,19 +47,17 @@ print_node :: (node: *Node) {
                 } 
 
 
-                return;
-            }
+        return;
+    }
 
             if !decl.expression && decl.type_inst {
                 printo("%: %;\n", decl.name, decl.type_inst.result);
                 return;
             }
 
-            if decl.expression && decl.type_inst {
-                printo("%: % = %;\n", decl.name, decl.type_inst.kind, decl.expression.kind);            
-            }
-
-        }
+    if decl.expression && decl.type_inst {
+        printo("%: % = %", decl.name, decl.type_inst.kind, decl.expression.kind);            
+    }
 }
 
 print_literal :: (literal: *Literal) {

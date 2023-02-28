@@ -273,6 +273,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
     next(iterator); // Přeskočíme první uvozovku
     escaped := false;
 
+
     builder: String_Builder;
     init_string_builder(*builder);
     
