@@ -301,7 +301,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
 
 parse_digit :: (using iterator: *Iterator) -> Token {
     token: Token;
-    number := next_while(iterator, char => is_digit(char) || char == #char ".");
+    number := next_while(iterator, char => is_digit(char) || char == #char "." || char == #char "_");
 
     token.kind = .NUMBER;
     token.value = number;

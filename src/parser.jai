@@ -363,6 +363,8 @@ parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
             eat_keyword(tokenizer, .FALSE);
         case .NUMBER;
             number := eat_number(tokenizer);
+            literal._string = number.value;
+            // TODO:
             print("%\n", number.value);
     }
 

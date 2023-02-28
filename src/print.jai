@@ -16,44 +16,42 @@ print_node :: (node: *Node) {
     if node.kind == {
         case .DECLARATION;
             print_decl(xx node);
-            print("\n");
     }
 }
 
-            if decl.expression && !decl.type_inst {
+print_decl :: (decl: *Declaration) {
+    if decl.expression && !decl.type_inst {
 
-                if decl.const 
-                    printo("% :: ", decl.name); 
-                else 
-                    printo("% := ", decl.name);
+        if decl.const 
+            printo("% :: ", decl.name); 
+        else 
+            printo("% := ", decl.name);
 
 
-                if decl.expression.kind == {
-                    case .STRUCT;
-                        printo("struct ");
-                        _struct := cast(*Struct) decl.expression;
-                        print_block(_struct.block);
-                    case .PROCEDURE;
-                        printo("() ");
-                        proc := cast(*Procedure) decl.expression;
-                        print_block(*proc.body);
-                    case .ENUM;
-                        printo("enum ");
+        if decl.expression.kind == {
+            case .STRUCT;
+                print("struct ");
+                _struct := cast(*Struct) decl.expression;
+                print_block(_struct.block);
+            case .PROCEDURE;
+                print("() ");
+                proc := cast(*Procedure) decl.expression;
+                print_block(*proc.body);
+            case .ENUM;
+                print("enum ");
 
-                    case .LITERAL;
-                        literal := cast(*Literal) decl.expression;
-                        print_literal(literal);
+            case .LITERAL;
+                print_literal(xx decl.expression);
 
-                } 
-
+        } 
 
         return;
     }
 
-            if !decl.expression && decl.type_inst {
-                printo("%: %;\n", decl.name, decl.type_inst.result);
-                return;
-            }
+    if !decl.expression && decl.type_inst {
+        printo("%: %;\n", decl.name, decl.type_inst.result);
+        return;
+    }
 
     if decl.expression && decl.type_inst {
         printo("%: % = %", decl.name, decl.type_inst.kind, decl.expression.kind);            
@@ -63,7 +61,9 @@ print_node :: (node: *Node) {
 print_literal :: (literal: *Literal) {
     if literal.value_type == {
         case .STRING;
-            print("\"%\";\n", literal._string);
+            print("\"%\";\n", literal._string);       
+        case .NUMBER;
+            print("%;\n", literal._string);
         case .FALSE;
             print("false;\n");
         case .TRUE;

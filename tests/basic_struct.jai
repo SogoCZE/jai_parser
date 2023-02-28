@@ -13,7 +13,7 @@ Person :: struct {
     is_this_ok := false;
 }
 
-TOKEN :: 20;
+TOKEN :: 2_000_000;
 
 // TOKEN :: "x60992xllop";
 // ESCAPED_STRING :: ">>> 20202 Some string inside string \"haha!\";";
