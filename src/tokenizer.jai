@@ -128,6 +128,13 @@ eat_string :: (tokenizer: *Tokenizer) -> *Token {
     return token;
 }
 
+eat_number :: (tokenizer: *Tokenizer) -> *Token {
+    token := eat_token(tokenizer);
+    if token == null return null;
+    assert(token.kind == .NUMBER);
+    return token;
+}
+
 eat_punction :: (tokenizer: *Tokenizer, punction: u8) -> *Token {
     token := eat_token(tokenizer);
     if token == null return null;
@@ -238,7 +245,7 @@ parse_comment :: (using iterator: *Iterator) -> Token {
 
 parse_identifier :: (using iterator: *Iterator) -> Token {
     token: Token;
-    identifier := next_while(iterator, is_identifier_char);
+    identifier := next_while(iterator,  char => is_identifier_char(char) || is_digit(char)); // is_digit protože můžeme mít např. Person2 :: struct {}
     keyword := false;
 
     for keyword_name: enum_names(Keyword) {

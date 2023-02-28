@@ -16,19 +16,30 @@ print_node :: (node: *Node) {
         if node.kind == .DECLARATION {
             decl := cast(*Declaration) node;
 
-            if decl.expression && decl.type_inst == null {
+            if decl.expression && !decl.type_inst {
+
+                if decl.const 
+                    printo("% :: ", decl.name); 
+                else 
+                    printo("% := ", decl.name);
+
 
                 if decl.expression.kind == {
                     case .STRUCT;
-                        printo("% :: struct ", decl.name);
+                        printo("struct ");
                         _struct := cast(*Struct) decl.expression;
                         print_block(_struct.block);
                     case .PROCEDURE;
-                        printo("% :: ()", decl.name);
+                        printo("() ");
                         proc := cast(*Procedure) decl.expression;
                         print_block(*proc.body);
                     case .ENUM;
-                        printo("% :: enum\n", decl.name);
+                        printo("enum ");
+
+                    case .LITERAL;
+                        literal := cast(*Literal) decl.expression;
+                        print_literal(literal);
+
                 } 
 
 
@@ -36,7 +47,7 @@ print_node :: (node: *Node) {
             }
 
             if !decl.expression && decl.type_inst {
-                printo("%: %;\n", decl.name, decl.type_inst.kind);
+                printo("%: %;\n", decl.name, decl.type_inst.result);
                 return;
             }
 
@@ -45,6 +56,18 @@ print_node :: (node: *Node) {
             }
 
         }
+}
+
+print_literal :: (literal: *Literal) {
+    if literal.value_type == {
+        case .STRING;
+            print("\"%\";\n", literal._string);
+        case .FALSE;
+            print("false;\n");
+        case .TRUE;
+            print("true;\n");
+
+    }
 }
 
 print_block :: (block: *Block) {

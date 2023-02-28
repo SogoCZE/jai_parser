@@ -29,7 +29,7 @@ Declaration :: struct {
     kind = .DECLARATION;
 
     name: string;
-
+    const: bool;
     type_inst: *Type_Instantiation;
     expression: *Node;
 }
@@ -97,7 +97,7 @@ Literal :: struct {
     using #as node: Node; 
     kind = .LITERAL;
 
-    value_type: enum s16 {
+    Value_Type :: enum s16 {
         UNINITIALIZED :: 0;
         NUMBER        :: 1;
         STRING        :: 2;
@@ -106,8 +106,9 @@ Literal :: struct {
         ARRAY         :: 6;
         STRUCT        :: 7;
         POINTER       :: 8;
-        // DATA_FIELD_PLUS_OFFSET :: 9;
     }
+
+    value_type: Value_Type;
 
     using values: union {
         _string:  string;
@@ -135,7 +136,6 @@ Array_Literal_Info :: struct {
 Pointer_Literal_Info :: struct {
     // TODO: ?
 }
-
 
 delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
@@ -195,8 +195,22 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if peek_token(tokenizer).kind == .STRING {
+        return parse_literal(tokenizer, .STRING);
+    }    
     
+    if peek_token(tokenizer).kind == .NUMBER {
+        return parse_literal(tokenizer, .NUMBER);
     }
+
+    if is_keyword(tokenizer, .TRUE) {
+        return parse_literal(tokenizer, .TRUE);
+    }    
+    
+    if is_keyword(tokenizer, .FALSE) {
+        return parse_literal(tokenizer, .FALSE);
+    }
+
+
 
     // print("Eaten non match:\n");
     // print_token(eat_token(tokenizer));
@@ -218,22 +232,28 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
     if is_punctuation(tokenizer, #char ":") {
         eat_punction(tokenizer, #char ":");
         decl.expression = parse(tokenizer);
+        decl.const = true;
 
         return decl;
     }
 
     // decl := exp;
     if is_operator(tokenizer, #char "=") {
+        eat_operator(tokenizer, #char "=");
         decl.expression = parse(tokenizer);
+        decl.const = false;
+
         return decl;
     }
 
     // decl: type_inst;
     if is_identifier(tokenizer) {
         decl.type_inst = parse_type_inst(tokenizer);
+        decl.const = false;
 
         // decl: type_inst = exp;
-        if is_punctuation(tokenizer, #char "=") {
+        if is_operator(tokenizer, #char "=") {
+            eat_operator(tokenizer, #char "=");
             decl.expression = parse(tokenizer);
         }
 
@@ -328,4 +348,23 @@ parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     eat_keyword(tokenizer, ifx load then Keyword.LOAD else .IMPORT);
     import_or_load.file = eat_string(tokenizer).value;
     return import_or_load;
+}
+
+parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
+    literal := New(Literal);
+    literal.value_type = type;
+
+    if type == {
+        case .STRING;
+            literal._string = eat_string(tokenizer).value;
+        case .TRUE;
+            eat_keyword(tokenizer, .TRUE);       
+        case .FALSE;
+            eat_keyword(tokenizer, .FALSE);
+        case .NUMBER;
+            number := eat_number(tokenizer);
+            print("%\n", number.value);
+    }
+
+    return literal;
 }
