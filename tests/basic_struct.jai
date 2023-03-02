@@ -14,6 +14,9 @@ Person :: struct {
 }
 
 TOKEN :: 2_000_000;
+FLOAT_NUM :: 2.00;
+UINT :: 100;
+// NEGATIVE_NUM :: -100;
 
 // TOKEN :: "x60992xllop";
 // ESCAPED_STRING :: ">>> 20202 Some string inside string \"haha!\";";
@@ -35,7 +38,7 @@ TOKEN :: 2_000_000;
 jej := "d";
 
 parse :: (file: string, line: int, column: int) {
-    
+
 }
 
 main :: () {
