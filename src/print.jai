@@ -16,6 +16,18 @@ print_node :: (node: *Node) {
     if node.kind == {
         case .DECLARATION;
             print_decl(xx node);
+        case .STRUCT;
+            print("struct ");
+            _struct := cast(*Struct) node;
+            print_block(_struct.block);
+        case .PROCEDURE;
+            print("() ");
+            proc := cast(*Procedure) node;
+            print_block(*proc.body);
+        case .ENUM;
+            print("enum ");
+        case .LITERAL;
+            print_literal(xx node);
     }
 }
 
@@ -27,23 +39,7 @@ print_decl :: (decl: *Declaration) {
         else 
             printo("% := ", decl.name);
 
-
-        if decl.expression.kind == {
-            case .STRUCT;
-                print("struct ");
-                _struct := cast(*Struct) decl.expression;
-                print_block(_struct.block);
-            case .PROCEDURE;
-                print("() ");
-                proc := cast(*Procedure) decl.expression;
-                print_block(*proc.body);
-            case .ENUM;
-                print("enum ");
-
-            case .LITERAL;
-                print_literal(xx decl.expression);
-
-        } 
+        print_node(decl.expression);
 
         return;
     }
@@ -54,7 +50,8 @@ print_decl :: (decl: *Declaration) {
     }
 
     if decl.expression && decl.type_inst {
-        printo("%: % = %", decl.name, decl.type_inst.kind, decl.expression.kind);            
+        printo("%: % =", decl.name, decl.type_inst.result);
+        print_node(decl.expression);            
     }
 }
 

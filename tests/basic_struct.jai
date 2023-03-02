@@ -11,6 +11,7 @@ Person :: struct {
     }
 
     is_this_ok := false;
+    token: string = "2020201xadwdwada";
 }
 
 TOKEN :: 2_000_000;
