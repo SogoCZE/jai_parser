@@ -30,15 +30,15 @@ UINT :: 100;
 //     Komentář
 
 
-// Gender :: enum {
-//     Male;
-//     Woman;
-//     Other;
-// }
+Gender :: enum {
+    Male;
+    Woman :: 0;
+    Other;
+}
 
 jej := "d";
 
-parse :: (file: string, line: int, column: int) {
+parse :: (file: string, line: int, column := 0) {
 
 }
 

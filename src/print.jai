@@ -21,13 +21,31 @@ print_node :: (node: *Node) {
             _struct := cast(*Struct) node;
             print_block(_struct.block);
         case .PROCEDURE;
-            print("() ");
             proc := cast(*Procedure) node;
+            
+            printo("(");
+            first := true;
+
+            for proc.arguments {
+                if first {
+                    first = false;
+                } else {
+                    print(", ");
+                }
+                print_node(it);
+            }
+            printo(") ");
+            
             print_block(*proc.body);
         case .ENUM;
             print("enum ");
+            _enum := cast(*Enum) node;
+            print_block(_enum.block);
         case .LITERAL;
             print_literal(xx node);
+        case .IDENTIFIER;
+            ident := cast(*Identifier) node;
+            printo("%;", ident.name);
     }
 }
 
@@ -45,7 +63,7 @@ print_decl :: (decl: *Declaration) {
     }
 
     if !decl.expression && decl.type_inst {
-        printo("%: %;\n", decl.name, decl.type_inst.result);
+        printo("%: %", decl.name, decl.type_inst.result);
         return;
     }
 
@@ -58,21 +76,23 @@ print_decl :: (decl: *Declaration) {
 print_literal :: (literal: *Literal) {
     if literal.value_type == {
         case .STRING;
-            print("\"%\";\n", literal._string);       
+            print("\"%\";", literal._string);       
         case .NUMBER;
-            print("%;\n", literal._string);
+            print("%;", literal._string);
         case .FALSE;
-            print("false;\n");
+            print("false;");
         case .TRUE;
-            print("true;\n");
-
+            print("true;");
     }
 }
 
 print_block :: (block: *Block) {
     printo("{\n");
     push_context with_offset() {
-        for block.members print_node(it);
+        for block.members {
+            print_node(it);
+            printo("\n");
+        }
     }
     printo("}\n");
 }

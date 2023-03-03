@@ -9,6 +9,7 @@ Node :: struct {
         PROCEDURE;
         PROCEDURE_CALL;
         TYPE_INSTANTIATION;
+        IDENTIFIER;
         DIRECTIVE;
         IMPORT_OR_LOAD;
         LITERAL;
@@ -39,6 +40,13 @@ Block :: struct {
     kind = .BLOCK;
 
     members: []*Node;
+}
+
+Identifier :: struct {
+    using #as node: Node;
+    kind = .IDENTIFIER;
+
+    name: string;
 }
 
 Type_Instantiation :: struct {
@@ -116,8 +124,8 @@ Literal :: struct {
         _s64:     s64;
         _u64:     u64;
         
-        struct\_literal_info: *Struct\_Literal_Info;
-        array\ _literal_info: *Array\ _Literal_Info;
+        struct_literal_info : *Struct_Literal_Info;
+        array_literal_info  : *Array_Literal_Info;
         pointer_literal_info: *Pointer_Literal_Info;
     };
 }
@@ -175,6 +183,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_declaration(ident.value, tokenizer);
         }
 
+        return parse_identifier(ident.value);
     }
 
     if is_punctuation(tokenizer, #char "(") { 
@@ -348,6 +357,12 @@ parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     eat_keyword(tokenizer, ifx load then Keyword.LOAD else .IMPORT);
     import_or_load.file = eat_string(tokenizer).value;
     return import_or_load;
+}
+
+parse_identifier :: (name: string) -> *Identifier {
+    identifier := New(Identifier);
+    identifier.name = name;
+    return identifier;
 }
 
 parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {

@@ -29,9 +29,11 @@ Token :: struct {
 Keyword :: enum u8 {
     STRUCT;
     ENUM;
+    ENUM_FLAGS;
     UNION;
     FOR;
     WHILE;
+    USING;
     IF;
     ELSE;
     RETURN;
