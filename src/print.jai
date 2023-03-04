@@ -49,7 +49,7 @@ print_node :: (node: *Node) {
     }
 }
 
-print_decl :: (decl: *Declaration) {
+print_decl :: (decl: *Declaration, new_line := false) {
     if decl.expression && !decl.type_inst {
 
         if decl.const 

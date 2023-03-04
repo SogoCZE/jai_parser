@@ -1,0 +1,73 @@
+[{"name":"Person","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "STRUCT"
+}},{"name":"TOKEN","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "LITERAL"
+}},{"name":"FLOAT_NUM","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "LITERAL"
+}},{"name":"UINT","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "LITERAL"
+}},{"name":"Gender","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "ENUM"
+}},{"name":"jej","const":false,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "LITERAL"
+}},{"name":"parse","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "PROCEDURE"
+}},{"name":"main","const":true,"type_inst":null,"expression":{
+	"location": {
+		"l0": 0,
+		"l1": 0,
+		"c0": 0,
+		"c1": 0,
+		"file": ""
+	},
+	"kind": "PROCEDURE"
+}}]

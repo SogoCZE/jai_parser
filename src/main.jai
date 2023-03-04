@@ -5,6 +5,7 @@
 #load "tokenizer.jai";
 #load "parser.jai";
 #load "print.jai";
+#load "json_export.jai";
 
 main :: () {
     cmd_arguments := get_command_line_arguments();
@@ -26,7 +27,23 @@ main :: () {
         array_add(*nodes, node);
     }
 
-    print("\n-- AST -- \n\n");
-    for nodes print_node(it);
+    json_builder: String_Builder;
+
+    append(*json_builder, "[");
+    first := true;
+    for nodes {
+        if first {
+            first = false;
+        } else {
+            append(*json_builder, ",");
+        }
+
+        append(*json_builder, to_json(it));
+    }
+    append(*json_builder, "]");
+
+    write_entire_file("out.json", builder_to_string(*json_builder));
+
+    print("Written AST to out.json\n");
 }
 
