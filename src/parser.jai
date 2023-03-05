@@ -61,7 +61,7 @@ Procedure :: struct {
     kind = .PROCEDURE;
 
     arguments: []*Node;
-    body: Block; // Body asi budemem uset defernout!
+    body: *Block; // Body asi budemem uset defernout!
 }
 
 Procedure_Call :: struct {

@@ -36,7 +36,7 @@ print_node :: (node: *Node) {
             }
             printo(") ");
             
-            print_block(*proc.body);
+            print_block(proc.body);
         case .ENUM;
             print("enum ");
             _enum := cast(*Enum) node;
