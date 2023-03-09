@@ -61,6 +61,7 @@ Procedure :: struct {
     kind = .PROCEDURE;
 
     arguments: []*Node;
+    returns: []*Node;
     body: *Block; // Body asi budemem uset defernout!
 }
 
@@ -148,7 +149,7 @@ Pointer_Literal_Info :: struct {
 delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
 
-    eat_punction(tokenizer, open);
+    eat_punction(tokenizer, open); 
 
     while !end(tokenizer) {
         if is_punctuation(tokenizer, close) break;
@@ -170,6 +171,29 @@ delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> 
     return nodes;
 }
 
+eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: u8 = 0) -> []*Node {
+    nodes: [..]*Node;
+
+    while !end(tokenizer) {
+        if stop(peek_token(tokenizer)) break;
+
+        if seperator != 0 && is_punctuation(tokenizer, seperator) {
+            eat_punction(tokenizer, seperator);
+            continue;
+        }
+
+        node := parse(tokenizer);
+        if node == null continue;
+        array_add(*nodes, node);
+
+        if stop(peek_token(tokenizer)) break;
+    }
+
+    return nodes;
+}
+
+// TODO: IF, ELSE, CASE, Binary operace (10+cislo ...), Directivy pořádně, ...
+
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_identifier(tokenizer) {
@@ -187,6 +211,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if is_punctuation(tokenizer, #char "(") { 
+        // TODO: cislo :: (10+20); nebo cislo :: (10)
         return parse_procedure(tokenizer);
     }
 
@@ -218,7 +243,6 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     if is_keyword(tokenizer, .FALSE) {
         return parse_literal(tokenizer, .FALSE);
     }
-
 
 
     // print("Eaten non match:\n");
@@ -277,6 +301,19 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
 
     proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
 
+    // TODO: Directives
+    
+    // returns
+    if maybe_eat_operator(tokenizer, #char "-") {
+        eat_operator(tokenizer, #char ">");
+        maybe_eat_punction(tokenizer, #char "(");
+        
+        proc.returns = eat_until(tokenizer, token => token.char == #char "{" || token.char == #char ")", #char ",");
+
+        maybe_eat_punction(tokenizer, #char ")");
+    }
+
+    // Body
     if is_punctuation(tokenizer, #char "{") {
         proc.body = parse_block(tokenizer);
     } else {

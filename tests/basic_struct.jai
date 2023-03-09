@@ -1,28 +1,28 @@
-#import "Basic";
+// #import "Basic";
 
-Person :: struct {
-    name: string;
-    age: int;
+// Person :: struct {
+//     name: string;
+//     age: int;
 
 
-    Person2 :: struct {
-        name: string;
-        age: int;
-    }
+//     Person2 :: struct {
+//         name: string;
+//         age: int;
+//     }
 
-    is_this_ok := false;
-    token: string = "2020201xadwdwada";
-}
+//     is_this_ok := false;
+//     token: string = "2020201xadwdwada";
+// }
 
-TOKEN :: 2_000_000;
-FLOAT_NUM :: 2.00;
-UINT :: 100;
-NEGATIVE_NUM :: -100;
+// TOKEN :: 2_000_000;
+// FLOAT_NUM :: 2.00;
+// UINT :: 100;
+// NEGATIVE_NUM :: -100;
 
-TOKEN :: "x60992xllop";
-ESCAPED_STRING :: ">>> 20202 Some string inside string \"haha!\";";
-RESTRICTED_AGE :: 18;
-PI :: 3.14159265359;
+// TOKEN :: "x60992xllop";
+// ESCAPED_STRING :: ">>> 20202 Some string inside string \"haha!\";";
+// RESTRICTED_AGE :: 18;
+// PI :: 3.14159265359;
 // Komentář
 
 /*
@@ -31,18 +31,18 @@ PI :: 3.14159265359;
     Komentář
 */
 
-Gender :: enum {
-    Male;
-    Woman :: 0;
-    Other;
-}
+// Gender :: enum {
+//     Male;
+//     Woman :: 0;
+//     Other;
+// }
 
-jej := "d";
+// jej := "d";
 
-parse :: (file: string, line: int, column := 0) {
-
-}
-
-main :: () {
+parse :: (file: string, line: int, column := 0) -> name: string, int {
 
 }
+
+// main :: () {
+
+// }

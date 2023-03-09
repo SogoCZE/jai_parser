@@ -2,6 +2,8 @@
 #import "String";
 #import "Reflection";
 
+// TODO: Token\   Kind (možnosti mezer v identifier když je tam \)
+
 Token_Kind :: enum {
     UNKNOWN;
     NULL;
@@ -184,6 +186,21 @@ is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool  {
 
 is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
     return peek_token(tokenizer).kind == .IDENTIFIER;
+}
+
+maybe_eat_punction :: (tokenizer: *Tokenizer, char: u8) -> bool, *Token {
+    if !is_punctuation(tokenizer, char) return false, null;
+    return true, eat_punction(tokenizer, char);
+}
+
+maybe_eat_operator :: (tokenizer: *Tokenizer, char: u8) -> bool, *Token {
+    if !is_operator(tokenizer, char) return false, null;
+    return true, eat_operator(tokenizer, char);
+}
+
+maybe_eat_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool, *Token {
+    if !is_keyword(tokenizer, keyword) return false, null;
+    return true, eat_keyword(tokenizer, keyword);
 }
 
 parse_next_token :: (iterator: *Iterator) -> Token {

@@ -46,4 +46,3 @@ main :: () {
 
     print("Written AST to out.json\n");
 }
-
