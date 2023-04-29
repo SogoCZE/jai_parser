@@ -64,13 +64,31 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
 
         for member: info.members {
             if member.name == "node" continue;
-            if member.name == "values" continue;
             if member.type.type == .TYPE continue;
 
             if real_index > 0 {
                 append(*builder, #string STR 
                     append(*json_builder, ",");
                 STR);
+            }
+
+            if member.name == "values" {
+
+                print_to_builder(*builder, #string _STR
+
+                    append(*json_builder, "\"value\":");
+
+                    if node.value_type == {
+                        case .NUMBER;
+                            append(*json_builder, json_write_string(node._string));
+                        case .STRING;
+                            append(*json_builder, json_write_string(node._string));
+                        case;
+                            append(*json_builder, "null");
+                    }
+                _STR);
+
+                continue;
             }
 
             real_index += 1;

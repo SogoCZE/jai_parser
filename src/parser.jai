@@ -11,8 +11,10 @@ Node :: struct {
         TYPE_INSTANTIATION;
         IDENTIFIER;
         DIRECTIVE;
-        IMPORT_OR_LOAD;
         LITERAL;
+        BINARY_OPERATION;
+        IMPORT_OR_LOAD;
+        
     }
 
     Location :: struct {
@@ -60,6 +62,25 @@ Procedure :: struct {
     using #as node: Node;
     kind = .PROCEDURE;
 
+    Flags :: enum_flags u32 {
+        ELSEWHERE                          :: 0x1;
+        COMPILE_TIME                       :: 0x2;
+        POLYMORPHIC                        :: 0x4;
+        COMPILER_GENERATED                 :: 0x8;
+        DEBUG_DUMP                         :: 0x10;
+        C_CALL                             :: 0x20;
+        TYPE_ONLY                          :: 0x40;
+        INTRINSIC                          :: 0x80;
+        DEPRECATED                         :: 0x100;
+        SYNTACTICALLY_MARKED_AS_NO_CONTEXT :: 0x200;  // This means it has #no_context written in the declaration. There are other ways for a procedure to have no context, though (for example, being #c_call).
+        QUICK                              :: 0x400;
+        CPP_METHOD                         :: 0x800;
+        NO_CALL                            :: 0x1000;
+        MACRO                              :: 0x2000;
+        NO_DEBUG                           :: 0x4000;
+    }
+
+    flags: Flags;
     arguments: []*Node;
     returns: []*Node;
     body: *Block; // Body asi budemem uset defernout!
@@ -84,6 +105,7 @@ Enum :: struct {
     using #as node: Node; 
     kind = .ENUM;
 
+    type: string;
     block: *Block;
 }
 
@@ -146,6 +168,35 @@ Pointer_Literal_Info :: struct {
     // TODO: ?
 }
 
+Binary_Operation :: struct {
+    using #as node: Node; 
+    kind = .BINARY_OPERATION;
+
+    // @TODO: is this complete?
+    Operation :: enum {
+        ADDITION; // +
+        SUBTRACTION; // -
+        MULTIPLICATION; // *
+        DIVISION; // /
+        MODULO; // %
+
+        EQUALS; // ==
+        NOT_EQUALS; // !=
+        
+        LESS; // >
+        GREATER; // <
+        
+        LESS_EQUEALS; // <=
+        GREATER_EQUEALS; // >=
+
+        ASSING; // =
+    }
+
+    left: *Node;
+    operation: Operation;
+    right: *Node;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -192,12 +243,18 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: u
     return nodes;
 }
 
-// TODO: IF, ELSE, CASE, Binary operace (10+cislo ...), Directivy pořádně, ...
+// TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
 
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_identifier(tokenizer) {
         ident := eat_identifier(tokenizer);
+
+        // age+20
+        if peek_token(tokenizer).kind == .OPERATOR {
+            identifier := parse_identifier(ident.value);
+            return parse_binary_operation(tokenizer, identifier);
+        }
 
         if is_punctuation(tokenizer, #char "(") {
             return parse_procedure_call(ident.value, tokenizer);
@@ -233,6 +290,13 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }    
     
     if peek_token(tokenizer).kind == .NUMBER {
+   
+        // 10+20
+        if peek_token(tokenizer, 1).kind == .OPERATOR {
+            literal := parse_literal(tokenizer, .NUMBER);
+            return parse_binary_operation(tokenizer, literal);    
+        }
+
         return parse_literal(tokenizer, .NUMBER);
     }
 
@@ -244,6 +308,9 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_literal(tokenizer, .FALSE);
     }
 
+    if is_punctuation(tokenizer, #char "{") {
+        return parse_block(tokenizer);
+    }
 
     // print("Eaten non match:\n");
     // print_token(eat_token(tokenizer));
@@ -301,7 +368,38 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
 
     proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
 
-    // TODO: Directives
+    parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
+        eat_operator(tokenizer, #char "#");
+
+        proc_directive := eat_identifier(tokenizer);
+            
+        // @TODO: make directives more robust!
+        if proc_directive.value == {
+            case "expand";
+                proc.flags |= .MACRO;
+            case "no_context";
+                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+            case "dump";
+                proc.flags |= .DEBUG_DUMP;
+            case "cpp_method";
+                proc.flags |= .CPP_METHOD;
+            case "no_debug";
+                proc.flags |= .NO_DEBUG;
+            case "c_call";
+                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+                proc.flags |= .C_CALL;
+
+        }
+
+        if is_operator(tokenizer, #char "#") {
+            parse_proc_directives(tokenizer, proc);
+        }
+    }   
+
+    // Directives
+    if is_operator(tokenizer, #char "#") {
+        parse_proc_directives(tokenizer, proc);
+    }
     
     // returns
     if maybe_eat_operator(tokenizer, #char "-") {
@@ -344,6 +442,12 @@ parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
 
     eat_keyword(tokenizer, .ENUM);
 
+    // Type specifier
+    if is_identifier(tokenizer) {
+        _enum.type = eat_identifier(tokenizer).value;
+    }
+
+    // Body
     if is_punctuation(tokenizer, #char "{") {
         _enum.block = parse_block(tokenizer);
     } else {
@@ -384,9 +488,12 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         return parse_import_or_load(tokenizer, true);
     }
 
-    // TODO:
+    directive_name_identifier := eat_identifier(tokenizer);
 
-    return null;
+    directive := New(Directive);
+    directive.name = directive_name_identifier.value;
+
+    return directive;
 }
 
 parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
@@ -419,4 +526,39 @@ parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
     }
 
     return literal;
+}
+
+parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operation {
+    binary_operation := New(Binary_Operation);
+    binary_operation.left = left;
+
+    op := eat_token(tokenizer);
+    assert(op.kind == .OPERATOR);
+
+    if op.char == {
+        case #char "+";
+            binary_operation.operation = .ADDITION;
+        case #char "-";
+            binary_operation.operation = .SUBTRACTION;
+        case #char "*";
+            binary_operation.operation = .MULTIPLICATION;
+        case #char "/";
+            binary_operation.operation = .DIVISION;
+        case #char "%";
+            binary_operation.operation = .MODULO;
+        case #char "=";
+            
+            if maybe_eat_operator(tokenizer, #char "=") {
+                binary_operation.operation = .EQUALS;
+            } else {
+                binary_operation.operation = .ASSING;
+            }
+
+        case;
+            assert(false, tprint("invalid operator %", to_string(*op.char, 1)));
+    }
+
+    binary_operation.right = parse(tokenizer); // @TODO: anything?
+    
+    return binary_operation;
 }

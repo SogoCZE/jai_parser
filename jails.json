@@ -1,0 +1,8 @@
+{
+    "workspaces": [
+        {
+            "entry": "./src/main.jai",
+            "local_modules": "./modules"
+        }
+    ]
+}

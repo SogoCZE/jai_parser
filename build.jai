@@ -15,6 +15,11 @@
     options := get_build_options(w);
     options.output_executable_name = "jai_parser";
     options.output_path = "./bin";   
+    
+    import_path: [..]string;
+    for options.import_path array_add(*import_path, it);
+    array_add(*import_path, "./modules");
+    options.import_path = import_path;
 
     set_build_options(options, w);
 
