@@ -1,3 +1,3 @@
-# Jai Language Server Protocol
+# Jai Parser
 
-Jai LSP written in Jai. 
+Jai Parser written in Jai.
