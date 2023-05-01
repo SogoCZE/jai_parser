@@ -23,12 +23,16 @@ Token_Kind :: enum {
     LOGICAL_AND; // &&
     LOGICAL_OR; // ||
     IS_EQUAL; // ==
+    IS_NOT_EQUAL; // !=
 
     DOUBLE_MINUS; // --
     TRIPLE_MINUS; // ---
     DOUBLE_DOLLAR; // $$
     DOUBLE_DOT; // ..
     ARROW_RIGHT; // ->
+
+    CONSTANT_DECLARATION; // ::
+    DECLARATION_AND_ASIGN; // :=
 
     NOTE; // @note
     QUICK_LAMBDA; // =>
@@ -58,7 +62,7 @@ Token_Kind :: enum {
     KEYWORD_FALSE;
     KEYWORD_TRUE;
     KEYWORD_IS_CONSTANT;
-    KEYWORD_IS_AUTO_CAST; // xx
+    KEYWORD_AUTO_CAST; // xx
 
     UNKNOWN;
 }
@@ -82,16 +86,22 @@ Token :: struct {
 
 Tokenizer :: struct {
     tokens: [..]Token;
-    cursor: int;
-    line: int;
+    cursor := 0;
+    next_backticked: bool;
 }
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     tokenizer: Tokenizer;
-    tokenizer.cursor = 0;
     
     while !end(iterator) {
-        token := parse_next_token(iterator);
+        token := parse_next_token(iterator, *tokenizer);
+        if token.kind == .UNKNOWN continue;
+
+        if tokenizer.next_backticked {
+            tokenizer.next_backticked = false;
+            token.backticked = true;
+        }
+
         array_add(*tokenizer.tokens, token);
     }
 
@@ -170,7 +180,7 @@ maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -
     return true, eat_token(tokenizer);
 }
 
-parse_next_token :: (iterator: *Iterator) -> Token {
+parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
 
     if is_comment(iterator) {
@@ -179,8 +189,12 @@ parse_next_token :: (iterator: *Iterator) -> Token {
 
     char := peek(iterator);
 
+    if char == #char "@" && is_identifier_char(peek(iterator, 2)) {
+        return parse_note(iterator);
+    }
+
     if is_identifier_char(char) {
-        return parse_identifier(iterator);
+        return parse_identifier(iterator); // could also be a keyword ;
     }
 
     if char == #char "\"" {
@@ -191,16 +205,13 @@ parse_next_token :: (iterator: *Iterator) -> Token {
         return parse_digit(iterator);
     }
 
-    token: Token;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+    if char == #char "`" {
+        next(iterator); // eat `
+        tokenizer.next_backticked = true;
+        return .{}; // empty token (skipped by tokenizer)
+    }
 
-    token.kind = xx next(iterator);
-
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
-    
-    return token;
+    return parse_char_token(iterator);
 }
 
 parse_comment :: (using iterator: *Iterator) -> Token {
@@ -231,6 +242,22 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     token.string_value = builder_to_string(*builder);
     token.l1 = iterator.line;
     token.c1 = iterator.column;
+
+    return token;
+}
+
+parse_note :: (using iterator: *Iterator) -> Token {
+    next(iterator); // Skip the "@"
+
+    token: Token;
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    token.kind = .NOTE;
+    token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;   
 
     return token;
 }
@@ -319,7 +346,129 @@ parse_digit :: (using iterator: *Iterator) -> Token {
     }
 
     if !ok {
-        log_error("Invalid number!");
+        log_error("Invalid number!"); // @InComplete: What now?
+    }
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
+
+    return token;
+}
+
+parse_char_token :: (iterator: *Iterator) -> Token {
+    token: Token;
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    char := next(iterator);
+    next_char := peek(iterator);
+
+    if char == #char "+" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .PLUS_EQUEAL;
+    }
+
+    if char == #char "-" {
+        if next_char == #char ">" {
+            next(iterator);
+            token.kind = .ARROW_RIGHT; // ->
+        } 
+        
+        if next_char == #char "=" {
+            next(iterator);
+            token.kind = .MINUS_EQUEAL; // -=
+        } 
+
+        if next_char == #char "-" {
+            next(iterator);
+            
+            if peek(iterator) == #char "-" {
+                next(iterator);
+                token.kind = .TRIPLE_MINUS;
+            } else {
+                token.kind = .DOUBLE_MINUS;
+            }
+
+        }
+    }
+
+    if char == #char "%" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .MOD_EQUEAL;
+    }
+    
+    if char == #char "/" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .DIV_EQUEAL;
+    }
+    
+    if char == #char "*" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .TIMES_EQUEAL;
+    }
+    
+    if char == #char "<" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .LESS_EQUEAL;
+    }
+    
+    if char == #char ">" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .GREATER_EQUEAL;
+    }
+    
+    if char == #char "&" && next_char == #char "&" {
+        next(iterator);
+        token.kind = .LOGICAL_AND;
+    }
+    
+    if char == #char "|" && next_char == #char "|" {
+        next(iterator);
+        token.kind = .LOGICAL_OR;
+    }
+    
+    if char == #char "=" {
+
+        if next_char == #char ">" {
+            next(iterator);
+            token.kind = .QUICK_LAMBDA;
+        } 
+
+        if next_char == #char "=" {
+            next(iterator);
+            token.kind = .IS_EQUAL;
+        }
+    }
+
+    if char == #char "!" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .IS_NOT_EQUAL;
+    }
+    
+    if char == #char "$" && next_char == #char "$" {
+        next(iterator);
+        token.kind = .DOUBLE_DOLLAR;
+    }
+    
+    if char == #char "." && next_char == #char "." {
+        next(iterator);    
+        token.kind = .DOUBLE_DOT;
+    }
+    
+    if char == #char ":" {
+        if next_char == #char "=" {
+            next(iterator);
+            token.kind = .DECLARATION_AND_ASIGN;
+        }
+        
+        if next_char == #char ":" {
+            next(iterator);
+            token.kind = .CONSTANT_DECLARATION;
+        }
+    }
+
+    if token.kind == .UNKNOWN {
+        token.kind = xx char;
     }
 
     token.l1 = iterator.line;
