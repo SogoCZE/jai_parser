@@ -273,14 +273,21 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     for token_kind: enum_names(Token_Kind) {
         if !starts_with(token_kind, "KEYWORD") continue;
 
-        if identifier == to_lower_copy(token_kind) {
+        if identifier == to_lower_copy(token_kind) || identifier == "xx" {
             keyword = true;
             break;
         }
     }
 
     if keyword {
-        identifier_uppercased := to_upper_copy(identifier);
+        identifier_uppercased: string;
+        
+        if identifier == "xx" {
+            identifier_uppercased = "AUTO_CAST";
+        } else {
+            identifier_uppercased = to_upper_copy(identifier);
+        }
+
         enum_value, ok := enum_name_to_value(Token_Kind, tprint("KEYWORD_%", identifier_uppercased));
         assert(ok, "invalid keyword %", identifier_uppercased);
         token.kind = enum_value;
