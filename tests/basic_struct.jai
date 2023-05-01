@@ -1,1 +1,3 @@
-xx neco
+if neco == true {
+
+}

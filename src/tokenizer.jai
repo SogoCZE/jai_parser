@@ -116,7 +116,7 @@ print_token :: (token: Token) {
     }
 
     if token.kind == .NUMBER {
-        if token.float_value != 0 {
+        if token.float_value > 0 {
             value = tprint("%", token.float_value);
         } else {
             value = tprint("%", token.integer_value);
@@ -273,7 +273,9 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     for token_kind: enum_names(Token_Kind) {
         if !starts_with(token_kind, "KEYWORD") continue;
 
-        if identifier == to_lower_copy(token_kind) || identifier == "xx" {
+        token_kind_lower_without_prefix := to_lower_copy(replace(token_kind, "KEYWORD_", ""));
+
+        if identifier == token_kind_lower_without_prefix || identifier == "xx" {
             keyword = true;
             break;
         }
