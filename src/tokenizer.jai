@@ -2,55 +2,88 @@
 #import "String";
 #import "Reflection";
 
-// TODO: Token\   Kind (možnosti mezer v identifier když je tam \)
+// TODO: Token\   Kind 
 
 Token_Kind :: enum {
+    // ASCII Types...
+
+    IDENTIFIER :: 256; // person
+    NUMBER; // 10, 3.14, 2_456_000
+    STRING; // "text"
+    COMMENT; // */ */ //
+    NULL; // NULL
+
+    PLUS_EQUEAL; // +=
+    MINUS_EQUEAL; // -=
+    MOD_EQUEAL; // %=
+    DIV_EQUEAL; // /=
+    TIMES_EQUEAL; // *=
+    LESS_EQUEAL; // <=
+    GREATER_EQUEAL; // >=
+    LOGICAL_AND; // &&
+    LOGICAL_OR; // ||
+    IS_EQUAL; // ==
+
+    DOUBLE_MINUS; // --
+    TRIPLE_MINUS; // ---
+    DOUBLE_DOLLAR; // $$
+    DOUBLE_DOT; // ..
+    ARROW_RIGHT; // ->
+
+    NOTE; // @note
+    QUICK_LAMBDA; // =>
+
+    KEYWORD_STRUCT;
+    KEYWORD_ENUM;
+    KEYWORD_ENUM_FLAGS;
+    KEYWORD_UNION;
+    KEYWORD_FOR;
+    KEYWORD_WHILE;
+    KEYWORD_USING;
+    KEYWORD_IF;
+    KEYWORD_IFX;
+    KEYWORD_ELSE;
+    KEYWORD_RETURN;
+    KEYWORD_DEFER;
+    KEYWORD_NO_INLINE;
+    KEYWORD_CAST;
+    KEYWORD_CONTEXT;
+    KEYWORD_PUSH_CONTEXT;
+    KEYWORD_OPERATOR;
+    KEYWORD_BREAK;
+    KEYWORD_CONTINUE; 
+    KEYWORD_IMPORT;
+    KEYWORD_LOAD;
+    KEYWORD_INLINE;
+    KEYWORD_FALSE;
+    KEYWORD_TRUE;
+    KEYWORD_IS_CONSTANT;
+    KEYWORD_IS_AUTO_CAST; // xx
+
     UNKNOWN;
-    NULL;
-    KEYWORD;
-    IDENTIFIER;
-    PUNCTUATION;
-    OPERATOR;
-    NUMBER; 
-    STRING; 
-    COMMENT; 
 }
 
 Token :: struct {
-    kind: Token_Kind;
-    line: int;
-    column: int;
+    kind: Token_Kind = .UNKNOWN;
+
+    l0: int;
+    c0: int;
+    l1: int;
+    c1: int;
     
     union {
-        keyword: Keyword;
-        value: string;
-        char: u8;
+        string_value: string;
+        integer_value: int;
+        float_value: float;
     }
-}
 
-Keyword :: enum u8 {
-    STRUCT;
-    ENUM;
-    ENUM_FLAGS;
-    UNION;
-    FOR;
-    WHILE;
-    USING;
-    IF;
-    ELSE;
-    RETURN;
-    BREAK;
-    CONTINUE; 
-    IMPORT;
-    LOAD;
-    INLINE;
-    FALSE;
-    TRUE;
+    backticked: bool;
 }
 
 Tokenizer :: struct {
     tokens: [..]Token;
     cursor: int;
+    line: int;
 }
 
 create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
@@ -66,29 +99,29 @@ create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
 }
 
 print_token :: (token: Token) {
-    value := token.value;
+    value: string;
 
-    if token.kind == .UNKNOWN || token.kind == .PUNCTUATION || token.kind == .OPERATOR {
-        if is_space(token.char) {
-            value = "<whitespace>";
+    if token.kind == .STRING || token.kind == .COMMENT || token.kind == .IDENTIFIER {
+        value = token.string_value;
+    }
+
+    if token.kind == .NUMBER {
+        if token.float_value != 0 {
+            value = tprint("%", token.float_value);
         } else {
-            value = to_string(*token.char);
+            value = tprint("%", token.integer_value);
         }
     }
 
-    if token.kind == .KEYWORD {
-        value = sprint("%", token.keyword);
+    if value.count == 0 {
+        if token.kind < 256 {
+            print("% -> %\n", token, to_string(*cast(u8) token.kind, 1));
+        } else {
+            print("% -> %\n", token, token.kind);
+        }
+    } else {
+        print("% -> %\n", token, value);
     }
-
-    print("% -> %\n", token.kind, value);
-}
-
-is_operator :: inline (char: u8) -> bool {
-    return is_any(char, "+-/%$<>!=*#");
-}
-
-is_punctuation :: inline (char: u8) -> bool {
-    return is_any(char, ".,;:{}[]()");
 }
 
 next_while :: (iterator: *Iterator, predicate: (char: u8) -> bool) -> string {
@@ -118,50 +151,8 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
     return *tokens[cursor-1];
 }
 
-eat_identifier :: (tokenizer: *Tokenizer) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .IDENTIFIER);
-    return token;
-}
-
-eat_string :: (tokenizer: *Tokenizer) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .STRING);
-    return token;
-}
-
-eat_number :: (tokenizer: *Tokenizer) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .NUMBER);
-    return token;
-}
-
-eat_punction :: (tokenizer: *Tokenizer, punction: u8) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .PUNCTUATION && token.char == punction);
-    return token;
-} 
-
-eat_operator :: (tokenizer: *Tokenizer, char: u8) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .OPERATOR && token.char == char);
-    return token;
-}   
-
-eat_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> *Token {
-    token := eat_token(tokenizer);
-    if token == null return null;
-    assert(token.kind == .KEYWORD && token.keyword == keyword);
-    return token;
-}
-
 end :: (using tokenizer: *Tokenizer) -> bool {
-    return cursor + 1 >= tokens.count;
+    return cursor + 1 > tokens.count;
 }
 
 peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
@@ -169,42 +160,18 @@ peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
     return *tokens[cursor+count];
 }
 
-is_punctuation :: (tokenizer: *Tokenizer, char: u8) -> bool {
-    token := peek_token(tokenizer);
-    return token.kind == .PUNCTUATION && token.char == char;
-}
-
-is_operator :: (tokenizer: *Tokenizer, char: u8) -> bool {
-    token := peek_token(tokenizer);
-    return token.kind == .OPERATOR && token.char == char;
-}
-
-is_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool  {
-    token := peek_token(tokenizer);
-    return token.kind == .KEYWORD && token.keyword == keyword;
-}
-
 is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
     return peek_token(tokenizer).kind == .IDENTIFIER;
 }
 
-maybe_eat_punction :: (tokenizer: *Tokenizer, char: u8) -> bool, *Token {
-    if !is_punctuation(tokenizer, char) return false, null;
-    return true, eat_punction(tokenizer, char);
-}
-
-maybe_eat_operator :: (tokenizer: *Tokenizer, char: u8) -> bool, *Token {
-    if !is_operator(tokenizer, char) return false, null;
-    return true, eat_operator(tokenizer, char);
-}
-
-maybe_eat_keyword :: (tokenizer: *Tokenizer, keyword: Keyword) -> bool, *Token {
-    if !is_keyword(tokenizer, keyword) return false, null;
-    return true, eat_keyword(tokenizer, keyword);
+maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool, *Token {
+    token := peek_token(tokenizer);
+    if !predicate(token) return false, null;
+    return true, eat_token(tokenizer);
 }
 
 parse_next_token :: (iterator: *Iterator) -> Token {
-    next_while(iterator, is_space); // Přeskočíme všechny whitespace charaktery.
+    next_while(iterator, is_space); // We skip all whitespaces
 
     if is_comment(iterator) {
         return parse_comment(iterator);
@@ -216,13 +183,6 @@ parse_next_token :: (iterator: *Iterator) -> Token {
         return parse_identifier(iterator);
     }
 
-    if is_punctuation(char) || is_operator(char) {
-        token: Token;
-        token.kind = ifx is_punctuation(char) then Token_Kind.PUNCTUATION else .OPERATOR;
-        token.char = next(iterator);
-        return token;
-    }
-
     if char == #char "\"" {
         return parse_string(iterator);
     }
@@ -232,12 +192,24 @@ parse_next_token :: (iterator: *Iterator) -> Token {
     }
 
     token: Token;
-    token.char = next(iterator);
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    token.kind = xx next(iterator);
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
+    
     return token;
 }
 
 parse_comment :: (using iterator: *Iterator) -> Token {
-    // Přeskočíme první //
+    token: Token;
+    token.kind = .COMMENT;
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    // Skip the first //
     next(iterator); 
     multiline := next(iterator) == #char "*";
 
@@ -248,50 +220,62 @@ parse_comment :: (using iterator: *Iterator) -> Token {
         char := next(iterator);
         if !multiline && char == #char "\n" break;
         if multiline && char == #char "*" && peek(iterator) == #char "/" {
-            next(iterator); // Odebereme konec "/"
+            next(iterator); // We remove end "/"
             break;
         }
 
         append(*builder, char);
     }
 
-    token: Token;
-    token.kind = .COMMENT;
-    token.value = builder_to_string(*builder);
+
+    token.string_value = builder_to_string(*builder);
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
 
     return token;
 }
 
 parse_identifier :: (using iterator: *Iterator) -> Token {
     token: Token;
-    identifier := next_while(iterator,  char => is_identifier_char(char) || is_digit(char)); // is_digit protože můžeme mít např. Person2 :: struct {}
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    identifier := next_while(iterator,  char => is_identifier_char(char) || is_digit(char)); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
     keyword := false;
 
-    for keyword_name: enum_names(Keyword) {
-        if identifier == to_lower_copy(keyword_name) {
+    for token_kind: enum_names(Token_Kind) {
+        if !starts_with(token_kind, "KEYWORD") continue;
+
+        if identifier == to_lower_copy(token_kind) {
             keyword = true;
             break;
         }
     }
 
     if keyword {
-        token.kind = .KEYWORD;
         identifier_uppercased := to_upper_copy(identifier);
-        enum_value, ok := enum_name_to_value(Keyword, identifier_uppercased);
+        enum_value, ok := enum_name_to_value(Token_Kind, tprint("KEYWORD_%", identifier_uppercased));
         assert(ok, "invalid keyword %", identifier_uppercased);
-        token.keyword = enum_value;
+        token.kind = enum_value;
     } else {
         token.kind = .IDENTIFIER;
-        token.value = identifier;
+        token.string_value = identifier;
     }
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
     
     return token;
 }
 
 parse_string :: (using iterator: *Iterator) -> Token {
-    next(iterator); // Přeskočíme první uvozovku
+    token: Token;
+    token.kind = .STRING;
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+    
+    next(iterator); // We skip the first "
     escaped := false;
-
 
     builder: String_Builder;
     init_string_builder(*builder);
@@ -311,19 +295,35 @@ parse_string :: (using iterator: *Iterator) -> Token {
         }
     }
 
-    token: Token;
-    token.kind = .STRING;
-    token.value = builder_to_string(*builder);
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
+    token.string_value = builder_to_string(*builder);
 
     return token;
 }
 
 parse_digit :: (using iterator: *Iterator) -> Token {
     token: Token;
-    number := next_while(iterator, char => is_digit(char) || char == #char "." || char == #char "_");
-
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
     token.kind = .NUMBER;
-    token.value = number;
+
+    number_value := next_while(iterator, char => is_digit(char) || char == #char "." || char == #char "_");
+    number_value = replace(number_value, "_", ""); // Remove all _ in number
+
+    ok: bool;
+    if contains(number_value, ".") {
+        token.float_value, ok = parse_float(*number_value);
+    } else {
+        token.integer_value, ok = parse_int(*number_value);
+    }
+
+    if !ok {
+        log_error("Invalid number!");
+    }
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
 
     return token;
 }

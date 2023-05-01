@@ -3,7 +3,7 @@
 
 Iterator :: struct {
     line := 1;
-    column := 0;
+    column := 1;
     buffer: string;
     file_path: string;
 }

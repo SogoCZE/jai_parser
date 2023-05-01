@@ -14,7 +14,7 @@ Node :: struct {
         LITERAL;
         BINARY_OPERATION;
         IMPORT_OR_LOAD;
-        
+        RETURN;
     }
 
     Location :: struct {
@@ -33,7 +33,7 @@ Declaration :: struct {
 
     name: string;
     const: bool;
-    type_inst: *Type_Instantiation;
+    type_inst: *Node;
     expression: *Node;
 }
 
@@ -49,6 +49,13 @@ Identifier :: struct {
     kind = .IDENTIFIER;
 
     name: string;
+}
+
+Return :: struct {
+    using #as node: Node;
+    kind = .RETURN;
+
+    returns: []*Node;
 }
 
 Type_Instantiation :: struct {
@@ -197,7 +204,7 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
-delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
+/*delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
     nodes: [..]*Node;
 
     eat_punction(tokenizer, open); 
@@ -279,6 +286,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     if is_keyword(tokenizer, .ENUM) {
         return parse_enum(tokenizer);
     }
+    
+    if is_keyword(tokenizer, .RETURN) {
+        return parse_return(tokenizer);
+    }
 
     // Directive
     if is_operator(tokenizer, #char "#") {
@@ -348,7 +359,7 @@ parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
 
     // decl: type_inst;
     if is_identifier(tokenizer) {
-        decl.type_inst = parse_type_inst(tokenizer);
+        decl.type_inst = parse(tokenizer);
         decl.const = false;
 
         // decl: type_inst = exp;
@@ -374,7 +385,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
         proc_directive := eat_identifier(tokenizer);
             
         // @TODO: make directives more robust!
-        if proc_directive.value == {
+        if proc_directive.string_value == {
             case "expand";
                 proc.flags |= .MACRO;
             case "no_context";
@@ -535,7 +546,20 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
     op := eat_token(tokenizer);
     assert(op.kind == .OPERATOR);
 
+    // @@InComplete
     if op.char == {
+        case #char ">";
+            if maybe_eat_operator(tokenizer, #char "=") {
+                binary_operation.operation = .GREATER_EQUEALS;
+            } else {
+                binary_operation.operation = .GREATER;
+            }
+        case #char "<";
+            if maybe_eat_operator(tokenizer, #char "=") {
+                binary_operation.operation = .LESS_EQUEALS;
+            } else {
+                binary_operation.operation = .LESS;
+            }
         case #char "+";
             binary_operation.operation = .ADDITION;
         case #char "-";
@@ -547,13 +571,11 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
         case #char "%";
             binary_operation.operation = .MODULO;
         case #char "=";
-            
             if maybe_eat_operator(tokenizer, #char "=") {
                 binary_operation.operation = .EQUALS;
             } else {
                 binary_operation.operation = .ASSING;
             }
-
         case;
             assert(false, tprint("invalid operator %", to_string(*op.char, 1)));
     }
@@ -562,3 +584,12 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
     
     return binary_operation;
 }
+
+parse_return :: (tokenizer: *Tokenizer) -> *Node {
+    _return := New(Return);
+    eat_keyword(tokenizer, .RETURN);
+    _return.returns = eat_until(tokenizer, token => token.char == #char ";", #char ",");
+    return _return;
+}
+
+*/

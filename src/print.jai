@@ -63,12 +63,12 @@ print_decl :: (decl: *Declaration, new_line := false) {
     }
 
     if !decl.expression && decl.type_inst {
-        printo("%: %", decl.name, decl.type_inst.result);
+        // printo("%: %", decl.name, decl.type_inst.result);
         return;
     }
 
     if decl.expression && decl.type_inst {
-        printo("%: % =", decl.name, decl.type_inst.result);
+        // printo("%: % =", decl.name, decl.type_inst.result);
         print_node(decl.expression);            
     }
 }

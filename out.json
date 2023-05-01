@@ -1,1 +1,1 @@
-[{"kind": "BLOCK","members":[{"kind": "BINARY_OPERATION","left":{"kind": "IDENTIFIER","name":"some"},"operation":"ASSING","right":{"kind": "BINARY_OPERATION","left":{"kind": "LITERAL","value_type":"NUMBER","value":"10"},"operation":"EQUALS","right":{"kind": "LITERAL","value_type":"NUMBER","value":"10"}}}]}]
+[]

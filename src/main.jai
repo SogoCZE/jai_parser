@@ -22,9 +22,10 @@ main :: () {
     nodes: [..]*Node;
 
     while !end(*tokenizer) {
-        node := parse(*tokenizer);
-        if !node continue;
-        array_add(*nodes, node);
+        print_token(eat_token(*tokenizer));
+        // node := parse(*tokenizer);
+        // if !node continue;
+        // array_add(*nodes, node);
     }
 
     json_builder: String_Builder;
