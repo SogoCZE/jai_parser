@@ -194,10 +194,16 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
     if char == #char "@" && is_identifier_char(peek(iterator, 2)) {
         return parse_note_or_directive(iterator, false);
     }
-    
+
     // Directives
     if char == #char "#" && is_identifier_char(peek(iterator, 2)) {
-        return parse_note_or_directive(iterator, true);
+        directive_token := parse_note_or_directive(iterator, true);
+
+        if directive_token.string_value == "string" {
+            return parse_here_string(iterator);
+        }
+
+        return directive_token;
     }
 
     // Identifiers
@@ -341,6 +347,60 @@ parse_string :: (using iterator: *Iterator) -> Token {
         } else {
             append(*builder, char);
         }
+    }
+
+    token.l1 = iterator.line;
+    token.c1 = iterator.column;
+    token.string_value = builder_to_string(*builder);
+
+    return token;
+}
+
+// @TODO: We need to test it more!
+parse_here_string :: (using iterator: *Iterator) -> Token {
+    token: Token;
+    token.kind = .STRING;
+    token.l0 = iterator.line;
+    token.c0 = iterator.column;
+
+    next_while(iterator, is_space); // Skip all whitespaces
+
+    if !is_identifier_char(peek(iterator)) {
+        log_error("Exprected identifier after #string");
+        return .{};
+    }
+
+    here_identifier := parse_identifier(iterator).string_value;
+
+    print("..: %\n", here_identifier);
+
+    builder: String_Builder;
+    init_string_builder(*builder);
+
+    while true {
+        char := next(iterator);
+
+        if char == 0 {
+            log_error("Unexpected end of file inside #string");
+            break;
+        }   
+
+        if char == here_identifier[0] {
+            ok := true;
+            for 1..here_identifier.count-1 {
+                if peek(iterator, it) == here_identifier[it] continue;
+                
+                ok = false;
+                break;                
+            }
+
+            if ok {
+                for 1..here_identifier.count-1 next(iterator); // eat and
+                break;
+            }
+        }
+
+        append(*builder, char);
     }
 
     token.l1 = iterator.line;
