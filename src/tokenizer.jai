@@ -32,7 +32,7 @@ Token_Kind :: enum {
     ARROW_RIGHT; // ->
 
     CONSTANT_DECLARATION; // ::
-    DECLARATION_AND_ASIGN; // :=
+    DECLARATION_AND_ASSIGN; // :=
 
     NOTE; // @note
     DIRECTIVE; // #run
@@ -539,7 +539,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     if char == #char ":" {
         if next_char == #char "=" {
             next(iterator);
-            token.kind = .DECLARATION_AND_ASIGN;
+            token.kind = .DECLARATION_AND_ASSIGN;
         }
         
         if next_char == #char ":" {
