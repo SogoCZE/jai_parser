@@ -35,6 +35,7 @@ Token_Kind :: enum {
     DECLARATION_AND_ASIGN; // :=
 
     NOTE; // @note
+    DIRECTIVE; // #run
     QUICK_LAMBDA; // =>
 
     KEYWORD_STRUCT;
@@ -189,28 +190,39 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
 
     char := peek(iterator);
 
+    // Notes
     if char == #char "@" && is_identifier_char(peek(iterator, 2)) {
-        return parse_note(iterator);
+        return parse_note_or_directive(iterator, false);
+    }
+    
+    // Directives
+    if char == #char "#" && is_identifier_char(peek(iterator, 2)) {
+        return parse_note_or_directive(iterator, true);
     }
 
+    // Identifiers
     if is_identifier_char(char) {
         return parse_identifier(iterator); // could also be a keyword ;
     }
 
+    // Strings
     if char == #char "\"" {
         return parse_string(iterator);
     }
 
+    // Numbers
     if is_digit(char) {
         return parse_digit(iterator);
     }
 
+    // Backtick 
     if char == #char "`" {
         next(iterator); // eat `
         tokenizer.next_backticked = true;
         return .{}; // empty token (skipped by tokenizer)
     }
 
+    // Special chars or compound chars
     return parse_char_token(iterator);
 }
 
@@ -246,14 +258,14 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_note :: (using iterator: *Iterator) -> Token {
+parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token {
     next(iterator); // Skip the "@"
 
     token: Token;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
-    token.kind = .NOTE;
+    token.kind = ifx directive then Token_Kind.DIRECTIVE else .NOTE;
     token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
 
     token.l1 = iterator.line;
