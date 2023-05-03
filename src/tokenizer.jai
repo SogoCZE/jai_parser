@@ -109,7 +109,12 @@ create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
     return tokenizer;
 }
 
-print_token :: (token: Token) {
+print_token :: (token: *Token) {
+    if !token {
+        print("<null token>\n");
+        return;
+    }
+
     value: string;
 
     if token.kind == .STRING || token.kind == .COMMENT || token.kind == .IDENTIFIER {
@@ -199,11 +204,14 @@ eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
 }
 
 is_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
-    return peek_token(tokenizer).kind == kind;
+    token := peek_token(tokenizer);
+    if !token || token.kind != kind return false;
+    return true;
 }
 
 meaybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
-    if peek_token(tokenizer).kind != kind return false;
+    next_token := peek_token(tokenizer);
+    if !next_token || next_token.kind != kind return false;
     eat_token(tokenizer, kind);
     return true;
 }
@@ -218,7 +226,7 @@ peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
 }
 
 is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
-    return peek_token(tokenizer).kind == .IDENTIFIER;
+    return is_token(tokenizer, .IDENTIFIER);
 }
 
 maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool, *Token {

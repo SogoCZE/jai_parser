@@ -16,6 +16,7 @@ Node :: struct {
         IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
+        COMMA_SEPERATED_EXPRESSION;
     }
 
     Location :: struct {
@@ -219,6 +220,12 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
+Comma_Seperated_Expression :: struct {
+    using #as node: Node;
+    kind = .COMMA_SEPERATED_EXPRESSION;
+    members: []*Node;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -346,9 +353,6 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_block(tokenizer);
     }
 
-    // print("Eaten non match:\n");
-    // print_token(eat_token(tokenizer));
-
     if is_token(tokenizer, .COMMENT) {
         comment_token := eat_token(tokenizer, .COMMENT);
         comment := New(Comment);
@@ -356,13 +360,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return comment;
     }
 
+    // print("Eaten non match:\n");
+    // print_token(eat_token(tokenizer));
+
     eat_token(tokenizer);
 
     return null;
-}
-
-get_typ :: () -> Type {
-    return int;
 }
 
 // player: Player;
@@ -400,10 +403,17 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, name: string) -> *Declar
     return decl;
 }
 
-parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
-    proc := New(Procedure);
+parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
+    members := delimeted(tokenizer, #char "(", #char ")", #char ",");
 
-    proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    if members.count > 0 && members[0].kind != .DECLARATION {
+        comma_seperated_expression := New(Comma_Seperated_Expression);
+        comma_seperated_expression.members = members;
+        return comma_seperated_expression;
+    }
+
+    proc := New(Procedure);
+    proc.arguments = members;
 
     parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
         eat_token(tokenizer, #char "#");
@@ -437,23 +447,21 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
     // if is_operator(tokenizer, #char "#") {
     //     parse_proc_directives(tokenizer, proc);
     // }
-    
-    // returns
-    if meaybe_eat_token(tokenizer, #char "-") {
-        eat_token(tokenizer, #char ">");
-        meaybe_eat_token(tokenizer, #char "(");
-        
-        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")", #char ",");
 
+    // returns
+    if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
+        meaybe_eat_token(tokenizer, #char "(");
+        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")", #char ",");
         meaybe_eat_token(tokenizer, #char ")");
     }
 
     // Body
     if is_token(tokenizer, #char "{") {
         proc.body = parse_block(tokenizer);
-    } else {
-        print("Exprected procedure body! Got:");
-        print_token(peek_token(tokenizer));
+    } 
+
+    if proc.body == null && proc.returns.count == 0 {
+
     }
 
     return proc;

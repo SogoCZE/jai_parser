@@ -1,2 +1,1 @@
-patrik: Person;
-patrik.friend.name;
+hello :: () -> string, int;
