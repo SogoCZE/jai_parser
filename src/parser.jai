@@ -187,14 +187,14 @@ Binary_Operation :: struct {
         DIVISION; // /
         MODULO; // %
 
-        EQUALS; // ==
-        NOT_EQUALS; // !=
+        IS_EQUAL; // ==
+        IS_NOT_EQUAL; // !=
         
         LESS; // >
         GREATER; // <
         
-        LESS_EQUEALS; // <=
-        GREATER_EQUEALS; // >=
+        LESS_EQUEAL; // <=
+        GREATER_EQUEAL; // >=
 
         ASSING; // =
     }
@@ -204,390 +204,374 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
-// delimeted :: (tokenizer: *Tokenizer, open: u8, close: u8, seperator: u8 = 0) -> []*Node {
-//     nodes: [..]*Node;
+delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
+    nodes: [..]*Node;
 
-//     eat_punction(tokenizer, open); 
+    eat_token(tokenizer, open); 
 
-//     while !end(tokenizer) {
-//         if is_punctuation(tokenizer, close) break;
+    while !end(tokenizer) {
+        if is_token(tokenizer, close) break;
 
-//         if seperator != 0 && is_punctuation(tokenizer, seperator) {
-//             eat_punction(tokenizer, seperator);
-//             continue;
-//         }
+        if seperator != 0 && is_token(tokenizer, seperator) {
+            eat_token(tokenizer, seperator);
+            continue;
+        }
 
-//         node := parse(tokenizer);
-//         if node == null continue;
-//         array_add(*nodes, node);
+        node := parse(tokenizer);
+        if node == null continue;
+        array_add(*nodes, node);
 
-//         if is_punctuation(tokenizer, close) break;
-//     }
+        if is_token(tokenizer, close) break;
+    }
 
-//     eat_punction(tokenizer, close);
+    eat_token(tokenizer, close);
 
-//     return nodes;
-// }
+    return nodes;
+}
 
-// eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: u8 = 0) -> []*Node {
-//     nodes: [..]*Node;
+eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0) -> []*Node {
+    nodes: [..]*Node;
 
-//     while !end(tokenizer) {
-//         if stop(peek_token(tokenizer)) break;
+    while !end(tokenizer) {
+        if stop(peek_token(tokenizer)) break;
 
-//         if seperator != 0 && is_punctuation(tokenizer, seperator) {
-//             eat_punction(tokenizer, seperator);
-//             continue;
-//         }
+        if seperator != 0 && is_token(tokenizer, seperator) {
+            eat_token(tokenizer, seperator);
+            continue;
+        }
 
-//         node := parse(tokenizer);
-//         if node == null continue;
-//         array_add(*nodes, node);
+        node := parse(tokenizer);
+        if node == null continue;
+        array_add(*nodes, node);
 
-//         if stop(peek_token(tokenizer)) break;
-//     }
+        if stop(peek_token(tokenizer)) break;
+    }
 
-//     return nodes;
-// }
+    return nodes;
+}
 
-// // TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
+// TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
 
-// parse :: (tokenizer: *Tokenizer) -> *Node {
+parse :: (tokenizer: *Tokenizer) -> *Node {
 
-//     if is_identifier(tokenizer) {
-//         ident := eat_identifier(tokenizer);
+    if is_identifier(tokenizer) {
+        ident := eat_token(tokenizer, .IDENTIFIER);
 
-//         // age+20
-//         if peek_token(tokenizer).kind == .OPERATOR {
-//             identifier := parse_identifier(ident.value);
-//             return parse_binary_operation(tokenizer, identifier);
-//         }
+        // age+20
+        if is_operator(peek_token(tokenizer)) {
+            identifier := parse_identifier(ident.string_value);
+            return parse_binary_operation(tokenizer, identifier);
+        }
 
-//         if is_punctuation(tokenizer, #char "(") {
-//             return parse_procedure_call(ident.value, tokenizer);
-//         }
+        if is_token(tokenizer, #char "(") {
+            return parse_procedure_call(ident.string_value, tokenizer);
+        }
 
-//         if is_punctuation(tokenizer, #char ":") {
-//             return parse_declaration(ident.value, tokenizer);
-//         }
+        if is_token(tokenizer, #char ":") {
+            return parse_declaration(ident.string_value, tokenizer);
+        }
 
-//         return parse_identifier(ident.value);
-//     }
+        return parse_identifier(ident.string_value);
+    }
 
-//     if is_punctuation(tokenizer, #char "(") { 
-//         // TODO: cislo :: (10+20); nebo cislo :: (10)
-//         return parse_procedure(tokenizer);
-//     }
+    if is_token(tokenizer, #char "(") { 
+        // TODO: cislo :: (10+20); nebo cislo :: (10)
+        return parse_procedure(tokenizer);
+    }
 
-//     if is_keyword(tokenizer, .STRUCT) {
-//         return parse_struct(tokenizer);
-//     }
+    if is_token(tokenizer, .KEYWORD_STRUCT) {
+        return parse_struct(tokenizer);
+    }
     
-//     if is_keyword(tokenizer, .ENUM) {
-//         return parse_enum(tokenizer);
-//     }
+    if is_token(tokenizer, .KEYWORD_ENUM) {
+        return parse_enum(tokenizer);
+    }
     
-//     if is_keyword(tokenizer, .RETURN) {
-//         return parse_return(tokenizer);
-//     }
+    if is_token(tokenizer, .KEYWORD_RETURN) {
+        return parse_return(tokenizer);
+    }
 
-//     // Directive
-//     if is_operator(tokenizer, #char "#") {
-//         return parse_directive(tokenizer);
-//     }
+    // Directive
+    if is_token(tokenizer, #char "#") {
+        return parse_directive(tokenizer);
+    }
 
-//     if peek_token(tokenizer).kind == .STRING {
-//         return parse_literal(tokenizer, .STRING);
-//     }    
+    if peek_token(tokenizer).kind == .STRING {
+        return parse_literal(tokenizer, .STRING);
+    }    
     
-//     if peek_token(tokenizer).kind == .NUMBER {
+    if peek_token(tokenizer).kind == .NUMBER {
    
-//         // 10+20
-//         if peek_token(tokenizer, 1).kind == .OPERATOR {
-//             literal := parse_literal(tokenizer, .NUMBER);
-//             return parse_binary_operation(tokenizer, literal);    
-//         }
+        // 10+20
+        if is_operator(peek_token(tokenizer, 1)) {
+            literal := parse_literal(tokenizer, .NUMBER);
+            return parse_binary_operation(tokenizer, literal);    
+        }
 
-//         return parse_literal(tokenizer, .NUMBER);
-//     }
+        return parse_literal(tokenizer, .NUMBER);
+    }
 
-//     if is_keyword(tokenizer, .TRUE) {
-//         return parse_literal(tokenizer, .TRUE);
-//     }    
+    if is_token(tokenizer, .KEYWORD_TRUE) {
+        return parse_literal(tokenizer, .TRUE);
+    }    
     
-//     if is_keyword(tokenizer, .FALSE) {
-//         return parse_literal(tokenizer, .FALSE);
-//     }
+    if is_token(tokenizer, .KEYWORD_FALSE) {
+        return parse_literal(tokenizer, .FALSE);
+    }
 
-//     if is_punctuation(tokenizer, #char "{") {
-//         return parse_block(tokenizer);
-//     }
+    if is_token(tokenizer, #char "{") {
+        return parse_block(tokenizer);
+    }
 
-//     // print("Eaten non match:\n");
-//     // print_token(eat_token(tokenizer));
+    // print("Eaten non match:\n");
+    // print_token(eat_token(tokenizer));
 
-//     eat_token(tokenizer);
+    eat_token(tokenizer);
 
-//     return null;
-// }
+    return null;
+}
 
 
-// parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
-//     decl := New(Declaration);
+parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
+    decl := New(Declaration);
+    decl.name = name;
 
-//     decl.name = name;
+    eat_token(tokenizer, #char ":"); 
 
-//     eat_punction(tokenizer, #char ":"); 
+    // decl :: exp;
+    if is_token(tokenizer, #char ":") {
+        eat_token(tokenizer, #char ":");
+        decl.expression = parse(tokenizer);
+        decl.const = true;
 
-//     // decl :: exp;
-//     if is_punctuation(tokenizer, #char ":") {
-//         eat_punction(tokenizer, #char ":");
-//         decl.expression = parse(tokenizer);
-//         decl.const = true;
+        return decl;
+    }
 
-//         return decl;
-//     }
+    // decl := exp;
+    if is_token(tokenizer, #char "=") {
+        eat_token(tokenizer, #char "=");
+        decl.expression = parse(tokenizer);
+        decl.const = false;
 
-//     // decl := exp;
-//     if is_operator(tokenizer, #char "=") {
-//         eat_operator(tokenizer, #char "=");
-//         decl.expression = parse(tokenizer);
-//         decl.const = false;
+        return decl;
+    }
 
-//         return decl;
-//     }
+    // decl: type_inst;
+    if is_token(tokenizer, .IDENTIFIER) {
+        decl.type_inst = parse(tokenizer);
+        decl.const = false;
 
-//     // decl: type_inst;
-//     if is_identifier(tokenizer) {
-//         decl.type_inst = parse(tokenizer);
-//         decl.const = false;
+        // decl: type_inst = exp;
+        if is_operator(peek_token(tokenizer)) {
+            eat_token(tokenizer, #char "=");
+            decl.expression = parse(tokenizer);
+        }
 
-//         // decl: type_inst = exp;
-//         if is_operator(tokenizer, #char "=") {
-//             eat_operator(tokenizer, #char "=");
-//             decl.expression = parse(tokenizer);
-//         }
-
-//         return decl;
-//     }
+        return decl;
+    }
     
-//     return decl;
-// }
+    return decl;
+}
 
-// parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
-//     proc := New(Procedure);
+parse_procedure :: (tokenizer: *Tokenizer) -> *Procedure {
+    proc := New(Procedure);
 
-//     proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    proc.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
 
-//     parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
-//         eat_operator(tokenizer, #char "#");
+    parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
+        eat_token(tokenizer, #char "#");
 
-//         proc_directive := eat_identifier(tokenizer);
+        proc_directive := eat_token(tokenizer, .IDENTIFIER);
             
-//         // @TODO: make directives more robust!
-//         if proc_directive.string_value == {
-//             case "expand";
-//                 proc.flags |= .MACRO;
-//             case "no_context";
-//                 proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
-//             case "dump";
-//                 proc.flags |= .DEBUG_DUMP;
-//             case "cpp_method";
-//                 proc.flags |= .CPP_METHOD;
-//             case "no_debug";
-//                 proc.flags |= .NO_DEBUG;
-//             case "c_call";
-//                 proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
-//                 proc.flags |= .C_CALL;
+        // @TODO: make directives more robust!
+        if proc_directive.string_value == {
+            case "expand";
+                proc.flags |= .MACRO;
+            case "no_context";
+                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+            case "dump";
+                proc.flags |= .DEBUG_DUMP;
+            case "cpp_method";
+                proc.flags |= .CPP_METHOD;
+            case "no_debug";
+                proc.flags |= .NO_DEBUG;
+            case "c_call";
+                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+                proc.flags |= .C_CALL;
 
-//         }
+        }
 
-//         if is_operator(tokenizer, #char "#") {
-//             parse_proc_directives(tokenizer, proc);
-//         }
-//     }   
+        if is_token(tokenizer, #char "#") {
+            parse_proc_directives(tokenizer, proc);
+        }
+    }   
 
-//     // Directives
-//     if is_operator(tokenizer, #char "#") {
-//         parse_proc_directives(tokenizer, proc);
-//     }
+    // Directives
+    // if is_operator(tokenizer, #char "#") {
+    //     parse_proc_directives(tokenizer, proc);
+    // }
     
-//     // returns
-//     if maybe_eat_operator(tokenizer, #char "-") {
-//         eat_operator(tokenizer, #char ">");
-//         maybe_eat_punction(tokenizer, #char "(");
+    // returns
+    if meaybe_eat_token(tokenizer, #char "-") {
+        eat_token(tokenizer, #char ">");
+        meaybe_eat_token(tokenizer, #char "(");
         
-//         proc.returns = eat_until(tokenizer, token => token.char == #char "{" || token.char == #char ")", #char ",");
+        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")", #char ",");
 
-//         maybe_eat_punction(tokenizer, #char ")");
-//     }
+        meaybe_eat_token(tokenizer, #char ")");
+    }
 
-//     // Body
-//     if is_punctuation(tokenizer, #char "{") {
-//         proc.body = parse_block(tokenizer);
-//     } else {
-//         print("Exprected procedure body! Got:");
-//         print_token(peek_token(tokenizer));
-//     }
+    // Body
+    if is_token(tokenizer, #char "{") {
+        proc.body = parse_block(tokenizer);
+    } else {
+        print("Exprected procedure body! Got:");
+        print_token(peek_token(tokenizer));
+    }
 
-//     return proc;
-// }
+    return proc;
+}
 
-// parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
-//     _struct := New(Struct);
+parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
+    _struct := New(Struct);
 
-//     eat_keyword(tokenizer, .STRUCT);
+    eat_token(tokenizer, .KEYWORD_STRUCT);
 
-//     if is_punctuation(tokenizer, #char "{") {
-//         _struct.block = parse_block(tokenizer);
-//     } else {
-//         print("Exprected struct body! Got:");
-//         print_token(peek_token(tokenizer));
-//     }
+    if is_token(tokenizer, #char "{") {
+        _struct.block = parse_block(tokenizer);
+    } else {
+        print("Exprected struct body! Got:");
+        print_token(peek_token(tokenizer));
+    }
 
-//     return _struct;
-// }
+    return _struct;
+}
 
-// parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
-//     _enum := New(Enum);
+parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
+    _enum := New(Enum);
 
-//     eat_keyword(tokenizer, .ENUM);
+    eat_token(tokenizer, .KEYWORD_ENUM);
 
-//     // Type specifier
-//     if is_identifier(tokenizer) {
-//         _enum.type = eat_identifier(tokenizer).value;
-//     }
+    // Type specifier
+    if is_identifier(tokenizer) {
+        _enum.type = eat_token(tokenizer, .IDENTIFIER).string_value;
+    }
 
-//     // Body
-//     if is_punctuation(tokenizer, #char "{") {
-//         _enum.block = parse_block(tokenizer);
-//     } else {
-//         print("Exprected enum body! Got:");
-//         print_token(peek_token(tokenizer));
-//     }
+    // Body
+    if is_token(tokenizer, #char "{") {
+        _enum.block = parse_block(tokenizer);
+    } else {
+        print("Exprected enum body! Got:");
+        print_token(peek_token(tokenizer));
+    }
 
-//     return _enum;
-// }
+    return _enum;
+}
 
-// parse_block :: (tokenizer: *Tokenizer) -> *Block {
-//     block := New(Block);
-//     block.members = delimeted(tokenizer, #char "{", #char "}");
-//     return block;
-// }
+parse_block :: (tokenizer: *Tokenizer) -> *Block {
+    block := New(Block);
+    block.members = delimeted(tokenizer, #char "{", #char "}");
+    return block;
+}
 
-// parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
-//     type_inst := New(Type_Instantiation);
-//     type_inst.result = eat_identifier(tokenizer).value;
-//     return type_inst;
-// }
+parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
+    type_inst := New(Type_Instantiation);
+    type_inst.result = eat_token(tokenizer, .IDENTIFIER).string_value;
+    return type_inst;
+}
  
-// parse_procedure_call :: (procedure_name: string, tokenizer: *Tokenizer) -> *Procedure_Call {
-//     proc_call := New(Procedure_Call);
-//     proc_call.name = procedure_name;
-//     proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
-//     return proc_call;
-// }
+parse_procedure_call :: (procedure_name: string, tokenizer: *Tokenizer) -> *Procedure_Call {
+    proc_call := New(Procedure_Call);
+    proc_call.name = procedure_name;
+    proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    return proc_call;
+}
 
-// parse_directive :: (tokenizer: *Tokenizer) -> *Node {
-//     eat_operator(tokenizer, #char "#");
+parse_directive :: (tokenizer: *Tokenizer) -> *Node {
+    eat_token(tokenizer, #char "#");
 
-//     if is_keyword(tokenizer, .IMPORT) {
-//         return parse_import_or_load(tokenizer, false);
-//     }
+    if is_token(tokenizer, .KEYWORD_IMPORT) {
+        return parse_import_or_load(tokenizer, false);
+    }
 
-//     if is_keyword(tokenizer, .LOAD) {
-//         return parse_import_or_load(tokenizer, true);
-//     }
+    if is_token(tokenizer, .KEYWORD_LOAD) {
+        return parse_import_or_load(tokenizer, true);
+    }
 
-//     directive_name_identifier := eat_identifier(tokenizer);
+    directive_name_identifier := eat_token(tokenizer);
 
-//     directive := New(Directive);
-//     directive.name = directive_name_identifier.value;
+    directive := New(Directive);
+    directive.name = directive_name_identifier.string_value;
 
-//     return directive;
-// }
+    return directive;
+}
 
-// parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
-//     import_or_load := New(Import_Or_Load);
-//     eat_keyword(tokenizer, ifx load then Keyword.LOAD else .IMPORT);
-//     import_or_load.file = eat_string(tokenizer).value;
-//     return import_or_load;
-// }
+parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
+    import_or_load := New(Import_Or_Load);
+    eat_token(tokenizer, ifx load then Token_Kind.KEYWORD_LOAD else .KEYWORD_IMPORT);
+    import_or_load.file = eat_token(tokenizer, .STRING).string_value;
+    return import_or_load;
+}
 
-// parse_identifier :: (name: string) -> *Identifier {
-//     identifier := New(Identifier);
-//     identifier.name = name;
-//     return identifier;
-// }
+parse_identifier :: (name: string) -> *Identifier {
+    identifier := New(Identifier);
+    identifier.name = name;
+    return identifier;
+}
 
-// parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
-//     literal := New(Literal);
-//     literal.value_type = type;
+parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
+    literal := New(Literal);
+    literal.value_type = type;
 
-//     if type == {
-//         case .STRING;
-//             literal._string = eat_string(tokenizer).value;
-//         case .TRUE;
-//             eat_keyword(tokenizer, .TRUE);       
-//         case .FALSE;
-//             eat_keyword(tokenizer, .FALSE);
-//         case .NUMBER;
-//             number := eat_number(tokenizer);
-//             literal._string = number.value;
-//     }
+    if type == {
+        case .STRING;
+            literal._string = eat_token(tokenizer).string_value;
+        case .TRUE;
+            eat_token(tokenizer);       
+        case .FALSE;
+            eat_token(tokenizer);
+        case .NUMBER;
+            // number := eat_token(tokenizer).integer_value;
+            // literal._string = number.value;
+    }
 
-//     return literal;
-// }
+    return literal;
+}
 
-// parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operation {
-//     binary_operation := New(Binary_Operation);
-//     binary_operation.left = left;
+parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operation {
+    binary_operation := New(Binary_Operation);
+    binary_operation.left = left;
 
-//     op := eat_token(tokenizer);
-//     assert(op.kind == .OPERATOR);
+    op := eat_token(tokenizer);
+    assert(is_operator(op));
 
-//     // @@InComplete
-//     if op.char == {
-//         case #char ">";
-//             if maybe_eat_operator(tokenizer, #char "=") {
-//                 binary_operation.operation = .GREATER_EQUEALS;
-//             } else {
-//                 binary_operation.operation = .GREATER;
-//             }
-//         case #char "<";
-//             if maybe_eat_operator(tokenizer, #char "=") {
-//                 binary_operation.operation = .LESS_EQUEALS;
-//             } else {
-//                 binary_operation.operation = .LESS;
-//             }
-//         case #char "+";
-//             binary_operation.operation = .ADDITION;
-//         case #char "-";
-//             binary_operation.operation = .SUBTRACTION;
-//         case #char "*";
-//             binary_operation.operation = .MULTIPLICATION;
-//         case #char "/";
-//             binary_operation.operation = .DIVISION;
-//         case #char "%";
-//             binary_operation.operation = .MODULO;
-//         case #char "=";
-//             if maybe_eat_operator(tokenizer, #char "=") {
-//                 binary_operation.operation = .EQUALS;
-//             } else {
-//                 binary_operation.operation = .ASSING;
-//             }
-//         case;
-//             assert(false, tprint("invalid operator %", to_string(*op.char, 1)));
-//     }
+    // @@InComplete
+    if op.kind == {
+        case #char ">";         binary_operation.operation = .GREATER;
+        case #char "<";         binary_operation.operation = .LESS;
+        case #char "+";         binary_operation.operation = .ADDITION;
+        case #char "-";         binary_operation.operation = .SUBTRACTION;
+        case #char "*";         binary_operation.operation = .MULTIPLICATION;
+        case #char "/";         binary_operation.operation = .DIVISION;
+        case #char "%";         binary_operation.operation = .MODULO;
+        case #char "=";         binary_operation.operation = .ASSING;
 
-//     binary_operation.right = parse(tokenizer); // @TODO: anything?
+        case .GREATER_EQUEAL;   binary_operation.operation = .GREATER_EQUEAL;
+        case .LESS_EQUEAL;      binary_operation.operation = .LESS_EQUEAL;
+        case .IS_EQUAL;         binary_operation.operation = .IS_EQUAL;
+        case .IS_NOT_EQUAL;     binary_operation.operation = .IS_NOT_EQUAL;
+
+        case; assert(false, tprint("invalid operator %", to_string(*cast(u8)op.kind, 1)));
+    }
+
+    binary_operation.right = parse(tokenizer); // @TODO: anything?
     
-//     return binary_operation;
-// }
+    return binary_operation;
+}
 
-// parse_return :: (tokenizer: *Tokenizer) -> *Node {
-//     _return := New(Return);
-//     eat_keyword(tokenizer, .RETURN);
-//     _return.returns = eat_until(tokenizer, token => token.char == #char ";", #char ",");
-//     return _return;
-// }
+parse_return :: (tokenizer: *Tokenizer) -> *Node {
+    _return := New(Return);
+    eat_token(tokenizer, .KEYWORD_RETURN);
+    _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",");
+    return _return;
+}

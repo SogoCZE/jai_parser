@@ -135,6 +135,10 @@ print_token :: (token: Token) {
     }
 }
 
+is_operator :: (token: Token) -> bool {
+
+}
+
 next_while :: (iterator: *Iterator, predicate: (char: u8) -> bool) -> string {
     builder: String_Builder;
     init_string_builder(*builder);
@@ -160,6 +164,22 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
     if end(tokenizer) return null;
     cursor += 1;
     return *tokens[cursor-1];
+}
+
+eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
+    token := eat_token(tokenizer);
+    assert(token.kind == kind);
+    return token;
+}
+
+is_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
+    return peek_token(tokenizer).kind == kind;
+}
+
+meaybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
+    if peek_token(tokenizer).kind != kind return false;
+    eat_token(tokenizer, kind);
+    return true;
 }
 
 end :: (using tokenizer: *Tokenizer) -> bool {
