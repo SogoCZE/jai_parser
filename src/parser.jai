@@ -14,6 +14,7 @@ Node :: struct {
         LITERAL;
         BINARY_OPERATION;
         IMPORT_OR_LOAD;
+        COMMENT;
         RETURN;
     }
 
@@ -35,6 +36,12 @@ Declaration :: struct {
     const: bool;
     type_inst: *Node;
     expression: *Node;
+}
+
+Comment :: struct {
+    using #as node: Node;
+    kind = .COMMENT;
+    value: string;
 }
 
 Block :: struct {
@@ -62,7 +69,7 @@ Type_Instantiation :: struct {
     using #as node: Node;
     kind = .TYPE_INSTANTIATION;
 
-    result: string; 
+    result: *Node; 
 }
 
 Procedure :: struct {
@@ -136,23 +143,23 @@ Literal :: struct {
     kind = .LITERAL;
 
     Value_Type :: enum s16 {
-        UNINITIALIZED :: 0;
-        NUMBER        :: 1;
-        STRING        :: 2;
-        TRUE          :: 4;
-        FALSE         :: 5;
-        ARRAY         :: 6;
-        STRUCT        :: 7;
-        POINTER       :: 8;
+        UNINITIALIZED;
+        INT;
+        FLOAT;
+        STRING;
+        BOOL;
+        ARRAY;
+        STRUCT;
+        POINTER;
     }
 
     value_type: Value_Type;
 
     using values: union {
         _string:  string;
-        _float64: float64;
-        _s64:     s64;
-        _u64:     u64;
+        _float:   float;
+        _int:     int;
+        _bool:    bool;
         
         struct_literal_info : *Struct_Literal_Info;
         array_literal_info  : *Array_Literal_Info;
@@ -179,28 +186,36 @@ Binary_Operation :: struct {
     using #as node: Node; 
     kind = .BINARY_OPERATION;
 
-    // @TODO: is this complete?
+    // @InComplete: >>> <<< >>= <<= ...
     Operation :: enum {
+        INVALID;
+
+        DOT; // .
+
         ADDITION; // +
         SUBTRACTION; // -
         MULTIPLICATION; // *
         DIVISION; // /
         MODULO; // %
-
-        IS_EQUAL; // ==
-        IS_NOT_EQUAL; // !=
-        
         LESS; // >
         GREATER; // <
-        
-        LESS_EQUEAL; // <=
-        GREATER_EQUEAL; // >=
-
         ASSING; // =
+
+        GREATER_EQUEAL; // >=
+        LESS_EQUEAL; // <=
+        PLUS_EQUEAL; // +=
+        MINUS_EQUEAL; // -=
+        MOD_EQUEAL; // %=
+        DIV_EQUEAL; // /=
+        TIMES_EQUEAL; // *=
+        LOGICAL_AND; // &&
+        LOGICAL_OR; // ||
+        IS_EQUAL; // ==
+        IS_NOT_EQUAL; // !=
     }
 
     left: *Node;
-    operation: Operation;
+    operation: Operation = .INVALID;
     right: *Node;
 }
 
@@ -264,11 +279,19 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         }
 
         if is_token(tokenizer, #char "(") {
-            return parse_procedure_call(ident.string_value, tokenizer);
+            return parse_procedure_call(tokenizer, ident.string_value);
         }
 
+        if is_token(tokenizer, .CONSTANT_DECLARATION) {
+            return parse_constant_declaration(tokenizer, ident.string_value);
+        }
+        
+        if is_token(tokenizer, .DECLARATION_AND_ASSIGN) {
+            return parse_declaration_and_assign(tokenizer, ident.string_value);
+        }
+        
         if is_token(tokenizer, #char ":") {
-            return parse_declaration(ident.string_value, tokenizer);
+            return parse_type_instantiation(tokenizer, ident.string_value);
         }
 
         return parse_identifier(ident.string_value);
@@ -297,26 +320,26 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if peek_token(tokenizer).kind == .STRING {
-        return parse_literal(tokenizer, .STRING);
+        return parse_literal(tokenizer);
     }    
     
     if peek_token(tokenizer).kind == .NUMBER {
    
         // 10+20
         if is_operator(peek_token(tokenizer, 1)) {
-            literal := parse_literal(tokenizer, .NUMBER);
+            literal := parse_literal(tokenizer);
             return parse_binary_operation(tokenizer, literal);    
         }
 
-        return parse_literal(tokenizer, .NUMBER);
+        return parse_literal(tokenizer);
     }
 
     if is_token(tokenizer, .KEYWORD_TRUE) {
-        return parse_literal(tokenizer, .TRUE);
+        return parse_literal(tokenizer);
     }    
     
     if is_token(tokenizer, .KEYWORD_FALSE) {
-        return parse_literal(tokenizer, .FALSE);
+        return parse_literal(tokenizer);
     }
 
     if is_token(tokenizer, #char "{") {
@@ -326,50 +349,54 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // print("Eaten non match:\n");
     // print_token(eat_token(tokenizer));
 
+    if is_token(tokenizer, .COMMENT) {
+        comment_token := eat_token(tokenizer, .COMMENT);
+        comment := New(Comment);
+        comment.value = comment_token.string_value;
+        return comment;
+    }
+
     eat_token(tokenizer);
 
     return null;
 }
 
+get_typ :: () -> Type {
+    return int;
+}
 
-parse_declaration :: (name: string, tokenizer: *Tokenizer) -> *Declaration {
+// player: Player;
+parse_type_instantiation :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+    eat_token(tokenizer, #char ":");
     decl := New(Declaration);
     decl.name = name;
+    decl.type_inst = parse(tokenizer);
 
-    eat_token(tokenizer, #char ":"); 
-
-    // decl :: exp;
-    if is_token(tokenizer, #char ":") {
-        eat_token(tokenizer, #char ":");
-        decl.expression = parse(tokenizer);
-        decl.const = true;
-
-        return decl;
-    }
-
-    // decl := exp;
+    // decl: type_inst = exp;
     if is_token(tokenizer, #char "=") {
         eat_token(tokenizer, #char "=");
         decl.expression = parse(tokenizer);
-        decl.const = false;
-
-        return decl;
     }
 
-    // decl: type_inst;
-    if is_token(tokenizer, .IDENTIFIER) {
-        decl.type_inst = parse(tokenizer);
-        decl.const = false;
+    return decl;
+}
 
-        // decl: type_inst = exp;
-        if is_operator(peek_token(tokenizer)) {
-            eat_token(tokenizer, #char "=");
-            decl.expression = parse(tokenizer);
-        }
+// PLAYER_MAX_HP :: 120;
+parse_constant_declaration :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+    eat_token(tokenizer, .CONSTANT_DECLARATION);
+    decl := New(Declaration);
+    decl.name = name;
+    decl.const = true;
+    decl.expression = parse(tokenizer);
+    return decl;
+}
 
-        return decl;
-    }
-    
+// player_position := Vec3.{10, 20, 10};
+parse_declaration_and_assign :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+    eat_token(tokenizer, .DECLARATION_AND_ASSIGN);
+    decl := New(Declaration);
+    decl.name = name;
+    decl.expression = parse(tokenizer);
     return decl;
 }
 
@@ -473,14 +500,8 @@ parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block.members = delimeted(tokenizer, #char "{", #char "}");
     return block;
 }
-
-parse_type_inst :: (tokenizer: *Tokenizer) -> *Type_Instantiation {
-    type_inst := New(Type_Instantiation);
-    type_inst.result = eat_token(tokenizer, .IDENTIFIER).string_value;
-    return type_inst;
-}
  
-parse_procedure_call :: (procedure_name: string, tokenizer: *Tokenizer) -> *Procedure_Call {
+parse_procedure_call :: (tokenizer: *Tokenizer, procedure_name: string) -> *Procedure_Call {
     proc_call := New(Procedure_Call);
     proc_call.name = procedure_name;
     proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
@@ -519,20 +540,29 @@ parse_identifier :: (name: string) -> *Identifier {
     return identifier;
 }
 
-parse_literal :: (tokenizer: *Tokenizer, type: Literal.Value_Type) -> *Literal {
+parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     literal := New(Literal);
-    literal.value_type = type;
 
-    if type == {
+    base_literal := eat_token(tokenizer);
+
+    if base_literal.kind == {
         case .STRING;
-            literal._string = eat_token(tokenizer).string_value;
-        case .TRUE;
-            eat_token(tokenizer);       
-        case .FALSE;
-            eat_token(tokenizer);
+            literal.value_type = .STRING;
+            literal._string = base_literal.string_value;
+        case .KEYWORD_TRUE;
+            literal.value_type = .BOOL;
+            literal._bool = true;
+        case .KEYWORD_FALSE;
+            literal.value_type = .BOOL;
+            literal._bool = false;
         case .NUMBER;
-            // number := eat_token(tokenizer).integer_value;
-            // literal._string = number.value;
+            if base_literal.integer_value == 0 {
+                literal.value_type = .FLOAT;
+                literal._float = base_literal.float_value; // @TODO: Bug!!!
+            } else {
+                literal.value_type = .INT;
+                literal._int = base_literal.integer_value;
+            }
     }
 
     return literal;
@@ -545,7 +575,8 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
     op := eat_token(tokenizer);
     assert(is_operator(op));
 
-    // @@InComplete
+    // @InComplete
+    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automatic...
     if op.kind == {
         case #char ">";         binary_operation.operation = .GREATER;
         case #char "<";         binary_operation.operation = .LESS;
@@ -555,13 +586,21 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
         case #char "/";         binary_operation.operation = .DIVISION;
         case #char "%";         binary_operation.operation = .MODULO;
         case #char "=";         binary_operation.operation = .ASSING;
+        case #char ".";         binary_operation.operation = .DOT;
 
         case .GREATER_EQUEAL;   binary_operation.operation = .GREATER_EQUEAL;
         case .LESS_EQUEAL;      binary_operation.operation = .LESS_EQUEAL;
+        case .PLUS_EQUEAL;      binary_operation.operation = .PLUS_EQUEAL;
+        case .MINUS_EQUEAL;     binary_operation.operation = .MINUS_EQUEAL;
+        case .MOD_EQUEAL;       binary_operation.operation = .MOD_EQUEAL;
+        case .DIV_EQUEAL;       binary_operation.operation = .DIV_EQUEAL;
+        case .TIMES_EQUEAL;     binary_operation.operation = .TIMES_EQUEAL;
+        case .LOGICAL_AND;      binary_operation.operation = .LOGICAL_AND;
+        case .LOGICAL_OR;       binary_operation.operation = .LOGICAL_OR;
         case .IS_EQUAL;         binary_operation.operation = .IS_EQUAL;
         case .IS_NOT_EQUAL;     binary_operation.operation = .IS_NOT_EQUAL;
 
-        case; assert(false, tprint("invalid operator %", to_string(*cast(u8)op.kind, 1)));
+        case; log_error(tprint("Invalid operator '%'.", op.kind));
     }
 
     binary_operation.right = parse(tokenizer); // @TODO: anything?

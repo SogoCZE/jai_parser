@@ -1,1 +1,1 @@
-[{"kind": "IDENTIFIER","name":"some"},{"kind": "LITERAL","value_type":"STRING","value":"Test"}]
+[{"kind": "DECLARATION","name":"patrik","const":false,"type_inst":{"kind": "IDENTIFIER","name":"Person"},"expression":null},{"kind": "BINARY_OPERATION","left":{"kind": "IDENTIFIER","name":"patrik"},"operation":"DOT","right":{"kind": "BINARY_OPERATION","left":{"kind": "IDENTIFIER","name":"friend"},"operation":"DOT","right":{"kind": "IDENTIFIER","name":"name"}}}]

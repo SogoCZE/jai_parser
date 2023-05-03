@@ -4,7 +4,6 @@
 #load "iterator.jai";
 #load "tokenizer.jai";
 #load "parser.jai";
-#load "print.jai";
 #load "json_export.jai";
 
 main :: () {

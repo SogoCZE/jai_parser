@@ -1,1 +1,2 @@
-some := "Test";
+patrik: Person;
+patrik.friend.name;

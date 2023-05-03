@@ -135,8 +135,34 @@ print_token :: (token: Token) {
     }
 }
 
-is_operator :: (token: Token) -> bool {
+// @TODO: Is this complete? ...
+is_operator :: (token: *Token) -> bool {
+    if !token return false;
 
+    if token.kind == {
+        case #char "+";         return true;
+        case #char "-";         return true;
+        case #char "/";         return true;
+        case #char "*";         return true;
+        case #char "%";         return true;
+        case #char ">";         return true;
+        case #char "<";         return true;
+        case #char ".";         return true;
+
+        case .PLUS_EQUEAL;      return true;
+        case .MINUS_EQUEAL;     return true;
+        case .MOD_EQUEAL;       return true;
+        case .DIV_EQUEAL;       return true;
+        case .TIMES_EQUEAL;     return true;
+        case .LESS_EQUEAL;      return true;
+        case .GREATER_EQUEAL;   return true;
+        case .LOGICAL_AND;      return true;
+        case .LOGICAL_OR;       return true;
+        case .IS_EQUAL;         return true;
+        case .IS_NOT_EQUAL;     return true;
+    }
+
+    return false;
 }
 
 next_while :: (iterator: *Iterator, predicate: (char: u8) -> bool) -> string {

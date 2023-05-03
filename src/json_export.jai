@@ -79,8 +79,12 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                     append(*json_builder, "\"value\":");
 
                     if node.value_type == {
-                        case .NUMBER;
-                            append(*json_builder, json_write_string(node._string));
+                        case .BOOL;
+                            append(*json_builder, json_write_string(node._bool));
+                        case .INT;
+                            append(*json_builder, json_write_string(node._int));
+                        case .FLOAT;
+                            append(*json_builder, json_write_string(node._float));
                         case .STRING;
                             append(*json_builder, json_write_string(node._string));
                         case;
