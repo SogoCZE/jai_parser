@@ -8,12 +8,12 @@ File_Module :: #import "File";
 #load "parser.jai";
 #load "json_export.jai";
 
-output_file_to_json :: (file: File) {
+output_file_to_json :: (file_path: string, nodes: []*Node) {
     json_builder: String_Builder;
 
     append(*json_builder, "[");
     first := true;
-    for file.nodes {
+    for nodes {
         if first {
             first = false;
         } else {
@@ -25,14 +25,13 @@ output_file_to_json :: (file: File) {
     append(*json_builder, "]");
 
 
-    out_filename := path_filename(file.path);
+    out_filename := path_filename(file_path);
 
     File_Module.write_entire_file(tprint("./out/%.json", out_filename), builder_to_string(*json_builder));
 }
 
 main :: () {
-    files: Table(string, File);
-    init(*files);
+    files: Table(string, []*Node);
 
     cmd_arguments := get_command_line_arguments();
     if cmd_arguments.count < 2 {
@@ -40,11 +39,9 @@ main :: () {
         return;
     }
     
-    table_set(*files, cmd_arguments[1], parse_file(cmd_arguments[1]));
+    parse_file(*files, cmd_arguments[1]);
 
-    for file: files {
-        output_file_to_json(file);
-    }
+    for nodes, file: files output_file_to_json(file, nodes);
 
     print("All done!\n");
 }

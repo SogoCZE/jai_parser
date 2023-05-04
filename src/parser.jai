@@ -1,10 +1,6 @@
+Files :: Table(string, []*Node);
+
 // TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
-
-File :: struct {
-    path: string;
-    nodes: [..]*Node;
-}
-
 Node :: struct {
 
     Kind :: enum {
@@ -306,11 +302,9 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
     return nodes;
 }
 
-parse_file :: (path: string) -> File {
+parse_file :: (files: *Files, path: string) {
     print("Parsing file %...\n", path);
-
-    file: File;
-    file.path = path;
+    path_without_filename := path_strip_filename(path);
 
     iterator := create_iterator(File_Module.read_entire_file(path));
     tokenizer := create_tokenizer(*iterator);
@@ -320,12 +314,19 @@ parse_file :: (path: string) -> File {
     while !end(*tokenizer) {
         node := parse(*tokenizer);
         if !node continue;
+
+        if node.kind == .IMPORT_OR_LOAD {
+            import_or_load := cast(*Import_Or_Load) node;
+            if import_or_load.load {
+                load_relative_path := tprint("%/%", path_without_filename, import_or_load.file);
+                parse_file(files, load_relative_path); // @TODO: Run this in another thread?
+            }
+        }
+
         array_add(*nodes, node);
     }
 
-    file.nodes = nodes;
-
-    return file;
+    table_set(files, path, nodes);
 }
 
 parse :: (tokenizer: *Tokenizer) -> *Node {
@@ -608,6 +609,7 @@ parse_run :: (tokenizer: *Tokenizer) -> *Node {
 
 parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     import_or_load := New(Import_Or_Load);
+    import_or_load.load = load;
     import_or_load.file = eat_token(tokenizer, .STRING).string_value;
     return import_or_load;
 }

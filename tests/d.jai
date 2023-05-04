@@ -13,3 +13,5 @@ Person :: struct {
 // Gender :: enum {
     
 // }
+
+#load "procedure.jai";
