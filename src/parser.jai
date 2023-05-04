@@ -17,6 +17,7 @@ Node :: struct {
         COMMENT;
         RETURN;
         COMMA_SEPERATED_EXPRESSION;
+        RUN;
     }
 
     Location :: struct {
@@ -226,6 +227,13 @@ Comma_Seperated_Expression :: struct {
     members: []*Node;
 }
 
+Run :: struct {
+    using #as node: Node;
+    kind = .RUN;
+    stallable: bool;
+    statement: *Node;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -305,7 +313,6 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if is_token(tokenizer, #char "(") { 
-        // TODO: cislo :: (10+20); nebo cislo :: (10)
         return parse_procedure(tokenizer);
     }
 
@@ -322,7 +329,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     // Directive
-    if is_token(tokenizer, #char "#") {
+    if is_token(tokenizer, .DIRECTIVE) {
         return parse_directive(tokenizer);
     }
 
@@ -517,27 +524,40 @@ parse_procedure_call :: (tokenizer: *Tokenizer, procedure_name: string) -> *Proc
 }
 
 parse_directive :: (tokenizer: *Tokenizer) -> *Node {
-    eat_token(tokenizer, #char "#");
+    directive_token := eat_token(tokenizer, .DIRECTIVE);
 
-    if is_token(tokenizer, .KEYWORD_IMPORT) {
-        return parse_import_or_load(tokenizer, false);
-    }
-
-    if is_token(tokenizer, .KEYWORD_LOAD) {
-        return parse_import_or_load(tokenizer, true);
+    if directive_token.string_value == {
+        case "import"; return parse_import_or_load(tokenizer, false);
+        case "load"; return parse_import_or_load(tokenizer, true);
+        case "run"; return parse_run(tokenizer);
     }
 
     directive_name_identifier := eat_token(tokenizer);
 
     directive := New(Directive);
-    directive.name = directive_name_identifier.string_value;
+    directive.name = directive_token.string_value;
 
     return directive;
 }
 
+parse_run :: (tokenizer: *Tokenizer) -> *Node {
+    run := New(Run);
+
+    if is_token(tokenizer, #char ",") {
+        eat_token(tokenizer, #char ",");
+
+        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
+            eat_token(tokenizer, .IDENTIFIER);
+            run.stallable = true;
+        }
+    }
+
+    run.statement = parse(tokenizer);    
+    return run;
+}
+
 parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     import_or_load := New(Import_Or_Load);
-    eat_token(tokenizer, ifx load then Token_Kind.KEYWORD_LOAD else .KEYWORD_IMPORT);
     import_or_load.file = eat_token(tokenizer, .STRING).string_value;
     return import_or_load;
 }

@@ -1,1 +1,3 @@
-hello :: () -> string, int;
+#import "Basic";
+
+some :: #run blah();

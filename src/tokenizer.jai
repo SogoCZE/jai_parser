@@ -209,6 +209,12 @@ is_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
     return true;
 }
 
+is_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool {
+    token := peek_token(tokenizer);
+    if !token || !predicate(token) return false;
+    return true;
+}
+
 meaybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
     next_token := peek_token(tokenizer);
     if !next_token || next_token.kind != kind return false;
