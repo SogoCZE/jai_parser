@@ -14,4 +14,4 @@ Person :: struct {
     
 // }
 
-#load "procedure.jai";
+#load "c.jai";

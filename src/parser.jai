@@ -118,6 +118,7 @@ Procedure :: struct {
         NO_DEBUG                           :: 0x4000;
     }
 
+    foreign: string;
     flags: Flags;
     arguments: []*Node;
     returns: []*Node;
@@ -302,6 +303,15 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
     return nodes;
 }
 
+get_module_entry :: (root: string) -> string {
+    uri := tprint("%/module.jai", root);
+    if !file_exists(uri) {
+        uri = tprint("%.jai", root);
+    }
+
+    return uri;
+}
+
 parse_file :: (files: *Files, path: string) {
     print("Parsing file %...\n", path);
     path_without_filename := path_strip_filename(path);
@@ -317,9 +327,14 @@ parse_file :: (files: *Files, path: string) {
 
         if node.kind == .IMPORT_OR_LOAD {
             import_or_load := cast(*Import_Or_Load) node;
+
             if import_or_load.load {
                 load_relative_path := tprint("%/%", path_without_filename, import_or_load.file);
                 parse_file(files, load_relative_path); // @TODO: Run this in another thread?
+            } else {
+                module_path := tprint("%/%", JAI_MODULES_PATH, import_or_load.file);
+                module_entry := get_module_entry(module_path);
+                parse_file(files, module_entry); // @TODO: Run this in another thread?
             }
         }
 
@@ -464,6 +479,7 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, name: string) -> *Declar
 parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     members := delimeted(tokenizer, #char "(", #char ")", #char ",");
 
+    // @TODO: this is kinda messy? We probably want to do this in some other way...
     if members.count > 0 && members[0].kind != .DECLARATION {
         comma_seperated_expression := New(Comma_Seperated_Expression);
         comma_seperated_expression.members = members;
@@ -474,12 +490,10 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     proc.arguments = members;
 
     parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
-        eat_token(tokenizer, #char "#");
+        directive := eat_token(tokenizer, .DIRECTIVE);
 
-        proc_directive := eat_token(tokenizer, .IDENTIFIER);
-            
         // @TODO: make directives more robust!
-        if proc_directive.string_value == {
+        if directive.string_value == {
             case "expand";
                 proc.flags |= .MACRO;
             case "no_context";
@@ -494,33 +508,31 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
                 proc.flags |= .C_CALL;
 
+            case "foreign";
+                proc.foreign = eat_token(tokenizer, .IDENTIFIER).string_value;
         }
 
-        if is_token(tokenizer, #char "#") {
+        if is_token(tokenizer, .DIRECTIVE) {
             parse_proc_directives(tokenizer, proc);
         }
     }   
 
-    // Directives
-    // if is_operator(tokenizer, #char "#") {
-    //     parse_proc_directives(tokenizer, proc);
-    // }
-
     // returns
     if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
         meaybe_eat_token(tokenizer, #char "(");
-        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")", #char ",");
+        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")" || token.kind == .DIRECTIVE, #char ",");
         meaybe_eat_token(tokenizer, #char ")");
+    }
+
+    // Directives
+    if is_token(tokenizer, .DIRECTIVE) {
+        parse_proc_directives(tokenizer, proc);
     }
 
     // Body
     if is_token(tokenizer, #char "{") {
         proc.body = parse_block(tokenizer);
     } 
-
-    if proc.body == null && proc.returns.count == 0 {
-
-    }
 
     return proc;
 }

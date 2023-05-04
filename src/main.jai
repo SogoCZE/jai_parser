@@ -1,12 +1,26 @@
-#import "Basic";
-File_Module :: #import "File";
-#import "Hash_Table";
-#import "String";
+find_current_jai_path :: () -> string {
+    Compiler :: #import "Compiler";
+    options := Compiler.get_build_options();
+    for options.import_path {
+        if find_index_from_left(it, "jai/modules") != -1 {
+            modules_path := remove_trailing_slash(it);
+            base_path := remove_trailing_slash(path_strip_filename(modules_path));
+            log("% -> %", modules_path, base_path);
+            return base_path;
+        }
+    }
 
-#load "iterator.jai";
-#load "tokenizer.jai";
-#load "parser.jai";
-#load "json_export.jai";
+    return "";
+
+    remove_trailing_slash :: (path: string) -> string {
+        result := path;
+        if path[path.count - 1] == #char "/" result.count -= 1;
+        return result;
+    }
+}
+
+JAI_PATH :: #run find_current_jai_path();
+JAI_MODULES_PATH :: #run tprint("%/modules", JAI_PATH);
 
 output_file_to_json :: (file_path: string, nodes: []*Node) {
     json_builder: String_Builder;
@@ -45,3 +59,14 @@ main :: () {
 
     print("All done!\n");
 }
+
+#load "iterator.jai";
+#load "tokenizer.jai";
+#load "parser.jai";
+#load "json_export.jai";
+
+File_Module :: #import "File";
+#import "File_Utilities";
+#import "Basic";
+#import "Hash_Table";
+#import "String";

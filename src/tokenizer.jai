@@ -3,6 +3,7 @@
 #import "Reflection";
 
 // TODO: Token\   Kind 
+// TODO: Hexadecimal numbers
 
 Token_Kind :: enum {
     // ASCII Types...
