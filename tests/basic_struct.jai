@@ -1,3 +1,1 @@
-#import "Basic";
-
-some :: #run blah();
+using some;

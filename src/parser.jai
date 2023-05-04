@@ -1,3 +1,10 @@
+// TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
+
+File :: struct {
+    path: string;
+    nodes: [..]*Node;
+}
+
 Node :: struct {
 
     Kind :: enum {
@@ -16,6 +23,7 @@ Node :: struct {
         IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
+        USING;
         COMMA_SEPERATED_EXPRESSION;
         RUN;
     }
@@ -64,7 +72,25 @@ Return :: struct {
     using #as node: Node;
     kind = .RETURN;
 
+    backticked: bool;
     returns: []*Node;
+}
+
+Using :: struct {
+    using #as node: Node;
+    kind = .USING;
+
+    expression: *Node;
+    filter_expression: *Node;
+
+    filter_type: enum u8 {
+        NONE   :: 0;
+        ONLY   :: 1;
+        EXCEPT :: 2;
+        MAP    :: 3;
+    }
+
+    no_parameters := false;  // If this using is marked 'no_parameters'.
 }
 
 Type_Instantiation :: struct {
@@ -280,7 +306,27 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
     return nodes;
 }
 
-// TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
+parse_file :: (path: string) -> File {
+    print("Parsing file %...\n", path);
+
+    file: File;
+    file.path = path;
+
+    iterator := create_iterator(File_Module.read_entire_file(path));
+    tokenizer := create_tokenizer(*iterator);
+
+    nodes: [..]*Node;
+
+    while !end(*tokenizer) {
+        node := parse(*tokenizer);
+        if !node continue;
+        array_add(*nodes, node);
+    }
+
+    file.nodes = nodes;
+
+    return file;
+}
 
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
@@ -326,6 +372,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     
     if is_token(tokenizer, .KEYWORD_RETURN) {
         return parse_return(tokenizer);
+    }
+
+    if is_token(tokenizer, .KEYWORD_USING) {
+        return parse_using(tokenizer);
     }
 
     // Directive
@@ -638,7 +688,14 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
 
 parse_return :: (tokenizer: *Tokenizer) -> *Node {
     _return := New(Return);
-    eat_token(tokenizer, .KEYWORD_RETURN);
+    return_token := eat_token(tokenizer, .KEYWORD_RETURN);
+    _return.backticked = return_token.backticked;
     _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",");
     return _return;
+}
+
+parse_using :: (tokenizer: *Tokenizer) -> *Node {
+    _using := New(Using);
+    using_token := eat_token(tokenizer, .KEYWORD_USING);
+    return _using;
 }

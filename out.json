@@ -1,1 +1,0 @@
-[{"kind": "IMPORT_OR_LOAD","load":false,"file":"Basic"},{"kind": "DECLARATION","name":"some","const":true,"type_inst":null,"expression":{"kind": "RUN","stallable":false,"statement":{"kind": "PROCEDURE_CALL","name":"blah","arguments":[]}}}]
