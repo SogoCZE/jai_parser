@@ -648,12 +648,14 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
             literal.value_type = .BOOL;
             literal._bool = false;
         case .NUMBER;
+            literal._string = base_literal.string_value; // @TODO: Bug!!!
+
             if base_literal.integer_value == 0 {
                 literal.value_type = .FLOAT;
-                literal._float = base_literal.float_value; // @TODO: Bug!!!
+                // literal._float = base_literal.float_value; // @TODO: Bug!!!
             } else {
                 literal.value_type = .INT;
-                literal._int = base_literal.integer_value;
+                // literal._int = base_literal.integer_value;
             }
     }
 

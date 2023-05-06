@@ -279,7 +279,7 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
 
     // Numbers
     if is_digit(char) {
-        return parse_digit(iterator);
+        return parse_number(iterator);
     }
 
     // Backtick 
@@ -471,25 +471,44 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_digit :: (using iterator: *Iterator) -> Token {
+parse_number :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
-    token.kind = .NUMBER;
+    token.kind = .NUMBER; 
 
-    number_value := next_while(iterator, char => is_digit(char) || char == #char "." || char == #char "_");
+    hex := false;
+    if peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
+        hex = true;
+    }
+
+    predicate: (char: u8) -> bool;
+
+    if hex {
+        predicate = char => is_alpha(char) || is_digit(char) || char == #char "." || char == #char "_";
+    } else {
+        predicate = char => is_digit(char) || char == #char "." || char == #char "_";
+    }
+
+    number_value := next_while(iterator, predicate);
     number_value = replace(number_value, "_", ""); // Remove all _ in number
 
-    ok: bool;
-    if contains(number_value, ".") {
-        token.float_value, ok = parse_float(*number_value);
-    } else {
-        token.integer_value, ok = parse_int(*number_value);
-    }
+    // if hex {
+    //
+    // } else {
+    //     ok: bool;
+    //     if contains(number_value, ".") {
+    //         token.float_value, ok = parse_float(*number_value);
+    //     } else {
+    //         token.integer_value, ok = parse_int(*number_value);
+    //     }
 
-    if !ok {
-        log_error("Invalid number!"); // @InComplete: What now?
-    }
+    //     if !ok {
+    //         log_error("Invalid number!"); // @InComplete: What now?
+    //     }
+    // }
+
+    token.string_value = number_value;
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
