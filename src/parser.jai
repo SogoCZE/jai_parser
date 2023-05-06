@@ -648,7 +648,8 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
             literal.value_type = .BOOL;
             literal._bool = false;
         case .NUMBER;
-            literal._string = base_literal.string_value; // @TODO: Bug!!!
+            // @TODO: This is temporary solution!! Fix this :number_types:
+            literal._string = base_literal.string_value; 
 
             if base_literal.integer_value == 0 {
                 literal.value_type = .FLOAT;

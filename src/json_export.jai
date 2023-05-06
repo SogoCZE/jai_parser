@@ -74,6 +74,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
 
             if member.name == "values" {
 
+                // Fix this :number_types:
                 print_to_builder(*builder, #string _STR
 
                     append(*json_builder, "\"value\":");
