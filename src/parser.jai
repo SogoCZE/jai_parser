@@ -78,14 +78,16 @@ Using :: struct {
     kind = .USING;
 
     expression: *Node;
-    filter_expression: *Node;
+    filters: []*Node;
 
-    filter_type: enum u8 {
+    Filter_Type :: enum u8 {
         NONE   :: 0;
         ONLY   :: 1;
         EXCEPT :: 2;
         MAP    :: 3;
     }
+
+    filter_type: Filter_Type = .NONE;;
 
     no_parameters := false;  // If this using is marked 'no_parameters'.
 }
@@ -730,6 +732,29 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
 parse_using :: (tokenizer: *Tokenizer) -> *Node {
     _using := New(Using);
     using_token := eat_token(tokenizer, .KEYWORD_USING);
+
+    // modifiers
+    if is_token(tokenizer, #char ",") {
+        eat_token(tokenizer, #char ",");
+
+        modifier := eat_token(tokenizer, .IDENTIFIER);
+
+        if modifier.string_value == {
+            case "map";
+             _using.filter_type = .MAP;
+            case "except";
+             _using.filter_type = .EXCEPT;
+            case "only";
+             _using.filter_type = .ONLY;
+        }
+    }
+
+    if is_token(tokenizer, #char "(") {
+        _using.filters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    }
+
+    _using.expression = parse(tokenizer);
+
     return _using;
 }
 
@@ -737,8 +762,7 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Node {
     _cast := New(Cast);
     cast_token := eat_token(tokenizer, .KEYWORD_CAST);
 
-    cast,trunc(u32) 10;
-
+    // modifiers
     if is_token(tokenizer, #char ",") {
         eat_token(tokenizer, #char ",");
 

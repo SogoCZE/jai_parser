@@ -1,3 +1,1 @@
-s := 10;
-
-cast(u32) s;
+using,map(name) patrik: Patrik;
