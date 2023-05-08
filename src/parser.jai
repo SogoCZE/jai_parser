@@ -20,6 +20,7 @@ Node :: struct {
         COMMENT;
         RETURN;
         USING;
+        CAST;
         COMMA_SEPERATED_EXPRESSION;
         RUN;
     }
@@ -88,6 +89,17 @@ Using :: struct {
 
     no_parameters := false;  // If this using is marked 'no_parameters'.
 }
+
+Cast :: struct {
+    using #as node: Node;
+    kind = .CAST;
+
+    expression: *Node;
+    to: *Node;
+
+    truncate: bool;
+    no_check: bool;
+}  
 
 Type_Instantiation :: struct {
     using #as node: Node;
@@ -392,6 +404,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_token(tokenizer, .KEYWORD_USING) {
         return parse_using(tokenizer);
+    }
+
+    if is_token(tokenizer, .KEYWORD_CAST) {
+        return parse_cast(tokenizer);
     }
 
     // Directive
@@ -715,4 +731,32 @@ parse_using :: (tokenizer: *Tokenizer) -> *Node {
     _using := New(Using);
     using_token := eat_token(tokenizer, .KEYWORD_USING);
     return _using;
+}
+
+parse_cast :: (tokenizer: *Tokenizer) -> *Node {
+    _cast := New(Cast);
+    cast_token := eat_token(tokenizer, .KEYWORD_CAST);
+
+    cast,trunc(u32) 10;
+
+    if is_token(tokenizer, #char ",") {
+        eat_token(tokenizer, #char ",");
+
+        modifier := eat_token(tokenizer, .IDENTIFIER);
+
+        if modifier.string_value == {
+            case "trunc";
+             _cast.truncate = true;
+            case "no_check";
+             _cast.no_check = true;
+        }
+    }
+
+    eat_token(tokenizer, #char "(");
+    _cast.to = parse(tokenizer);
+    eat_token(tokenizer, #char ")");
+
+    _cast.expression = parse(tokenizer);
+
+    return _cast;
 }
