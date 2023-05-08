@@ -62,6 +62,7 @@ Identifier :: struct {
     using #as node: Node;
     kind = .IDENTIFIER;
 
+    backticked: bool;
     name: string;
 }
 
@@ -365,7 +366,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
         // age+20
         if is_operator(peek_token(tokenizer)) {
-            identifier := parse_identifier(ident.string_value);
+            identifier := parse_identifier(ident.string_value, ident.backticked);
             return parse_binary_operation(tokenizer, identifier);
         }
 
@@ -385,7 +386,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_type_instantiation(tokenizer, ident.string_value);
         }
 
-        return parse_identifier(ident.string_value);
+        return parse_identifier(ident.string_value, ident.backticked);
     }
 
     if is_token(tokenizer, #char "(") { 
@@ -644,9 +645,10 @@ parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     return import_or_load;
 }
 
-parse_identifier :: (name: string) -> *Identifier {
+parse_identifier :: (name: string, backticked := false) -> *Identifier {
     identifier := New(Identifier);
     identifier.name = name;
+    identifier.backticked = backticked;
     return identifier;
 }
 
