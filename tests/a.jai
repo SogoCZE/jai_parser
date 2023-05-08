@@ -1,1 +1,3 @@
-cast,no_check(u32) 10;
+s := 10;
+
+cast(u32) s;

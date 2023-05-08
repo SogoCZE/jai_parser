@@ -95,7 +95,7 @@ Cast :: struct {
     kind = .CAST;
 
     expression: *Node;
-    to: *Node;
+    cast_expression: *Node;
 
     truncate: bool;
     no_check: bool;
@@ -753,7 +753,7 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     eat_token(tokenizer, #char "(");
-    _cast.to = parse(tokenizer);
+    _cast.cast_expression = parse(tokenizer);
     eat_token(tokenizer, #char ")");
 
     _cast.expression = parse(tokenizer);
