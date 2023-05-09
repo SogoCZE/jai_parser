@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
+// TODO: UNION, IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
 Node :: struct {
 
     Kind :: enum {
@@ -8,6 +8,7 @@ Node :: struct {
         DECLARATION;
         BLOCK;
         STRUCT;
+        UNION;
         ENUM;
         PROCEDURE;
         PROCEDURE_CALL;
@@ -23,6 +24,12 @@ Node :: struct {
         CAST;
         COMMA_SEPERATED_EXPRESSION;
         RUN;
+
+        // TODO:
+        // IF; 
+        // SWITCH;
+        // FOR;
+        // WHILE;
     }
 
     Location :: struct {
@@ -151,6 +158,13 @@ Procedure_Call :: struct {
 Struct :: struct {
     using #as node: Node; 
     kind = .STRUCT;
+
+    block: *Block;
+}
+
+Union :: struct {
+    using #as node: Node; 
+    kind = .UNION;
 
     block: *Block;
 }
@@ -396,6 +410,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     if is_token(tokenizer, .KEYWORD_STRUCT) {
         return parse_struct(tokenizer);
     }
+  
+    if is_token(tokenizer, .KEYWORD_UNION) {
+        return parse_union(tokenizer);
+    }
     
     if is_token(tokenizer, .KEYWORD_ENUM) {
         return parse_enum(tokenizer);
@@ -569,6 +587,21 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
     }
 
     return _struct;
+}
+
+parse_union :: (tokenizer: *Tokenizer) -> *Union {
+    _union := New(Union);
+
+    eat_token(tokenizer, .KEYWORD_UNION);
+
+    if is_token(tokenizer, #char "{") {
+        _union.block = parse_block(tokenizer);
+    } else {
+        print("Exprected union body! Got:");
+        print_token(peek_token(tokenizer));
+    }
+
+    return _union;
 }
 
 parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
