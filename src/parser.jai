@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: BREAK, FOR, WHILE, Directivy pořádně, notes ...
+// TODO: FOR, WHILE, Directivy pořádně, notes ...
 Node :: struct {
 
     Kind :: enum {
@@ -24,12 +24,9 @@ Node :: struct {
         CAST;
         COMMA_SEPERATED_EXPRESSION;
         RUN;
-
-        // TODO:
         IF; 
         CASE;
         BREAK;
-        // SWITCH;
         // FOR;
         // WHILE;
     }
