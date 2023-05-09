@@ -197,8 +197,9 @@ If :: struct {
         SWITCH;
     }
 
-    expression: *Node;
+    condition: *Node;
     if_kind: If_Kind;
+    marked_as_complete: bool;
     _then: *Node;
     _else: *Node;
 }
@@ -817,12 +818,17 @@ parse_if :: (tokenizer: *Tokenizer) -> *Node {
         _if.if_kind = .IF;
     }
 
-    _if.expression = parse(tokenizer);
+    has_directive, directive_token := maybe_eat_token(tokenizer, .DIRECTIVE);
+    if has_directive && directive_token.string_value == "complete" {
+        _if.marked_as_complete = true;
+    }
+
+    _if.condition = parse(tokenizer);
 
     switch := false;
 
-    if _if.expression.kind == .BINARY_OPERATION {
-        binary_op := cast(*Binary_Operation) _if.expression;
+    if _if.condition.kind == .BINARY_OPERATION {
+        binary_op := cast(*Binary_Operation) _if.condition;
         switch = binary_op.operation == .IS_EQUAL && binary_op.right.kind == .BLOCK;
     }
 
