@@ -45,19 +45,20 @@ Token_Kind :: enum {
     KEYWORD_UNION;
     KEYWORD_FOR;
     KEYWORD_WHILE;
+    KEYWORD_BREAK;
     KEYWORD_USING;
     KEYWORD_IF;
     KEYWORD_IFX;
+    KEYWORD_CASE;
     KEYWORD_ELSE;
     KEYWORD_THEN;
-    KEYWORD_RETURN;
     KEYWORD_DEFER;
+    KEYWORD_RETURN;
     KEYWORD_NO_INLINE;
     KEYWORD_CAST;
     KEYWORD_CONTEXT;
     KEYWORD_PUSH_CONTEXT;
     KEYWORD_OPERATOR;
-    KEYWORD_BREAK;
     KEYWORD_CONTINUE; 
     KEYWORD_IMPORT;
     KEYWORD_LOAD;
@@ -155,6 +156,7 @@ is_operator :: (token: *Token) -> bool {
         case #char ">";         return true;
         case #char "<";         return true;
         case #char ".";         return true;
+        case #char "=";         return true;
 
         case .PLUS_EQUEAL;      return true;
         case .MINUS_EQUEAL;     return true;
@@ -201,7 +203,7 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
 
 eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
     token := eat_token(tokenizer);
-    assert(token.kind == kind);
+    assert(token && token.kind == kind);
     return token;
 }
 

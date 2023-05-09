@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: UNION, IF, ELSE, FOR, WHILE, CASE, Directivy pořádně, ...
+// TODO: BREAK, FOR, WHILE, Directivy pořádně, notes ...
 Node :: struct {
 
     Kind :: enum {
@@ -27,6 +27,7 @@ Node :: struct {
 
         // TODO:
         IF; 
+        CASE;
         // SWITCH;
         // FOR;
         // WHILE;
@@ -145,7 +146,7 @@ Procedure :: struct {
     flags: Flags;
     arguments: []*Node;
     returns: []*Node;
-    body: *Block; // Body asi budemem uset defernout!
+    body: *Block; // @TODO: Defer this...? Why?
 }
 
 Procedure_Call :: struct {
@@ -190,11 +191,24 @@ If :: struct {
     using #as node: Node;
     kind = .IF;
 
+    If_Kind :: enum {
+        IF;
+        IFX;
+        SWITCH;
+    }
 
     expression: *Node;
-    _ifx: bool;
+    if_kind: If_Kind;
     _then: *Node;
     _else: *Node;
+}
+
+Case :: struct {
+    using #as node: Node;
+    kind = .CASE;
+
+    expression: *Node;
+    members: [] *Node;
 }
 
 Import_Or_Load :: struct {
@@ -324,6 +338,7 @@ delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, sepera
     return nodes;
 }
 
+// @TODO: Rename this to parse_until?
 eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -422,6 +437,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_token(tokenizer, .KEYWORD_IF) || is_token(tokenizer, .KEYWORD_IFX) {
         return parse_if(tokenizer);
+    }
+
+    if is_token(tokenizer, .KEYWORD_CASE) {
+        return parse_case(tokenizer);
     }
 
     if is_token(tokenizer, .KEYWORD_STRUCT) {
@@ -785,7 +804,6 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     return _return;
 }
 
-// TODO: Switch!
 parse_if :: (tokenizer: *Tokenizer) -> *Node {
     _if := New(If);
     
@@ -793,22 +811,42 @@ parse_if :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_token(tokenizer, .KEYWORD_IFX) {
         if_token = eat_token(tokenizer, .KEYWORD_IFX);
-        _if._ifx = true;
+        _if.if_kind = .IFX;
     } else {
         if_token = eat_token(tokenizer, .KEYWORD_IF);
-        _if._ifx = false;
+        _if.if_kind = .IF;
     }
 
     _if.expression = parse(tokenizer);
 
-    maybe_eat_token(tokenizer, .KEYWORD_THEN);
-    _if._then = parse(tokenizer);
+    switch := false;
+
+    if _if.expression.kind == .BINARY_OPERATION {
+        binary_op := cast(*Binary_Operation) _if.expression;
+        switch = binary_op.operation == .IS_EQUAL && binary_op.right.kind == .BLOCK;
+    }
+
+    if !switch {
+        maybe_eat_token(tokenizer, .KEYWORD_THEN);
+        _if._then = parse(tokenizer);
     
-    if maybe_eat_token(tokenizer, .KEYWORD_ELSE) {
-        _if._else = parse(tokenizer);
+        if maybe_eat_token(tokenizer, .KEYWORD_ELSE) {
+            _if._else = parse(tokenizer);
+        }
+    } else {
+        _if.if_kind = .SWITCH;
     }
 
     return _if;
+}
+
+parse_case :: (tokenizer: *Tokenizer) -> *Node {
+    _case := New(Case);
+    eat_token(tokenizer, .KEYWORD_CASE);
+    _case.expression = parse(tokenizer);
+    maybe_eat_token(tokenizer, #char ";");
+    _case.members = eat_until(tokenizer, token => token.kind == .KEYWORD_CASE || token.kind == #char "}");
+    return _case;
 }
 
 parse_using :: (tokenizer: *Tokenizer) -> *Node {

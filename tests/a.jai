@@ -1,1 +1,7 @@
-some := ifx 10 > 20 then 10 else 20;
+if some == {
+    case 10;
+        jedna = 10;
+        jedna = 10;
+    case 20;
+        some_other = 20;
+}
