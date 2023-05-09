@@ -28,6 +28,7 @@ Node :: struct {
         // TODO:
         IF; 
         CASE;
+        BREAK;
         // SWITCH;
         // FOR;
         // WHILE;
@@ -111,6 +112,12 @@ Cast :: struct {
 
     truncate: bool;
     no_check: bool;
+}  
+
+Break :: struct {
+    using #as node: Node;
+    kind = .BREAK;
+    expression: *Node;
 }  
 
 Type_Instantiation :: struct {
@@ -462,6 +469,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
     if is_token(tokenizer, .KEYWORD_USING) {
         return parse_using(tokenizer);
+    }
+    
+    if is_token(tokenizer, .KEYWORD_BREAK) {
+        return parse_break(tokenizer);
     }
 
     if is_token(tokenizer, .KEYWORD_CAST) {
@@ -853,6 +864,17 @@ parse_case :: (tokenizer: *Tokenizer) -> *Node {
     maybe_eat_token(tokenizer, #char ";");
     _case.members = eat_until(tokenizer, token => token.kind == .KEYWORD_CASE || token.kind == #char "}");
     return _case;
+}
+
+parse_break :: (tokenizer: *Tokenizer) -> *Node {
+    _break := New(Break);
+    eat_token(tokenizer, .KEYWORD_BREAK);
+
+    if !is_token(tokenizer, #char ";") {
+        _break.expression = parse(tokenizer);
+    }
+
+    return _break;
 }
 
 parse_using :: (tokenizer: *Tokenizer) -> *Node {
