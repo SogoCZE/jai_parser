@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: FOR, WHILE, Directivy pořádně, notes ...
+// TODO: FOR, Directivy pořádně, notes, unary operation ...
 Node :: struct {
 
     Kind :: enum {
@@ -28,7 +28,7 @@ Node :: struct {
         CASE;
         BREAK;
         // FOR;
-        // WHILE;
+        WHILE;
     }
 
     Location :: struct {
@@ -116,6 +116,13 @@ Break :: struct {
     kind = .BREAK;
     expression: *Node;
 }  
+
+While :: struct {
+    using #as node: Node;
+    kind = .WHILE;
+    expression: *Node;
+    body: *Node;    
+}
 
 Type_Instantiation :: struct {
     using #as node: Node;
@@ -408,6 +415,7 @@ parse_file :: (files: *Files, path: string) {
 
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
+    // Declaration, binary operation, unary operation, ident
     if is_identifier(tokenizer) {
         ident := eat_token(tokenizer, .IDENTIFIER);
 
@@ -436,42 +444,57 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_identifier(ident);
     }
 
+    // Procedure
     if is_token(tokenizer, #char "(") { 
         return parse_procedure(tokenizer);
     }
 
+    // If
     if is_token(tokenizer, .KEYWORD_IF) || is_token(tokenizer, .KEYWORD_IFX) {
         return parse_if(tokenizer);
     }
 
+    // Case
     if is_token(tokenizer, .KEYWORD_CASE) {
         return parse_case(tokenizer);
     }
 
+    // While
+    if is_token(tokenizer, .KEYWORD_WHILE) {
+        return parse_while(tokenizer);
+    }
+
+    // Struct
     if is_token(tokenizer, .KEYWORD_STRUCT) {
         return parse_struct(tokenizer);
     }
 
+    // Union
     if is_token(tokenizer, .KEYWORD_UNION) {
         return parse_union(tokenizer);
     }
     
+    // Enum
     if is_token(tokenizer, .KEYWORD_ENUM) {
         return parse_enum(tokenizer);
     }
     
+    // Return
     if is_token(tokenizer, .KEYWORD_RETURN) {
         return parse_return(tokenizer);
     }
 
+    // Using
     if is_token(tokenizer, .KEYWORD_USING) {
         return parse_using(tokenizer);
     }
     
+    // Break
     if is_token(tokenizer, .KEYWORD_BREAK) {
         return parse_break(tokenizer);
     }
 
+    // Cast
     if is_token(tokenizer, .KEYWORD_CAST) {
         return parse_cast(tokenizer);
     }
@@ -481,10 +504,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_directive(tokenizer);
     }
 
+    // String literal
     if peek_token(tokenizer).kind == .STRING {
         return parse_literal(tokenizer);
     }    
     
+    // Numeric literal
     if peek_token(tokenizer).kind == .NUMBER {
    
         // 10+20
@@ -496,18 +521,22 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_literal(tokenizer);
     }
 
+    // True literal
     if is_token(tokenizer, .KEYWORD_TRUE) {
         return parse_literal(tokenizer);
     }    
     
+    // False literal
     if is_token(tokenizer, .KEYWORD_FALSE) {
         return parse_literal(tokenizer);
     }
 
+    // Block
     if is_token(tokenizer, #char "{") {
         return parse_block(tokenizer);
     }
 
+    // Comment
     if is_token(tokenizer, .COMMENT) {
         comment_token := eat_token(tokenizer, .COMMENT);
         comment := New(Comment);
@@ -518,6 +547,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // print("Eaten non match:\n");
     // print_token(eat_token(tokenizer));
 
+    // Skip other
     eat_token(tokenizer);
 
     return null;
@@ -811,6 +841,14 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     _return.backticked = return_token.backticked;
     _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",");
     return _return;
+}
+
+parse_while :: (tokenizer: *Tokenizer) -> *Node {
+    _while := New(While);
+    eat_token(tokenizer, .KEYWORD_WHILE);
+    _while.expression = parse(tokenizer);
+    _while.body = parse(tokenizer);
+    return _while;
 }
 
 parse_if :: (tokenizer: *Tokenizer) -> *Node {

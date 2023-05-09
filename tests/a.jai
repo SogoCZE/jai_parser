@@ -1,7 +1,13 @@
-if some == {
-    case 10;
-        jedna = 10;
-        jedna = 10;
-    case 20;
-        some_other = 20;
+while true {
+    some += 1;
 }
+
+while running {
+    some += 1;
+}
+
+while some := true {
+    some += 1;
+}
+
+
