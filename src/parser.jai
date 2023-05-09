@@ -50,6 +50,7 @@ Declaration :: struct {
     const: bool;
     type_inst: *Node;
     expression: *Node;
+    backticked: bool;
 }
 
 Comment :: struct {
@@ -151,6 +152,7 @@ Procedure_Call :: struct {
     using #as node: Node;
     kind = .PROCEDURE_CALL;
 
+    backticked: bool;
     name: string;
     arguments: [] *Node;
 }
@@ -391,27 +393,27 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
         // age+20
         if is_operator(peek_token(tokenizer)) {
-            identifier := parse_identifier(ident.string_value, ident.backticked);
+            identifier := parse_identifier(ident);
             return parse_binary_operation(tokenizer, identifier);
         }
 
         if is_token(tokenizer, #char "(") {
-            return parse_procedure_call(tokenizer, ident.string_value);
+            return parse_procedure_call(tokenizer, ident);
         }
 
         if is_token(tokenizer, .CONSTANT_DECLARATION) {
-            return parse_constant_declaration(tokenizer, ident.string_value);
+            return parse_constant_declaration(tokenizer, ident);
         }
         
         if is_token(tokenizer, .DECLARATION_AND_ASSIGN) {
-            return parse_declaration_and_assign(tokenizer, ident.string_value);
+            return parse_declaration_and_assign(tokenizer, ident);
         }
         
         if is_token(tokenizer, #char ":") {
-            return parse_type_instantiation(tokenizer, ident.string_value);
+            return parse_type_instantiation(tokenizer, ident);
         }
 
-        return parse_identifier(ident.string_value, ident.backticked);
+        return parse_identifier(ident);
     }
 
     if is_token(tokenizer, #char "(") { 
@@ -494,11 +496,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 }
 
 // player: Player;
-parse_type_instantiation :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
     eat_token(tokenizer, #char ":");
     decl := New(Declaration);
-    decl.name = name;
+    decl.name = ident_token.string_value;
     decl.type_inst = parse(tokenizer);
+    decl.backticked = ident_token.backticked;
 
     // decl: type_inst = exp;
     if is_token(tokenizer, #char "=") {
@@ -510,20 +513,22 @@ parse_type_instantiation :: (tokenizer: *Tokenizer, name: string) -> *Declaratio
 }
 
 // PLAYER_MAX_HP :: 120;
-parse_constant_declaration :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+parse_constant_declaration :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
     eat_token(tokenizer, .CONSTANT_DECLARATION);
     decl := New(Declaration);
-    decl.name = name;
+    decl.name = ident_token.string_value;
+    decl.backticked = ident_token.backticked;
     decl.const = true;
     decl.expression = parse(tokenizer);
     return decl;
 }
 
 // player_position := Vec3.{10, 20, 10};
-parse_declaration_and_assign :: (tokenizer: *Tokenizer, name: string) -> *Declaration {
+parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
     eat_token(tokenizer, .DECLARATION_AND_ASSIGN);
     decl := New(Declaration);
-    decl.name = name;
+    decl.name = ident_token.string_value;
+    decl.backticked = ident_token.backticked;
     decl.expression = parse(tokenizer);
     return decl;
 }
@@ -646,9 +651,10 @@ parse_block :: (tokenizer: *Tokenizer) -> *Block {
     return block;
 }
  
-parse_procedure_call :: (tokenizer: *Tokenizer, procedure_name: string) -> *Procedure_Call {
+parse_procedure_call :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Procedure_Call {
     proc_call := New(Procedure_Call);
-    proc_call.name = procedure_name;
+    proc_call.name = ident_token.string_value;
+    proc_call.backticked = ident_token.backticked;
     proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
     return proc_call;
 }
@@ -693,10 +699,10 @@ parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
     return import_or_load;
 }
 
-parse_identifier :: (name: string, backticked := false) -> *Identifier {
+parse_identifier :: (ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
-    identifier.name = name;
-    identifier.backticked = backticked;
+    identifier.name = ident_token.string_value;
+    identifier.backticked = ident_token.backticked;
     return identifier;
 }
 
