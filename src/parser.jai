@@ -26,7 +26,7 @@ Node :: struct {
         RUN;
 
         // TODO:
-        // IF; 
+        IF; 
         // SWITCH;
         // FOR;
         // WHILE;
@@ -182,6 +182,17 @@ Directive :: struct {
     kind = .DIRECTIVE;
 
     name: string;
+}
+
+If :: struct {
+    using #as node: Node;
+    kind = .IF;
+
+
+    expression: *Node;
+    _ifx: bool;
+    _then: *Node;
+    _else: *Node;
 }
 
 Import_Or_Load :: struct {
@@ -407,10 +418,14 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_procedure(tokenizer);
     }
 
+    if is_token(tokenizer, .KEYWORD_IF) || is_token(tokenizer, .KEYWORD_IFX) {
+        return parse_if(tokenizer);
+    }
+
     if is_token(tokenizer, .KEYWORD_STRUCT) {
         return parse_struct(tokenizer);
     }
-  
+
     if is_token(tokenizer, .KEYWORD_UNION) {
         return parse_union(tokenizer);
     }
@@ -762,6 +777,32 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     _return.backticked = return_token.backticked;
     _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",");
     return _return;
+}
+
+// TODO: Switch!
+parse_if :: (tokenizer: *Tokenizer) -> *Node {
+    _if := New(If);
+    
+    if_token: *Token;
+
+    if is_token(tokenizer, .KEYWORD_IFX) {
+        if_token = eat_token(tokenizer, .KEYWORD_IFX);
+        _if._ifx = true;
+    } else {
+        if_token = eat_token(tokenizer, .KEYWORD_IF);
+        _if._ifx = false;
+    }
+
+    _if.expression = parse(tokenizer);
+
+    maybe_eat_token(tokenizer, .KEYWORD_THEN);
+    _if._then = parse(tokenizer);
+    
+    if maybe_eat_token(tokenizer, .KEYWORD_ELSE) {
+        _if._else = parse(tokenizer);
+    }
+
+    return _if;
 }
 
 parse_using :: (tokenizer: *Tokenizer) -> *Node {

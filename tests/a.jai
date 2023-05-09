@@ -1,1 +1,1 @@
-using,map(name) patrik: Patrik;
+some := ifx 10 > 20 then 10 else 20;

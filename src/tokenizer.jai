@@ -49,6 +49,7 @@ Token_Kind :: enum {
     KEYWORD_IF;
     KEYWORD_IFX;
     KEYWORD_ELSE;
+    KEYWORD_THEN;
     KEYWORD_RETURN;
     KEYWORD_DEFER;
     KEYWORD_NO_INLINE;
@@ -239,6 +240,12 @@ is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
 maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool, *Token {
     token := peek_token(tokenizer);
     if !predicate(token) return false, null;
+    return true, eat_token(tokenizer);
+}
+
+maybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool, *Token {
+    token := peek_token(tokenizer);
+    if !token || token.kind != kind return false, null;
     return true, eat_token(tokenizer);
 }
 
