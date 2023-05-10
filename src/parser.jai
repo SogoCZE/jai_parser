@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
+// TODO: unary operation, LAMBDA, multiple assings declaration, notes, robust directives, $ arguments ...
 Node :: struct {
 
     Kind :: enum {
@@ -17,6 +17,7 @@ Node :: struct {
         DIRECTIVE;
         LITERAL;
         BINARY_OPERATION;
+        UNARY_OPERATION;
         IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
@@ -341,6 +342,23 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
+Unary_Operation :: struct {
+    using #as node: Node;
+    kind = .UNARY_OPERATION;
+
+    Operation :: enum {
+        INVALID;
+
+        NEGATE;
+        DOT;
+        POINTER;
+        POINTER_DEREFERENCE;
+    }
+
+    operation: Operation = .INVALID;
+    expression: *Node;
+}
+
 Comma_Seperated_Expression :: struct {
     using #as node: Node;
     kind = .COMMA_SEPERATED_EXPRESSION;
@@ -476,6 +494,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // Procedure
     if is_token(tokenizer, #char "(") { 
         return parse_procedure(tokenizer);
+    }
+
+    // Unary Operation
+    if is_unary_operator(tokenizer) {
+        return parse_unary_operation(tokenizer);
     }
 
     // If
@@ -837,6 +860,31 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     }
 
     return literal;
+}
+
+is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
+    if is_token(tokenizer, #char ".")            return true;
+    if is_token(tokenizer, #char "*")            return true;
+    if is_token(tokenizer, #char "!")            return true;
+    if is_token(tokenizer, .POINTER_DEREFERENCE) return true;
+    return false;
+}
+
+parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
+    unary_operation := New(Unary_Operation);
+
+    op := eat_token(tokenizer);
+    
+    if op.kind == {
+        case #char ".";             unary_operation.operation = .DOT;
+        case #char "*";             unary_operation.operation = .POINTER;
+        case #char "!";             unary_operation.operation = .NEGATE;
+        case .POINTER_DEREFERENCE;  unary_operation.operation = .POINTER_DEREFERENCE;
+    }
+
+    unary_operation.expression = parse(tokenizer);
+
+    return unary_operation;
 }
 
 parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operation {

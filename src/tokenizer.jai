@@ -30,6 +30,7 @@ Token_Kind :: enum {
     DOUBLE_DOLLAR; // $$
     DOUBLE_DOT; // ..
     ARROW_RIGHT; // ->
+    POINTER_DEREFERENCE; // <<
 
     CONSTANT_DECLARATION; // ::
     DECLARATION_AND_ASSIGN; // :=
@@ -591,6 +592,11 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     if char == #char "*" && next_char == #char "=" {
         next(iterator);
         token.kind = .TIMES_EQUEAL;
+    }
+
+    if char == #char "<" && next_char == #char "<" {
+        next(iterator);
+        token.kind = .POINTER_DEREFERENCE;
     }
     
     if char == #char "<" && next_char == #char "=" {

@@ -1,5 +1,4 @@
-macro :: () #expand {
-    `defer {
-        exit();
-    }
-}
+.some;
+*some;
+<<some;
+!some;
