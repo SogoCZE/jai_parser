@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: continue, defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
+// TODO: defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
 Node :: struct {
 
     Kind :: enum {
@@ -21,6 +21,7 @@ Node :: struct {
         COMMENT;
         RETURN;
         CONTINUE;
+        DEFER;
         USING;
         CAST;
         COMMA_SEPERATED_EXPRESSION;
@@ -96,7 +97,7 @@ Using :: struct {
         MAP    :: 3;
     }
 
-    filter_type: Filter_Type = .NONE;;
+    filter_type: Filter_Type = .NONE;
 
     no_parameters := false;  // If this using is marked 'no_parameters'.
 }
@@ -122,6 +123,13 @@ Continue :: struct {
     using #as node: Node;
     kind = .CONTINUE;
     expression: *Node;
+}  
+
+Defer :: struct {
+    using #as node: Node;
+    kind = .DEFER;
+    expression: *Node;
+    backticked: bool;
 }  
 
 While :: struct {
@@ -524,6 +532,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     if is_token(tokenizer, .KEYWORD_CONTINUE) {
         return parse_continue(tokenizer);
     }
+    
+    // Defer
+    if is_token(tokenizer, .KEYWORD_DEFER) {
+        return parse_defer(tokenizer);
+    }
 
     // Cast
     if is_token(tokenizer, .KEYWORD_CAST) {
@@ -884,6 +897,19 @@ parse_continue :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     return _continue;
+}
+
+parse_defer :: (tokenizer: *Tokenizer) -> *Node {
+    _defer := New(Defer);
+    defer_token := eat_token(tokenizer, .KEYWORD_DEFER);
+
+    _defer.backticked = defer_token.backticked;
+
+    if !is_token(tokenizer, #char ";") {
+        _defer.expression = parse(tokenizer);
+    }
+
+    return _defer;
 }
 
 parse_while :: (tokenizer: *Tokenizer) -> *Node {

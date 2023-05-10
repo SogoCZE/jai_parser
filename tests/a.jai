@@ -1,3 +1,5 @@
-while j := true {
-    continue j;
+macro :: () #expand {
+    `defer {
+        exit();
+    }
 }
