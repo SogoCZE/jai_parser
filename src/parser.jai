@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: FOR, Directivy pořádně, notes, unary operation ...
+// TODO: FOR, notes, unary operation, multiple assings declaration, Directivy pořádně ...
 Node :: struct {
 
     Kind :: enum {
@@ -27,7 +27,7 @@ Node :: struct {
         IF; 
         CASE;
         BREAK;
-        // FOR;
+        FOR;
         WHILE;
     }
 
@@ -120,6 +120,13 @@ Break :: struct {
 While :: struct {
     using #as node: Node;
     kind = .WHILE;
+    expression: *Node;
+    body: *Node;    
+}
+
+For :: struct {
+    using #as node: Node;
+    kind = .FOR;
     expression: *Node;
     body: *Node;    
 }
@@ -462,6 +469,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // While
     if is_token(tokenizer, .KEYWORD_WHILE) {
         return parse_while(tokenizer);
+    }
+    
+    // For
+    if is_token(tokenizer, .KEYWORD_FOR) {
+        return parse_for(tokenizer);
     }
 
     // Struct
@@ -849,6 +861,37 @@ parse_while :: (tokenizer: *Tokenizer) -> *Node {
     _while.expression = parse(tokenizer);
     _while.body = parse(tokenizer);
     return _while;
+}
+
+
+parse_for :: (tokenizer: *Tokenizer) -> *Node {
+    _for := New(For);
+    eat_token(tokenizer, .KEYWORD_FOR);
+
+    if is_token(tokenizer, .IDENTIFIER) {
+
+        // TODO: Only iterator
+
+        index_ident := eat_token(tokenizer, .IDENTIFIER).string_value;
+        value_ident: string;
+
+        // @TODO: Is this correct?
+        if maybe_eat_token(tokenizer, #char ",") {
+            value_ident = eat_token(tokenizer, .IDENTIFIER).string_value;
+        } else {
+            value_ident = index_ident;
+            index_ident = "";
+        }
+
+        eat_token(tokenizer, #char ":");
+
+        iterator := parse(tokenizer);
+
+        print("index_ident: %, value_ident: %, iterator: %\n", index_ident, value_ident, iterator.kind);
+    }
+    
+    _for.body = parse(tokenizer);
+    return _for;
 }
 
 parse_if :: (tokenizer: *Tokenizer) -> *Node {

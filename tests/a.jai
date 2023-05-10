@@ -1,13 +1,3 @@
-while true {
-    some += 1;
+for person: friends {
+    some += 10;
 }
-
-while running {
-    some += 1;
-}
-
-while some := true {
-    some += 1;
-}
-
-
