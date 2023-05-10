@@ -878,8 +878,15 @@ parse_for :: (tokenizer: *Tokenizer) -> *Node {
 
     eat_token(tokenizer, .KEYWORD_FOR);
 
-    _for.reversed = maybe_eat_token(tokenizer, #char "<");
-    _for.by_pointer = maybe_eat_token(tokenizer, #char "*");
+    if maybe_eat_token(tokenizer, #char "<") {
+        _for.reversed = true;
+        _for.by_pointer = maybe_eat_token(tokenizer, #char "*");
+    }
+    
+    if maybe_eat_token(tokenizer, #char "*") {
+        _for.by_pointer = true;
+        _for.reversed = maybe_eat_token(tokenizer, #char "<");
+    }
 
     // Only iterator
     if !is_token(tokenizer, #char ":", 1) && !is_token(tokenizer, #char ",", 1) {
