@@ -1,3 +1,7 @@
-for person: friends {
-    some += 10;
+for 10..20 {
+
 }
+
+3.14
+0x500
+1_000_000

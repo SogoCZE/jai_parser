@@ -169,6 +169,7 @@ is_operator :: (token: *Token) -> bool {
         case .LOGICAL_OR;       return true;
         case .IS_EQUAL;         return true;
         case .IS_NOT_EQUAL;     return true;
+        case .DOUBLE_DOT;       return true;
     }
 
     return false;
@@ -207,14 +208,14 @@ eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
     return token;
 }
 
-is_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
-    token := peek_token(tokenizer);
+is_token :: (tokenizer: *Tokenizer, kind: Token_Kind, $peek := 0) -> bool {
+    token := peek_token(tokenizer, peek);
     if !token || token.kind != kind return false;
     return true;
 }
 
-is_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool {
-    token := peek_token(tokenizer);
+is_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool, $peek := 0) -> bool {
+    token := peek_token(tokenizer, peek);
     if !token || !predicate(token) return false;
     return true;
 }
@@ -488,18 +489,34 @@ parse_number :: (using iterator: *Iterator) -> Token {
 
     hex := false;
     if peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
+        next(iterator); // eat 0
+        next(iterator); // eat x
         hex = true;
     }
 
-    predicate: (char: u8) -> bool;
+    builder: String_Builder;
+    init_string_builder(*builder);
 
-    if hex {
-        predicate = char => is_alpha(char) || is_digit(char) || char == #char "." || char == #char "_";
-    } else {
-        predicate = char => is_digit(char) || char == #char "." || char == #char "_";
+    if hex append(*builder, "0x");
+
+    is_float: bool;
+
+    is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
+        if is_digit(char) return true;
+        if char == #char "_" return true;
+        if !<<is_float && char == #char "." && is_digit(peek(iterator, 2)) {
+            <<is_float = true;
+            return true;
+        }
+
+        return false;
     }
 
-    number_value := next_while(iterator, predicate);
+    while !end(iterator) && is_valid_numeric_char(peek(iterator), iterator, *is_float) {
+        append(*builder, next(iterator));
+    }
+
+    number_value := builder_to_string(*builder);
     number_value = replace(number_value, "_", ""); // Remove all _ in number
 
     // if hex {

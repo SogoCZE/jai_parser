@@ -127,7 +127,10 @@ While :: struct {
 For :: struct {
     using #as node: Node;
     kind = .FOR;
-    expression: *Node;
+
+    value: *Node;
+    index: *Node;
+    iterator: *Node;
     body: *Node;    
 }
 
@@ -291,6 +294,7 @@ Binary_Operation :: struct {
         INVALID;
 
         DOT; // .
+        RANGE; // ..
 
         ADDITION; // +
         SUBTRACTION; // -
@@ -838,6 +842,7 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
         case .LOGICAL_OR;       binary_operation.operation = .LOGICAL_OR;
         case .IS_EQUAL;         binary_operation.operation = .IS_EQUAL;
         case .IS_NOT_EQUAL;     binary_operation.operation = .IS_NOT_EQUAL;
+        case .DOUBLE_DOT;       binary_operation.operation = .RANGE;
 
         case; log_error(tprint("Invalid operator '%'.", op.kind));
     }
@@ -864,31 +869,32 @@ parse_while :: (tokenizer: *Tokenizer) -> *Node {
 }
 
 
+
 parse_for :: (tokenizer: *Tokenizer) -> *Node {
     _for := New(For);
+
+
     eat_token(tokenizer, .KEYWORD_FOR);
 
-    if is_token(tokenizer, .IDENTIFIER) {
-
-        // TODO: Only iterator
-
-        index_ident := eat_token(tokenizer, .IDENTIFIER).string_value;
-        value_ident: string;
+    // Only iterator
+    if !is_token(tokenizer, #char ":", 1) && !is_token(tokenizer, #char ",", 1) {
+        _for.iterator = parse(tokenizer);
+    } else {
+        _for.index = parse_identifier(eat_token(tokenizer, .IDENTIFIER));
 
         // @TODO: Is this correct?
         if maybe_eat_token(tokenizer, #char ",") {
-            value_ident = eat_token(tokenizer, .IDENTIFIER).string_value;
+            _for.value = parse_identifier(eat_token(tokenizer, .IDENTIFIER));
         } else {
-            value_ident = index_ident;
-            index_ident = "";
+            _for.value = _for.index;
+            _for.index = null;
         }
 
         eat_token(tokenizer, #char ":");
-
-        iterator := parse(tokenizer);
-
-        print("index_ident: %, value_ident: %, iterator: %\n", index_ident, value_ident, iterator.kind);
+        _for.iterator = parse(tokenizer);
     }
+
+
     
     _for.body = parse(tokenizer);
     return _for;
