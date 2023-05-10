@@ -1,1 +1,3 @@
-for 10..20 some += it;
+while j := true {
+    continue j;
+}

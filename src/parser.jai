@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: FOR, continue, defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
+// TODO: continue, defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
 Node :: struct {
 
     Kind :: enum {
@@ -20,6 +20,7 @@ Node :: struct {
         IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
+        CONTINUE;
         USING;
         CAST;
         COMMA_SEPERATED_EXPRESSION;
@@ -114,6 +115,12 @@ Cast :: struct {
 Break :: struct {
     using #as node: Node;
     kind = .BREAK;
+    expression: *Node;
+}  
+
+Continue :: struct {
+    using #as node: Node;
+    kind = .CONTINUE;
     expression: *Node;
 }  
 
@@ -513,6 +520,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_break(tokenizer);
     }
 
+    // Continue
+    if is_token(tokenizer, .KEYWORD_CONTINUE) {
+        return parse_continue(tokenizer);
+    }
+
     // Cast
     if is_token(tokenizer, .KEYWORD_CAST) {
         return parse_cast(tokenizer);
@@ -863,6 +875,17 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     return _return;
 }
 
+parse_continue :: (tokenizer: *Tokenizer) -> *Node {
+    _continue := New(Continue);
+    eat_token(tokenizer, .KEYWORD_CONTINUE);
+
+    if !is_token(tokenizer, #char ";") {
+        _continue.expression = parse(tokenizer);
+    }
+
+    return _continue;
+}
+
 parse_while :: (tokenizer: *Tokenizer) -> *Node {
     _while := New(While);
     eat_token(tokenizer, .KEYWORD_WHILE);
@@ -870,8 +893,6 @@ parse_while :: (tokenizer: *Tokenizer) -> *Node {
     _while.body = parse(tokenizer);
     return _while;
 }
-
-
 
 parse_for :: (tokenizer: *Tokenizer) -> *Node {
     _for := New(For);
@@ -906,8 +927,6 @@ parse_for :: (tokenizer: *Tokenizer) -> *Node {
         _for.iterator = parse(tokenizer);
     }
 
-
-    
     _for.body = parse(tokenizer);
     return _for;
 }
