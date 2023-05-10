@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: FOR, notes, unary operation, multiple assings declaration, Directivy pořádně ...
+// TODO: FOR, continue, defer, notes, unary operation, multiple assings declaration, Directivy pořádně ...
 Node :: struct {
 
     Kind :: enum {
@@ -127,6 +127,9 @@ While :: struct {
 For :: struct {
     using #as node: Node;
     kind = .FOR;
+
+    by_pointer: bool;
+    reversed: bool;
 
     value: *Node;
     index: *Node;
@@ -873,8 +876,10 @@ parse_while :: (tokenizer: *Tokenizer) -> *Node {
 parse_for :: (tokenizer: *Tokenizer) -> *Node {
     _for := New(For);
 
-
     eat_token(tokenizer, .KEYWORD_FOR);
+
+    _for.reversed = maybe_eat_token(tokenizer, #char "<");
+    _for.by_pointer = maybe_eat_token(tokenizer, #char "*");
 
     // Only iterator
     if !is_token(tokenizer, #char ":", 1) && !is_token(tokenizer, #char ",", 1) {
