@@ -1,1 +1,3 @@
-(neco, neco2) => neco.blah == true;
+neco :: (some: $T) {
+
+}

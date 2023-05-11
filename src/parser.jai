@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: $ arguments, multiple assings declaration, notes, robust directives (#as ...) ...
+// TODO: multiple assings declaration, notes, robust directives (#as ...) ...
 Node :: struct {
 
     Kind :: enum {
@@ -361,6 +361,8 @@ Unary_Operation :: struct {
 
         NEGATE;
         DOT;
+        POLYMORPHIC_CONSTANT;
+        POLYMORPHIC_MAYBE_CONSTANT;
         POINTER;
         POINTER_DEREFERENCE;
     }
@@ -904,6 +906,8 @@ is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
     if is_token(tokenizer, #char ".")            return true;
     if is_token(tokenizer, #char "*")            return true;
     if is_token(tokenizer, #char "!")            return true;
+    if is_token(tokenizer, #char "$")            return true;
+    if is_token(tokenizer, .DOUBLE_DOLLAR)       return true;
     if is_token(tokenizer, .POINTER_DEREFERENCE) return true;
     return false;
 }
@@ -917,6 +921,8 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
+        case #char "$";             unary_operation.operation = .POLYMORPHIC_CONSTANT;
+        case .DOUBLE_DOLLAR;        unary_operation.operation = .POLYMORPHIC_MAYBE_CONSTANT;
         case .POINTER_DEREFERENCE;  unary_operation.operation = .POINTER_DEREFERENCE;
     }
 
