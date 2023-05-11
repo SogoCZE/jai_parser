@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: $ arguments, LAMBDA, multiple assings declaration, notes, robust directives (#as ...) ...
+// TODO: $ arguments, multiple assings declaration, notes, robust directives (#as ...) ...
 Node :: struct {
 
     Kind :: enum {
@@ -12,6 +12,7 @@ Node :: struct {
         ENUM;
         PROCEDURE;
         PROCEDURE_CALL;
+        QUICK_LAMBDA;
         TYPE_INSTANTIATION;
         IDENTIFIER;
         DIRECTIVE;
@@ -196,6 +197,14 @@ Procedure_Call :: struct {
     backticked: bool;
     name: string;
     arguments: [] *Node;
+}
+
+Quick_Lambda :: struct {
+    using #as node: Node;
+    kind = .QUICK_LAMBDA;
+
+    arguments: [] *Node;
+    _return: *Node; 
 }
 
 Struct :: struct {
@@ -473,6 +482,13 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_binary_operation(tokenizer, identifier);
         }
 
+        if is_token(tokenizer, .QUICK_LAMBDA) {
+            identifier := parse_identifier(ident);
+            arguments := NewArray(1, *Node);
+            arguments[0] = identifier;
+            return parse_quick_lambda(tokenizer, arguments);
+        }
+
         if is_token(tokenizer, #char "(") {
             return parse_procedure_call(tokenizer, ident);
         }
@@ -664,6 +680,13 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 
     // @TODO: this is kinda messy? We probably want to do this in some other way...
     if members.count > 0 && members[0].kind != .DECLARATION {
+
+        // Quick Lambda
+        if is_token(tokenizer, .QUICK_LAMBDA) {
+            return parse_quick_lambda(tokenizer, members);
+        }
+
+        // Comma Seperated Expression
         comma_seperated_expression := New(Comma_Seperated_Expression);
         comma_seperated_expression.members = members;
         return comma_seperated_expression;
@@ -718,6 +741,16 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     } 
 
     return proc;
+}
+
+parse_quick_lambda :: (tokenizer: *Tokenizer, arguments: []*Node) -> *Quick_Lambda {
+    quick_lambda := New(Quick_Lambda);
+    quick_lambda.arguments = arguments;
+
+    eat_token(tokenizer, .QUICK_LAMBDA);
+    quick_lambda._return = parse(tokenizer);
+
+    return quick_lambda;
 }
 
 parse_struct :: (tokenizer: *Tokenizer) -> *Struct {

@@ -1,3 +1,1 @@
-Person :: struct(Typ: Type) {
-    value: Typ;
-}
+(neco, neco2) => neco.blah == true;
