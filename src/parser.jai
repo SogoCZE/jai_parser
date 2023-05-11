@@ -1,6 +1,6 @@
 Files :: Table(string, []*Node);
 
-// TODO: unary operation, LAMBDA, multiple assings declaration, notes, robust directives, $ arguments ...
+// TODO: $ arguments, LAMBDA, multiple assings declaration, notes, robust directives (#as ...) ...
 Node :: struct {
 
     Kind :: enum {
@@ -202,6 +202,7 @@ Struct :: struct {
     using #as node: Node; 
     kind = .STRUCT;
 
+    polymorphic_arguments: [] *Node;
     block: *Block;
 }
 
@@ -392,7 +393,7 @@ delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, sepera
         if is_token(tokenizer, close) break;
     }
 
-    eat_token(tokenizer, close);
+    maybe_eat_token(tokenizer, close);
 
     return nodes;
 }
@@ -724,11 +725,15 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
 
     eat_token(tokenizer, .KEYWORD_STRUCT);
 
+    if is_token(tokenizer, #char "(") {
+        _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    }
+
     if is_token(tokenizer, #char "{") {
         _struct.block = parse_block(tokenizer);
     } else {
         print("Exprected struct body! Got:");
-        print_token(peek_token(tokenizer));
+        // print_token(peek_token(tokenizer));
     }
 
     return _struct;

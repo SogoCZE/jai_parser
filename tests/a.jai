@@ -1,4 +1,3 @@
-.some;
-*some;
-<<some;
-!some;
+Person :: struct(Typ: Type) {
+    value: Typ;
+}
