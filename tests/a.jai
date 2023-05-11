@@ -1,3 +1,5 @@
-neco :: (some: $T) {
+neco :: (some: ..$T) {
 
 }
+
+neco(..blah);

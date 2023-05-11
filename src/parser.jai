@@ -365,6 +365,8 @@ Unary_Operation :: struct {
         POLYMORPHIC_MAYBE_CONSTANT;
         POINTER;
         POINTER_DEREFERENCE;
+        EXPAND;
+        ELLIPSIS;
     }
 
     operation: Operation = .INVALID;
@@ -909,6 +911,7 @@ is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
     if is_token(tokenizer, #char "$")            return true;
     if is_token(tokenizer, .DOUBLE_DOLLAR)       return true;
     if is_token(tokenizer, .POINTER_DEREFERENCE) return true;
+    if is_token(tokenizer, .DOUBLE_DOT)          return true;
     return false;
 }
 
@@ -924,6 +927,7 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
         case #char "$";             unary_operation.operation = .POLYMORPHIC_CONSTANT;
         case .DOUBLE_DOLLAR;        unary_operation.operation = .POLYMORPHIC_MAYBE_CONSTANT;
         case .POINTER_DEREFERENCE;  unary_operation.operation = .POINTER_DEREFERENCE;
+        case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
     unary_operation.expression = parse(tokenizer);
