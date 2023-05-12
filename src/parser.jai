@@ -1,5 +1,9 @@
 Files :: Table(string, []*Node);
 
+Person :: struct {
+    name: string;
+} 
+
 // TODO: multiple assings declaration, notes, robust directives (#as ...) ...
 Node :: struct {
 

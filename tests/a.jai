@@ -1,5 +1,1 @@
-neco :: (some: ..$T) {
-
-}
-
-neco(..blah);
+#load "b.jai";
