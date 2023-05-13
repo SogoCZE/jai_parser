@@ -24,7 +24,6 @@ Node :: struct {
         BINARY_OPERATION;
         UNARY_OPERATION;
         POLYMORPHIC_CONSTANT;
-        IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
         CONTINUE;
@@ -32,13 +31,16 @@ Node :: struct {
         USING;
         CAST;
         COMMA_SEPERATED_EXPRESSION;
-        RUN;
-        DIRECTIVE_CHAR;
         IF; 
         CASE;
         BREAK;
         FOR;
         WHILE;
+        DIRECTIVE_IMPORT_OR_LOAD;
+        DIRECTIVE_RUN;
+        DIRECTIVE_CHAR;
+        DIRECTIVE_AS;
+        DIRECTIVE_PLACE;
     }
 
     Location :: struct {
@@ -268,9 +270,9 @@ Case :: struct {
     members: [] *Node;
 }
 
-Import_Or_Load :: struct {
+Directive_Import_Or_Load :: struct {
     using #as node: Node; 
-    kind = .IMPORT_OR_LOAD;
+    kind = .DIRECTIVE_IMPORT_OR_LOAD;
 
     load: bool;
     file: string;
@@ -393,17 +395,30 @@ Comma_Seperated_Expression :: struct {
     members: []*Node;
 }
 
-Run :: struct {
+Directive_Run :: struct {
     using #as node: Node;
-    kind = .RUN;
+    kind = .DIRECTIVE_RUN;
     stallable: bool;
-    statement: *Node;
+    expression: *Node;
 }
 
 Directive_Char :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_CHAR;
     string_literal: *Node; // @TODO: Can this be String_Literal upfront?
+}
+
+Directive_As :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_AS;
+    expression: *Node; // @TODO: Can this be String_Literal upfront?
+}
+
+// @TODO: Should this contain the placed field?
+Directive_Place :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_PLACE;
+    expression: *Node;
 }
 
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
@@ -475,8 +490,8 @@ parse_file :: (files: *Files, path: string) {
         node := parse(*tokenizer);
         if !node continue;
 
-        if node.kind == .IMPORT_OR_LOAD {
-            import_or_load := cast(*Import_Or_Load) node;
+        if node.kind == .DIRECTIVE_IMPORT_OR_LOAD {
+            import_or_load := cast(*Directive_Import_Or_Load) node;
 
             if import_or_load.load {
                 load_relative_path := tprint("%/%", path_without_filename, import_or_load.file);
@@ -496,7 +511,7 @@ parse_file :: (files: *Files, path: string) {
 
 parse :: (tokenizer: *Tokenizer) -> *Node {
 
-    // Declaration, binary operation, unary operation, ident
+    // Declaration, Binary Operation, Unary Operation, Identifier
     if is_identifier(tokenizer) {
         ident := eat_token(tokenizer, .IDENTIFIER);
 
@@ -506,7 +521,7 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_binary_operation(tokenizer, identifier);
         }
 
-        // multiple assings declaration (a, b, c := 10, 20, 30)
+        // Multiple Assings Declaration (a, b, c := 10, 20, 30)
         if is_token(tokenizer, #char ",") {
             print("Some!\n");
         }
@@ -863,9 +878,11 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import"; return parse_import_or_load(tokenizer, false);
-        case "load"; return parse_import_or_load(tokenizer, true);
-        case "run"; return parse_run(tokenizer);
+        case "import"; return parse_directive_import_or_load(tokenizer, false);
+        case "load"; return parse_directive_import_or_load(tokenizer, true);
+        case "run"; return parse_directive_run(tokenizer);
+        case "as"; return parse_directive_as(tokenizer);
+        case "place"; return parse_directive_place(tokenizer);
         case "char"; return parse_directive_char(tokenizer);
     }
 
@@ -877,20 +894,21 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     return directive;
 }
 
-parse_run :: (tokenizer: *Tokenizer) -> *Node {
-    run := New(Run);
+parse_directive_run :: (tokenizer: *Tokenizer) -> *Directive_Run {
+    directive_run := New(Directive_Run);
 
     if is_token(tokenizer, #char ",") {
         eat_token(tokenizer, #char ",");
 
         if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
             eat_token(tokenizer, .IDENTIFIER);
-            run.stallable = true;
+            directive_run.stallable = true;
         }
     }
 
-    run.statement = parse(tokenizer);    
-    return run;
+    directive_run.expression = parse(tokenizer);   
+
+    return directive_run;
 }
 
 parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
@@ -899,11 +917,23 @@ parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
     return directive_char;
 }
 
-parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
-    import_or_load := New(Import_Or_Load);
-    import_or_load.load = load;
-    import_or_load.file = eat_token(tokenizer, .STRING).string_value;
-    return import_or_load;
+parse_directive_as :: (tokenizer: *Tokenizer) -> *Directive_As {
+    directive_as := New(Directive_As);
+    directive_as.expression = parse(tokenizer);
+    return directive_as;
+}
+
+parse_directive_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Directive_Import_Or_Load {
+    directive_import_or_load := New(Directive_Import_Or_Load);
+    directive_import_or_load.load = load;
+    directive_import_or_load.file = eat_token(tokenizer, .STRING).string_value;
+    return directive_import_or_load;
+}
+
+parse_directive_place :: (tokenizer: *Tokenizer) -> *Directive_Place {
+    directive_place := New(Directive_Place);
+    directive_place.expression = parse(tokenizer);
+    return directive_place;
 }
 
 parse_identifier :: (ident_token: *Token) -> *Identifier {

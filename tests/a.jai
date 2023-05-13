@@ -2,4 +2,9 @@
 
 // _a, _b, _c := 1,some();
 
-#char "neco"
+
+Person :: struct {
+    some: int;
+
+    #place some; jaj: int;
+}
