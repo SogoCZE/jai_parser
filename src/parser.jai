@@ -33,6 +33,7 @@ Node :: struct {
         CAST;
         COMMA_SEPERATED_EXPRESSION;
         RUN;
+        DIRECTIVE_CHAR;
         IF; 
         CASE;
         BREAK;
@@ -397,6 +398,12 @@ Run :: struct {
     kind = .RUN;
     stallable: bool;
     statement: *Node;
+}
+
+Directive_Char :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_CHAR;
+    string_literal: *Node; // @TODO: Can this be String_Literal upfront?
 }
 
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
@@ -859,6 +866,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "import"; return parse_import_or_load(tokenizer, false);
         case "load"; return parse_import_or_load(tokenizer, true);
         case "run"; return parse_run(tokenizer);
+        case "char"; return parse_directive_char(tokenizer);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -883,6 +891,12 @@ parse_run :: (tokenizer: *Tokenizer) -> *Node {
 
     run.statement = parse(tokenizer);    
     return run;
+}
+
+parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
+    directive_char := New(Directive_Char);
+    directive_char.string_literal = parse(tokenizer);
+    return directive_char;
 }
 
 parse_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Import_Or_Load {
