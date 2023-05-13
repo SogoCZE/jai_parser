@@ -40,6 +40,7 @@ Token_Kind :: enum {
     QUICK_LAMBDA; // =>
 
     KEYWORD_STRUCT;
+    KEYWORD_INTERFACE;
     KEYWORD_ENUM;
     KEYWORD_ENUM_FLAGS;
     KEYWORD_UNION;

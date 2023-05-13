@@ -23,6 +23,7 @@ Node :: struct {
         LITERAL;
         BINARY_OPERATION;
         UNARY_OPERATION;
+        POLYMORPHIC_CONSTANT;
         IMPORT_OR_LOAD;
         COMMENT;
         RETURN;
@@ -230,7 +231,7 @@ Enum :: struct {
     using #as node: Node; 
     kind = .ENUM;
 
-    type: string;
+    type: *Node;
     block: *Block;
 }
 
@@ -356,6 +357,16 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
+Polymorphic_Constant :: struct {
+    using #as node: Node;
+    kind = .POLYMORPHIC_CONSTANT;
+
+    maybe_constant: bool;
+    type: string;
+    restrictions_interface: bool;
+    restriction: *Node;
+}
+
 Unary_Operation :: struct {
     using #as node: Node;
     kind = .UNARY_OPERATION;
@@ -365,8 +376,6 @@ Unary_Operation :: struct {
 
         NEGATE;
         DOT;
-        POLYMORPHIC_CONSTANT;
-        POLYMORPHIC_MAYBE_CONSTANT;
         POINTER;
         POINTER_DEREFERENCE;
         EXPAND;
@@ -490,6 +499,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_binary_operation(tokenizer, identifier);
         }
 
+        // multiple assings declaration (a, b, c := 10, 20, 30)
+        if is_token(tokenizer, #char ",") {
+            print("Some!\n");
+        }
+
         if is_token(tokenizer, .QUICK_LAMBDA) {
             identifier := parse_identifier(ident);
             arguments := NewArray(1, *Node);
@@ -519,6 +533,14 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // Procedure
     if is_token(tokenizer, #char "(") { 
         return parse_procedure(tokenizer);
+    }
+
+    if is_token(tokenizer, #char "$") {
+        return parse_polymorphic_constant(tokenizer, false);
+    }
+    
+    if is_token(tokenizer, .DOUBLE_DOLLAR) {
+        return parse_polymorphic_constant(tokenizer, true);
     }
 
     // Unary Operation
@@ -801,8 +823,8 @@ parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
     eat_token(tokenizer, .KEYWORD_ENUM);
 
     // Type specifier
-    if is_identifier(tokenizer) {
-        _enum.type = eat_token(tokenizer, .IDENTIFIER).string_value;
+    if !is_token(tokenizer, #char "{") {
+        _enum.type = parse(tokenizer);
     }
 
     // Body
@@ -919,6 +941,31 @@ is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
     return false;
 }
 
+parse_polymorphic_constant :: (tokenizer: *Tokenizer, maybe_constant: bool) -> *Polymorphic_Constant {
+    polymorphic_constant := New(Polymorphic_Constant);
+    polymorphic_constant.maybe_constant = maybe_constant;
+
+    if maybe_constant {
+        eat_token(tokenizer, .DOUBLE_DOLLAR);
+    } else {
+        eat_token(tokenizer, #char "$");
+    }
+
+    polymorphic_constant.type = eat_token(tokenizer, .IDENTIFIER).string_value;
+
+    if maybe_eat_token(tokenizer, #char "/") {
+
+        if is_token(tokenizer, .KEYWORD_INTERFACE) {
+            eat_token(tokenizer, .KEYWORD_INTERFACE);
+            polymorphic_constant.restrictions_interface = true;
+        }
+
+        polymorphic_constant.restriction = parse(tokenizer);
+    }
+
+    return polymorphic_constant;
+}
+
 parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
     unary_operation := New(Unary_Operation);
 
@@ -928,8 +975,6 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
-        case #char "$";             unary_operation.operation = .POLYMORPHIC_CONSTANT;
-        case .DOUBLE_DOLLAR;        unary_operation.operation = .POLYMORPHIC_MAYBE_CONSTANT;
         case .POINTER_DEREFERENCE;  unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
