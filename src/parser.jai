@@ -4,7 +4,65 @@ Person :: struct {
     name: string;
 } 
 
-// TODO: multiple assings declaration, notes, robust directives (#as ...) ...
+// @TODO:
+// - autocast
+// - push_context
+// - operator (override)
+// - multiple assings declaration
+// - notes
+// - #code
+// - #add_context
+// - #asm
+// - #assert
+// - #if
+// - #ifx
+// - #bake_arguments
+// - #bake_constants
+// - #bytes
+// - #caller_code
+// - #caller_location
+// - #code
+// - #compiler
+// - #cpp_return_type_is_non_pod
+// - #deprecated
+// - #dump
+// - #dynamic_specialize
+// - #file
+// - #filepath
+// - #library
+// - #system_library
+// - #insert
+// - #insert,scope
+// - #insert_internal
+// - #line
+// - #location
+// - #modify
+// - #module_parameters
+// - #must
+// - #no_abc
+// - #no_alias
+// - #no_padding
+// - #no_reset
+// - #placeholder
+// - #poke_name
+// - #procedure_of_call
+// - #program_export
+// - #runtime_support
+// - #scope_export
+// - #scope_file
+// - #scope_module
+// - #specified
+// - #symmetric
+// - #this
+// - #through
+// - #type_info_no_size_complaint
+// - #type_info_none
+// - #type_info_procedures_are_void_pointers
+// - #import,file
+// - #import,dir
+// - #import,string
+// - type keywords (is this needed?)
+
 Node :: struct {
 
     Kind :: enum {
@@ -41,6 +99,7 @@ Node :: struct {
         DIRECTIVE_CHAR;
         DIRECTIVE_AS;
         DIRECTIVE_PLACE;
+        DIRECTIVE_TYPE;
     }
 
     Location :: struct {
@@ -174,24 +233,28 @@ Procedure :: struct {
     kind = .PROCEDURE;
 
     Flags :: enum_flags u32 {
-        ELSEWHERE                          :: 0x1;
-        COMPILE_TIME                       :: 0x2;
-        POLYMORPHIC                        :: 0x4;
-        COMPILER_GENERATED                 :: 0x8;
-        DEBUG_DUMP                         :: 0x10;
-        C_CALL                             :: 0x20;
-        TYPE_ONLY                          :: 0x40;
-        INTRINSIC                          :: 0x80;
-        DEPRECATED                         :: 0x100;
-        SYNTACTICALLY_MARKED_AS_NO_CONTEXT :: 0x200;  // This means it has #no_context written in the declaration. There are other ways for a procedure to have no context, though (for example, being #c_call).
-        QUICK                              :: 0x400;
-        CPP_METHOD                         :: 0x800;
-        NO_CALL                            :: 0x1000;
-        MACRO                              :: 0x2000;
-        NO_DEBUG                           :: 0x4000;
+        INLINE;                     
+        ELSEWHERE;                     
+        COMPILE_TIME;     
+        POLYMORPHIC;                   
+        COMPILER_GENERATED;            
+        DEBUG_DUMP;                    
+        C_CALL;                        
+        TYPE_ONLY;                     
+        INTRINSIC;                     
+        DEPRECATED;                    
+        SYNTACTICALLY_MARKED_AS_NO_CONTEXT;  // This means it has #no_context written in the declaration. There are other ways for a procedure to have no context, though (for example, being #c_call).
+        QUICK;
+        CPP_METHOD;
+        NO_CALL;
+        MACRO;
+        NO_DEBUG;
     }
 
     foreign: string;
+    elsewhere: string;
+    intrinsic: string;
+
     flags: Flags;
     arguments: []*Node;
     returns: []*Node;
@@ -202,6 +265,7 @@ Procedure_Call :: struct {
     using #as node: Node;
     kind = .PROCEDURE_CALL;
 
+    inlined: bool;
     backticked: bool;
     name: string;
     arguments: [] *Node;
@@ -234,6 +298,7 @@ Enum :: struct {
     using #as node: Node; 
     kind = .ENUM;
 
+    is_enum_flags: bool;
     type: *Node;
     block: *Block;
 }
@@ -392,12 +457,14 @@ Unary_Operation :: struct {
 Comma_Seperated_Expression :: struct {
     using #as node: Node;
     kind = .COMMA_SEPERATED_EXPRESSION;
+
     members: []*Node;
 }
 
 Directive_Run :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_RUN;
+
     stallable: bool;
     expression: *Node;
 }
@@ -411,6 +478,7 @@ Directive_Char :: struct {
 Directive_As :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_AS;
+
     expression: *Node; // @TODO: Can this be String_Literal upfront?
 }
 
@@ -418,6 +486,16 @@ Directive_As :: struct {
 Directive_Place :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_PLACE;
+
+    expression: *Node;
+}
+
+Directive_Type :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_TYPE;
+
+    isa: bool;
+    distinct: bool;
     expression: *Node;
 }
 
@@ -557,10 +635,17 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_procedure(tokenizer);
     }
 
+    // Inline
+    if is_token(tokenizer, .KEYWORD_INLINE) {
+        return parse_inline(tokenizer);
+    }
+
+    // Polymorphic_Constant
     if is_token(tokenizer, #char "$") {
         return parse_polymorphic_constant(tokenizer, false);
     }
     
+    // Polymorphic_Constant
     if is_token(tokenizer, .DOUBLE_DOLLAR) {
         return parse_polymorphic_constant(tokenizer, true);
     }
@@ -602,7 +687,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     
     // Enum
     if is_token(tokenizer, .KEYWORD_ENUM) {
-        return parse_enum(tokenizer);
+        return parse_enum(tokenizer, false);
+    }
+
+    // Enum_Flags
+    if is_token(tokenizer, .KEYWORD_ENUM_FLAGS) {
+        return parse_enum(tokenizer, true);
     }
     
     // Return
@@ -765,7 +855,13 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
             case "c_call";
                 proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
                 proc.flags |= .C_CALL;
+            case "intrinsic";
+                proc.flags |= .INTRINSIC;
+                proc.intrinsic = eat_token(tokenizer, .IDENTIFIER).string_value;
 
+            case "elsewhere";
+                proc.flags |= .ELSEWHERE;
+                proc.elsewhere = eat_token(tokenizer, .IDENTIFIER).string_value;
             case "foreign";
                 proc.foreign = eat_token(tokenizer, .IDENTIFIER).string_value;
         }
@@ -839,8 +935,9 @@ parse_union :: (tokenizer: *Tokenizer) -> *Union {
     return _union;
 }
 
-parse_enum :: (tokenizer: *Tokenizer) -> *Enum {
+parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     _enum := New(Enum);
+    _enum.is_enum_flags = is_enum_flags;
 
     eat_token(tokenizer, .KEYWORD_ENUM);
 
@@ -878,12 +975,13 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import"; return parse_directive_import_or_load(tokenizer, false);
-        case "load"; return parse_directive_import_or_load(tokenizer, true);
-        case "run"; return parse_directive_run(tokenizer);
-        case "as"; return parse_directive_as(tokenizer);
-        case "place"; return parse_directive_place(tokenizer);
-        case "char"; return parse_directive_char(tokenizer);
+        case "import";  return parse_directive_import_or_load(tokenizer, false);
+        case "load";    return parse_directive_import_or_load(tokenizer, true);
+        case "run";     return parse_directive_run(tokenizer);
+        case "as";      return parse_directive_as(tokenizer);
+        case "place";   return parse_directive_place(tokenizer);
+        case "type";    return parse_directive_type(tokenizer);
+        case "char";    return parse_directive_char(tokenizer);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -897,13 +995,11 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
 parse_directive_run :: (tokenizer: *Tokenizer) -> *Directive_Run {
     directive_run := New(Directive_Run);
 
-    if is_token(tokenizer, #char ",") {
-        eat_token(tokenizer, #char ",");
+    if maybe_eat_token(tokenizer, #char ",") 
+        && is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
+        eat_token(tokenizer, .IDENTIFIER);
 
-        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
-            eat_token(tokenizer, .IDENTIFIER);
-            directive_run.stallable = true;
-        }
+        directive_run.stallable = true;
     }
 
     directive_run.expression = parse(tokenizer);   
@@ -936,6 +1032,27 @@ parse_directive_place :: (tokenizer: *Tokenizer) -> *Directive_Place {
     return directive_place;
 }
 
+parse_directive_type :: (tokenizer: *Tokenizer) -> *Directive_Type {
+    directive_type := New(Directive_Type);
+
+    if maybe_eat_token(tokenizer, #char ",") {
+
+        if is_token(tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "isa") {
+            eat_token(tokenizer, .IDENTIFIER);
+            directive_type.isa = true;
+        }
+        
+        if is_token(tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "distinct") {
+            eat_token(tokenizer, .IDENTIFIER);
+            directive_type.distinct = true;
+        }
+
+    }
+
+    directive_type.expression = parse(tokenizer);
+    return directive_type;
+}
+ 
 parse_identifier :: (ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
     identifier.name = ident_token.string_value;
@@ -1261,4 +1378,19 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Node {
     _cast.expression = parse(tokenizer);
 
     return _cast;
+}
+
+parse_inline :: (tokenizer: *Tokenizer) -> *Node {
+    eat_token(tokenizer, .KEYWORD_INLINE);
+    next_node := parse(tokenizer);
+
+    if next_node.kind == .PROCEDURE {
+        (cast(*Procedure) next_node).flags |= .INLINE;
+    }
+
+    if next_node.kind == .PROCEDURE_CALL {
+        (cast(*Procedure_Call) next_node).inlined = true;
+    } 
+
+    return next_node;
 }
