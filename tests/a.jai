@@ -1,1 +1,1 @@
-#bake_constants adder(y=42);
+#bytes .[0x90, 0x90, 0x90];

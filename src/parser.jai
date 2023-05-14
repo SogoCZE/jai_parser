@@ -2,7 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #bake_constants
 // - #bytes
 // - #caller_code
 // - #caller_location
@@ -101,6 +100,7 @@ Node :: struct {
         DIRECTIVE_ASSERT;
         DIRECTIVE_BAKE_ARGUMENTS;
         DIRECTIVE_BAKE_CONSTANTS;
+        DIRECTIVE_BYTES;
     }
 
     Location :: struct {
@@ -556,6 +556,13 @@ Directive_Bake_Arguments :: struct {
 Directive_Bake_Constants :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_BAKE_CONSTANTS;
+
+    expression: *Node;
+}
+
+Directive_Bytes :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_BYTES;
 
     expression: *Node;
 }
@@ -1179,6 +1186,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "assert";           return parse_directive_assert(tokenizer);
         case "bake_arguments";   return parse_directive_bake_arguments(tokenizer);
         case "bake_constants";   return parse_directive_bake_constants(tokenizer);
+        case "bytes";            return parse_directive_bytes(tokenizer);
 
         case "asm";              return parse_inline_assembly(tokenizer);
         case "if";               return parse_if(tokenizer, .IF, true);
@@ -1307,6 +1315,13 @@ parse_directive_bake_constants :: (tokenizer: *Tokenizer) -> *Directive_Bake_Con
     directive_bake_constants.expression = parse(tokenizer);
 
     return directive_bake_constants;
+}
+
+parse_directive_bytes :: (tokenizer: *Tokenizer) -> *Directive_Bytes {
+    directive_bytes := New(Directive_Bytes);
+    directive_bytes.expression = parse(tokenizer);
+
+    return directive_bytes;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
