@@ -5,10 +5,12 @@ Iterator :: struct {
     line := 1;
     column := 1;
     buffer: string;
+    file: string;
 }
 
-create_iterator :: (source: string) -> Iterator {
+create_iterator :: (source: string, file: string) -> Iterator {
     iterator:  Iterator;
+    iterator.file = file;
     iterator.buffer = source;
     return iterator;
 }

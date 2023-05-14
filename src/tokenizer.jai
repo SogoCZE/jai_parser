@@ -58,7 +58,7 @@ Token_Kind :: enum {
     KEYWORD_INLINE;
     KEYWORD_NO_INLINE;
     KEYWORD_CAST;
-    KEYWORD_CONTEXT;
+    // KEYWORD_CONTEXT;
     KEYWORD_PUSH_CONTEXT;
     KEYWORD_OPERATOR;
     KEYWORD_CONTINUE; 
@@ -74,6 +74,8 @@ Token_Kind :: enum {
 
 Token :: struct {
     kind: Token_Kind = .UNKNOWN;
+
+    file: string;
 
     l0: int;
     c0: int;
@@ -205,7 +207,8 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
 
 eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
     token := eat_token(tokenizer);
-    assert(token && token.kind == kind);
+    assert(token != null, "Token is null!");
+    assert(token.kind == kind, "token % != required % (%:%:%)", token.kind, kind, token.file, token.l0, token.c0);
     return token;
 }
 
@@ -307,6 +310,7 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
 parse_comment :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.kind = .COMMENT;
+    token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
@@ -340,6 +344,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     next(iterator); // Skip the "@"
 
     token: Token;
+    token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
@@ -354,6 +359,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
 
 parse_identifier :: (using iterator: *Iterator) -> Token {
     token: Token;
+    token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
@@ -363,7 +369,11 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     for token_kind: enum_names(Token_Kind) {
         if !starts_with(token_kind, "KEYWORD") continue;
 
-        token_kind_lower_without_prefix := to_lower_copy(replace(token_kind, "KEYWORD_", ""));
+        KEYWORD_COUNT :: #run "KEYWORD_".count;
+
+        token_kind_lower_without_prefix := token_kind;
+        token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, 0, KEYWORD_COUNT);
+        to_lower_in_place(token_kind_lower_without_prefix);
 
         if identifier == token_kind_lower_without_prefix || identifier == "xx" {
             keyword = true;
@@ -377,7 +387,8 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
         if identifier == "xx" {
             identifier_uppercased = "AUTO_CAST";
         } else {
-            identifier_uppercased = to_upper_copy(identifier);
+            identifier_uppercased = identifier;
+            to_upper_in_place(identifier_uppercased);
         }
 
         enum_value, ok := enum_name_to_value(Token_Kind, tprint("KEYWORD_%", identifier_uppercased));
@@ -397,6 +408,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
 parse_string :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.kind = .STRING;
+    token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
     
@@ -432,6 +444,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
 parse_here_string :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.kind = .STRING;
+    token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
@@ -443,8 +456,6 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
     }
 
     here_identifier := parse_identifier(iterator).string_value;
-
-    print("..: %\n", here_identifier);
 
     builder: String_Builder;
     init_string_builder(*builder);
@@ -485,6 +496,7 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
 parse_number :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.l0 = iterator.line;
+    token.file = iterator.file;
     token.c0 = iterator.column;
     token.kind = .NUMBER; 
 
@@ -546,6 +558,7 @@ parse_number :: (using iterator: *Iterator) -> Token {
 parse_char_token :: (iterator: *Iterator) -> Token {
     token: Token;
     token.l0 = iterator.line;
+    token.file = iterator.file;
     token.c0 = iterator.column;
 
     char := next(iterator);

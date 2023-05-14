@@ -22,6 +22,8 @@ find_current_jai_path :: () -> string {
 JAI_PATH :: #run find_current_jai_path();
 JAI_MODULES_PATH :: #run tprint("%/modules", JAI_PATH);
 
+pool: Pool;
+
 output_file_to_json :: (file_path: string, nodes: []*Node) {
     json_builder: String_Builder;
 
@@ -53,9 +55,14 @@ main :: () {
         return;
     }
     
+    set_allocators(*pool);
+    push_allocator(pool_allocator_proc, *pool);
+
     parse_file(*files, cmd_arguments[1]);
 
-    for nodes, file: files output_file_to_json(file, nodes);
+    // for nodes, file: files output_file_to_json(file, nodes);
+
+    release(*pool);
 
     print("All done!\n");
 }
@@ -70,3 +77,4 @@ File_Module :: #import "File";
 #import "Basic";
 #import "Hash_Table";
 #import "String";
+#import "Pool";

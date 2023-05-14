@@ -1,12 +1,4 @@
-Files :: Table(string, []*Node);
-
-Person :: struct {
-    name: string;
-} 
-
 // @TODO:
-// - Literals 
-// - autocast
 // - push_context
 // - operator (override)
 // - operators (bitshift, rotate, bitwise)
@@ -65,6 +57,8 @@ Person :: struct {
 // - #import,string
 // - type keywords (is this needed?)
 
+Files :: Table(string, []*Node);
+
 Node :: struct {
 
     Kind :: enum {
@@ -78,6 +72,7 @@ Node :: struct {
         PROCEDURE_CALL;
         QUICK_LAMBDA;
         ARRAY_TYPE;
+        ARRAY_SUBSCRIPT;
         // TYPE_INSTANTIATION;
         IDENTIFIER;
         DIRECTIVE;
@@ -91,6 +86,7 @@ Node :: struct {
         DEFER;
         USING;
         CAST;
+        AUTO_CAST;
         COMMA_SEPERATED_EXPRESSION;
         IF; 
         CASE;
@@ -184,6 +180,13 @@ Cast :: struct {
     truncate: bool;
     no_check: bool;
 }  
+
+Auto_Cast :: struct {
+    using #as node: Node;
+    kind = .AUTO_CAST;
+
+    expression: *Node;
+}
 
 Break :: struct {
     using #as node: Node;
@@ -510,6 +513,13 @@ Array_Type :: struct {
     resizable: bool;   
 }
 
+Array_Subscript :: struct {
+    using #as node: Node;
+    kind = .ARRAY_SUBSCRIPT;
+
+    subscript: *Node;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -540,7 +550,7 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
     nodes: [..]*Node;
 
     while !end(tokenizer) {
-        if stop(peek_token(tokenizer)) break;
+        if !peek_token(tokenizer) || stop(peek_token(tokenizer)) break;
 
         if seperator != 0 && is_token(tokenizer, seperator) {
             eat_token(tokenizer, seperator);
@@ -551,7 +561,7 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
         if node == null continue;
         array_add(*nodes, node);
 
-        if stop(peek_token(tokenizer)) break;
+        if !peek_token(tokenizer) || stop(peek_token(tokenizer)) break;
     }
 
     return nodes;
@@ -570,7 +580,7 @@ parse_file :: (files: *Files, path: string) {
     print("Parsing file %...\n", path);
     path_without_filename := path_strip_filename(path);
 
-    iterator := create_iterator(File_Module.read_entire_file(path));
+    iterator := create_iterator(File_Module.read_entire_file(path), path);
     tokenizer := create_tokenizer(*iterator);
 
     nodes: [..]*Node;
@@ -616,9 +626,14 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
             return parse_binary_operation(tokenizer, identifier);
         }
 
+        // Array Subscript
+        if is_token(tokenizer, #char "[") {
+            return parse_array_subscript(tokenizer);
+        }
+
         // Multiple Assings Declaration (a, b, c := 10, 20, 30)
         if is_token(tokenizer, #char ",") {
-            print("Some!\n");
+            // print("Some!\n");
         }
 
         if is_token(tokenizer, .QUICK_LAMBDA) {
@@ -746,6 +761,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // Cast
     if is_token(tokenizer, .KEYWORD_CAST) {
         return parse_cast(tokenizer);
+    }
+    
+    // Auto Cast (xx)
+    if is_token(tokenizer, .KEYWORD_AUTO_CAST) {
+        return parse_auto_cast(tokenizer);
     }
 
     // Directive
@@ -967,7 +987,7 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     _enum := New(Enum);
     _enum.is_enum_flags = is_enum_flags;
 
-    eat_token(tokenizer, .KEYWORD_ENUM);
+    eat_token(tokenizer, ifx is_enum_flags then Token_Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM );
 
     // Type specifier
     if !is_token(tokenizer, #char "{") {
@@ -1135,6 +1155,14 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     }
 
     return literal;
+}
+
+parse_array_subscript :: (tokenizer: *Tokenizer) -> *Array_Subscript {
+    array_subscript := New(Array_Subscript);
+    eat_token(tokenizer, #char "[");
+    array_subscript.subscript = parse(tokenizer); 
+    eat_token(tokenizer, #char "]");
+    return array_subscript;
 }
 
 parse_array_type :: (tokenizer: *Tokenizer) -> *Array_Type {
@@ -1352,9 +1380,9 @@ parse_if :: (tokenizer: *Tokenizer) -> *Node {
 
     switch := false;
 
-    if _if.condition.kind == .BINARY_OPERATION {
+    if _if.condition && _if.condition.kind == .BINARY_OPERATION {
         binary_op := cast(*Binary_Operation) _if.condition;
-        switch = binary_op.operation == .IS_EQUAL && binary_op.right.kind == .BLOCK;
+        switch = binary_op.operation == .IS_EQUAL && binary_op.right && binary_op.right.kind == .BLOCK;
     }
 
     if !switch {
@@ -1420,7 +1448,7 @@ parse_using :: (tokenizer: *Tokenizer) -> *Node {
     return _using;
 }
 
-parse_cast :: (tokenizer: *Tokenizer) -> *Node {
+parse_cast :: (tokenizer: *Tokenizer) -> *Cast {
     _cast := New(Cast);
     cast_token := eat_token(tokenizer, .KEYWORD_CAST);
 
@@ -1445,6 +1473,13 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Node {
     _cast.expression = parse(tokenizer);
 
     return _cast;
+}
+
+parse_auto_cast :: (tokenizer: *Tokenizer) -> *Auto_Cast {
+    auto_cast := New(Auto_Cast);
+    eat_token(tokenizer, .KEYWORD_AUTO_CAST);
+    auto_cast.expression = parse(tokenizer);
+    return auto_cast;
 }
 
 parse_inline :: (tokenizer: *Tokenizer) -> *Node {
