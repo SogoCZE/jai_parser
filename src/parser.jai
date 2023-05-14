@@ -2,8 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #code
-// - #add_context
 // - #asm
 // - #assert
 // - #if
@@ -104,6 +102,7 @@ Node :: struct {
         DIRECTIVE_PLACE;
         DIRECTIVE_TYPE;
         DIRECTIVE_CODE;
+        DIRECTIVE_ADD_CONTEXT;
     }
 
     Location :: struct {
@@ -516,6 +515,12 @@ Directive_Code :: struct {
 
     typed: bool;
     _null: bool;
+    expression: *Node;
+}
+
+Directive_Add_Context :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_ADD_CONTEXT;
     expression: *Node;
 }
 
@@ -1103,14 +1108,15 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import";  return parse_directive_import_or_load(tokenizer, false);
-        case "load";    return parse_directive_import_or_load(tokenizer, true);
-        case "run";     return parse_directive_run(tokenizer);
-        case "as";      return parse_directive_as(tokenizer);
-        case "place";   return parse_directive_place(tokenizer);
-        case "type";    return parse_directive_type(tokenizer);
-        case "code";    return parse_directive_code(tokenizer);
-        case "char";    return parse_directive_char(tokenizer);
+        case "import";          return parse_directive_import_or_load(tokenizer, false);
+        case "load";            return parse_directive_import_or_load(tokenizer, true);
+        case "run";             return parse_directive_run(tokenizer);
+        case "as";              return parse_directive_as(tokenizer);
+        case "place";           return parse_directive_place(tokenizer);
+        case "type";            return parse_directive_type(tokenizer);
+        case "code";            return parse_directive_code(tokenizer);
+        case "char";            return parse_directive_char(tokenizer);
+        case "add_context";     return parse_directive_add_context(tokenizer);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -1168,6 +1174,12 @@ parse_directive_as :: (tokenizer: *Tokenizer) -> *Directive_As {
     directive_as := New(Directive_As);
     directive_as.expression = parse(tokenizer);
     return directive_as;
+}
+
+parse_directive_add_context :: (tokenizer: *Tokenizer) -> *Directive_Add_Context {
+    directive_add_context := New(Directive_Add_Context);
+    directive_add_context.expression = parse(tokenizer);
+    return directive_add_context;
 }
 
 parse_directive_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Directive_Import_Or_Load {
