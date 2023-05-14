@@ -1,5 +1,4 @@
 // @TODO:
-// - push_context
 // - operator (override)
 // - operators (bitshift, rotate, bitwise)
 // - multiple assings declaration
@@ -68,6 +67,7 @@ Node :: struct {
         STRUCT;
         UNION;
         ENUM;
+        PUSH_CONTEXT;
         PROCEDURE;
         PROCEDURE_CALL;
         QUICK_LAMBDA;
@@ -520,6 +520,16 @@ Array_Subscript :: struct {
     subscript: *Node;
 }
 
+Push_Context :: struct {
+    using #as node: Node;
+    kind = .PUSH_CONTEXT;
+
+    backticked: bool;
+    defer_pop: bool;
+    pushed: *Node;
+    block: *Block; 
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -670,6 +680,10 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // Inline
     if is_token(tokenizer, .KEYWORD_INLINE) {
         return parse_inline(tokenizer);
+    }
+
+    if is_token(tokenizer, .KEYWORD_PUSH_CONTEXT) {
+        return parse_push_context(tokenizer);
     }
 
     // Polymorphic_Constant
@@ -1495,4 +1509,25 @@ parse_inline :: (tokenizer: *Tokenizer) -> *Node {
     } 
 
     return next_node;
+}
+
+parse_push_context :: (tokenizer: *Tokenizer) -> *Push_Context {
+    _push_context := New(Push_Context);
+
+    push_context_token := eat_token(tokenizer, .KEYWORD_PUSH_CONTEXT);
+    _push_context.backticked = push_context_token.backticked;
+
+    if maybe_eat_token(tokenizer, #char ",") {
+        modifier_token := eat_token(tokenizer, .IDENTIFIER);
+        _push_context.defer_pop = modifier_token.string_value == "defer_pop";
+    }
+
+    _push_context.pushed = parse(tokenizer);
+
+    // @TODO: Block only?
+    if is_token(tokenizer, #char "{") {
+        _push_context.block = parse_block(tokenizer);
+    }
+
+    return _push_context;
 }

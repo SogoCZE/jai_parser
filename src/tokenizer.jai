@@ -364,7 +364,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     token.c0 = iterator.column;
 
     identifier := next_while(iterator,  char => is_identifier_char(char) || is_digit(char)); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
-    keyword := false;
+    keyword: string;
 
     for token_kind: enum_names(Token_Kind) {
         if !starts_with(token_kind, "KEYWORD") continue;
@@ -372,27 +372,22 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
         KEYWORD_COUNT :: #run "KEYWORD_".count;
 
         token_kind_lower_without_prefix := token_kind;
-        token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, 0, KEYWORD_COUNT);
+        token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
         to_lower_in_place(token_kind_lower_without_prefix);
 
         if identifier == token_kind_lower_without_prefix || identifier == "xx" {
-            keyword = true;
+            keyword = token_kind;
             break;
         }
     }
 
     if keyword {
-        identifier_uppercased: string;
-        
-        if identifier == "xx" {
-            identifier_uppercased = "AUTO_CAST";
-        } else {
-            identifier_uppercased = identifier;
-            to_upper_in_place(identifier_uppercased);
+        if keyword == "XX" {
+            keyword = "AUTO_CAST";
         }
 
-        enum_value, ok := enum_name_to_value(Token_Kind, tprint("KEYWORD_%", identifier_uppercased));
-        assert(ok, "invalid keyword %", identifier_uppercased);
+        enum_value, ok := enum_name_to_value(Token_Kind, keyword);
+        assert(ok, "invalid keyword %", keyword);
         token.kind = enum_value;
     } else {
         token.kind = .IDENTIFIER;
