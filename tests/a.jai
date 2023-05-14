@@ -1,1 +1,1 @@
-#assert false "message";
+a||=some;

@@ -51,7 +51,6 @@
 // - #import,string
 // - notes
 // - multiple assings declaration
-// - operators (bitshift, rotate, bitwise)
 // - type keywords (is this needed?)
 
 Files :: Table(string, []*Node);
@@ -412,18 +411,32 @@ _Operator :: enum u8 {
     LESS; // >
     GREATER; // <
     ASSING; // =
+    BITWISE; // &
+    PIPE; // |
 
-    GREATER_EQUEAL; // >=
-    LESS_EQUEAL; // <=
-    PLUS_EQUEAL; // +=
-    MINUS_EQUEAL; // -=
-    MOD_EQUEAL; // %=
-    DIV_EQUEAL; // /=
-    TIMES_EQUEAL; // *=
+    BITWISE_EQUAL; // &=
+    PIPE_EQUAL; // |=
+    GREATER_EQUAL; // >=
+    LESS_EQUAL; // <=
+    PLUS_EQUAL; // +=
+    MINUS_EQUAL; // -=
+    MOD_EQUAL; // %=
+    DIV_EQUAL; // /=
+    TIMES_EQUAL; // *=
     LOGICAL_AND; // &&
+    LOGICAL_AND_ASSIGNMENT; // &&=
     LOGICAL_OR; // ||
+    LOGICAL_OR_ASSIGNMENT; // ||=
     IS_EQUAL; // ==
     IS_NOT_EQUAL; // !=
+    LEFT_SHIFT; // <<, POINTER_DEREFERENCE
+    RIGHT_SHIFT; // >>
+    LEFT_SHIFT_ASSIGNMENT; // <<= 
+    RIGHT_SHIFT_ASSIGNMENT; // >>=
+    UNSIGNED_RIGHT_SHIFT; // >>>
+    UNSIGNED_LEFT_SHIFT; // <<<
+    UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
+    UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
 } 
 
 Binary_Operation :: struct {
@@ -623,30 +636,45 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
 
 create_operator_from_token :: (kind: Token_Kind) -> _Operator {
     // @InComplete
-    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automaticly...
+    // @TODO: this is totally silly we could use some sort of metaprogramming to make this automaticly...
     if kind == {
-        case #char ">";         return .GREATER;
-        case #char "<";         return .LESS;
-        case #char "+";         return .ADDITION;
-        case #char "-";         return .SUBTRACTION;
-        case #char "*";         return .MULTIPLICATION;
-        case #char "/";         return .DIVISION;
-        case #char "%";         return .MODULO;
-        case #char "=";         return .ASSING;
-        case #char ".";         return .DOT;
+        case #char ">";                           return .GREATER;
+        case #char "<";                           return .LESS;
+        case #char "+";                           return .ADDITION;
+        case #char "-";                           return .SUBTRACTION;
+        case #char "*";                           return .MULTIPLICATION;
+        case #char "/";                           return .DIVISION;
+        case #char "%";                           return .MODULO;
+        case #char "=";                           return .ASSING;
+        case #char ".";                           return .DOT;
+        case #char "&";                           return .BITWISE;
+        case #char "|";                           return .PIPE;
 
-        case .GREATER_EQUEAL;   return .GREATER_EQUEAL;
-        case .LESS_EQUEAL;      return .LESS_EQUEAL;
-        case .PLUS_EQUEAL;      return .PLUS_EQUEAL;
-        case .MINUS_EQUEAL;     return .MINUS_EQUEAL;
-        case .MOD_EQUEAL;       return .MOD_EQUEAL;
-        case .DIV_EQUEAL;       return .DIV_EQUEAL;
-        case .TIMES_EQUEAL;     return .TIMES_EQUEAL;
-        case .LOGICAL_AND;      return .LOGICAL_AND;
-        case .LOGICAL_OR;       return .LOGICAL_OR;
-        case .IS_EQUAL;         return .IS_EQUAL;
-        case .IS_NOT_EQUAL;     return .IS_NOT_EQUAL;
-        case .DOUBLE_DOT;       return .RANGE;
+        case .BITWISE_EQUAL;                      return .BITWISE_EQUAL;
+        case .PIPE_EQUAL;                         return .PIPE_EQUAL;
+        case .GREATER_EQUAL;                      return .GREATER_EQUAL;
+        case .LESS_EQUAL;                         return .LESS_EQUAL;
+        case .PLUS_EQUAL;                         return .PLUS_EQUAL;
+        case .MINUS_EQUAL;                        return .MINUS_EQUAL;
+        case .MOD_EQUAL;                          return .MOD_EQUAL;
+        case .DIV_EQUAL;                          return .DIV_EQUAL;
+        case .TIMES_EQUAL;                        return .TIMES_EQUAL;
+        case .LOGICAL_AND;                        return .LOGICAL_AND;
+        case .LOGICAL_AND_ASSIGNMENT;             return .LOGICAL_AND_ASSIGNMENT;
+        case .LOGICAL_OR;                         return .LOGICAL_OR;
+        case .LOGICAL_OR_ASSIGNMENT;              return .LOGICAL_OR;
+        case .IS_EQUAL;                           return .IS_EQUAL;
+        case .IS_NOT_EQUAL;                       return .IS_NOT_EQUAL;
+        case .DOUBLE_DOT;                         return .RANGE;
+
+        case .LEFT_SHIFT;                         return .LEFT_SHIFT;
+        case .RIGHT_SHIFT;                        return .RIGHT_SHIFT;
+        case .LEFT_SHIFT_ASSIGNMENT;              return .LEFT_SHIFT_ASSIGNMENT;
+        case .RIGHT_SHIFT_ASSIGNMENT;             return .RIGHT_SHIFT_ASSIGNMENT;
+        case .UNSIGNED_RIGHT_SHIFT;               return .UNSIGNED_RIGHT_SHIFT;
+        case .UNSIGNED_LEFT_SHIFT;                return .UNSIGNED_LEFT_SHIFT;
+        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;    return .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;
+        case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;     return .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
     }
 
     log_error(tprint("Invalid operator '%'.", kind));
@@ -1058,7 +1086,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
         _struct.block = parse_block(tokenizer);
     } else {
         print("Exprected struct body! Got:");
-        // print_token(peek_token(tokenizer));
+        print_token(peek_token(tokenizer));
     }
 
     return _struct;
@@ -1339,7 +1367,7 @@ is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
     if is_token(tokenizer, #char "!")            return true;
     if is_token(tokenizer, #char "$")            return true;
     if is_token(tokenizer, .DOUBLE_DOLLAR)       return true;
-    if is_token(tokenizer, .POINTER_DEREFERENCE) return true;
+    if is_token(tokenizer, .LEFT_SHIFT)          return true;
     if is_token(tokenizer, .DOUBLE_DOT)          return true;
     return false;
 }
@@ -1378,7 +1406,7 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
-        case .POINTER_DEREFERENCE;  unary_operation.operation = .POINTER_DEREFERENCE;
+        case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
@@ -1643,12 +1671,12 @@ parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
     eat_token(tokenizer, .KEYWORD_OPERATOR);
 
     op := eat_token(tokenizer);
-    assert(is_operator(op));
+    // assert(is_operator(op));
     operator_overload.operation = create_operator_from_token(op.kind);
 
     eat_token(tokenizer, .CONSTANT_DECLARATION);
 
-    operator_overload.procedure = parse_procedure(tokenizer);
+    operator_overload.procedure = parse(tokenizer);
 
     return operator_overload;
 }

@@ -4,6 +4,9 @@
 
 // TODO: Token\   Kind 
 
+b: int;
+b ||= 2;
+
 Token_Kind :: enum {
     // ASCII Types...
 
@@ -14,15 +17,19 @@ Token_Kind :: enum {
     COMMENT; // */ */ //
     NULL; // NULL
 
-    PLUS_EQUEAL; // +=
-    MINUS_EQUEAL; // -=
-    MOD_EQUEAL; // %=
-    DIV_EQUEAL; // /=
-    TIMES_EQUEAL; // *=
-    LESS_EQUEAL; // <=
-    GREATER_EQUEAL; // >=
+    PLUS_EQUAL; // +=
+    MINUS_EQUAL; // -=
+    MOD_EQUAL; // %=
+    DIV_EQUAL; // /=
+    TIMES_EQUAL; // *=
+    LESS_EQUAL; // <=
+    GREATER_EQUAL; // >=
     LOGICAL_AND; // &&
+    LOGICAL_AND_ASSIGNMENT; // &&=
+    PIPE_EQUAL; // |=
+    BITWISE_EQUAL; // &=
     LOGICAL_OR; // ||
+    LOGICAL_OR_ASSIGNMENT; // ||=
     IS_EQUAL; // ==
     IS_NOT_EQUAL; // !=
 
@@ -31,7 +38,16 @@ Token_Kind :: enum {
     DOUBLE_DOLLAR; // $$
     DOUBLE_DOT; // ..
     ARROW_RIGHT; // ->
-    POINTER_DEREFERENCE; // <<
+
+    // @TODO: Do these have correct names?
+    LEFT_SHIFT; // <<, POINTER_DEREFERENCE
+    RIGHT_SHIFT; // >>
+    LEFT_SHIFT_ASSIGNMENT; // <<= 
+    RIGHT_SHIFT_ASSIGNMENT; // >>=
+    UNSIGNED_RIGHT_SHIFT; // >>>
+    UNSIGNED_LEFT_SHIFT; // <<<
+    UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
+    UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
 
     CONSTANT_DECLARATION; // ::
     DECLARATION_AND_ASSIGN; // :=
@@ -155,28 +171,41 @@ is_operator :: (token: *Token) -> bool {
     if !token return false;
 
     if token.kind == {
-        case #char "+";         return true;
-        case #char "-";         return true;
-        case #char "/";         return true;
-        case #char "*";         return true;
-        case #char "%";         return true;
-        case #char ">";         return true;
-        case #char "<";         return true;
-        case #char ".";         return true;
-        case #char "=";         return true;
-
-        case .PLUS_EQUEAL;      return true;
-        case .MINUS_EQUEAL;     return true;
-        case .MOD_EQUEAL;       return true;
-        case .DIV_EQUEAL;       return true;
-        case .TIMES_EQUEAL;     return true;
-        case .LESS_EQUEAL;      return true;
-        case .GREATER_EQUEAL;   return true;
-        case .LOGICAL_AND;      return true;
-        case .LOGICAL_OR;       return true;
-        case .IS_EQUAL;         return true;
-        case .IS_NOT_EQUAL;     return true;
-        case .DOUBLE_DOT;       return true;
+        case #char "+";                          return true;
+        case #char "-";                          return true;
+        case #char "/";                          return true;
+        case #char "*";                          return true;
+        case #char "%";                          return true;
+        case #char ">";                          return true;
+        case #char "<";                          return true;
+        case #char ".";                          return true;
+        case #char "=";                          return true;
+        case #char "&";                          return true;
+        case #char "|";                          return true;
+        case .PLUS_EQUAL;                       return true;
+        case .MINUS_EQUAL;                      return true;
+        case .MOD_EQUAL;                        return true;
+        case .DIV_EQUAL;                        return true;
+        case .TIMES_EQUAL;                      return true;
+        case .LESS_EQUAL;                       return true;
+        case .GREATER_EQUAL;                    return true;
+        case .BITWISE_EQUAL;                     return true;
+        case .LOGICAL_AND;                       return true;
+        case .LOGICAL_AND_ASSIGNMENT;            return true;
+        case .PIPE_EQUAL;                        return true;
+        case .LOGICAL_OR;                        return true;
+        case .LOGICAL_OR_ASSIGNMENT;             return true;
+        case .IS_EQUAL;                          return true;
+        case .IS_NOT_EQUAL;                      return true;
+        case .DOUBLE_DOT;                        return true;
+        case .LEFT_SHIFT;                        return true;
+        case .RIGHT_SHIFT;                       return true;
+        case .LEFT_SHIFT_ASSIGNMENT;             return true;
+        case .RIGHT_SHIFT_ASSIGNMENT;            return true;
+        case .UNSIGNED_RIGHT_SHIFT;              return true;
+        case .UNSIGNED_LEFT_SHIFT;               return true;
+        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;   return true;
+        case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;    return true;
     }
 
     return false;
@@ -575,7 +604,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
 
     if char == #char "+" && next_char == #char "=" {
         next(iterator);
-        token.kind = .PLUS_EQUEAL;
+        token.kind = .PLUS_EQUAL;
     }
 
     if char == #char "-" {
@@ -586,7 +615,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         
         if next_char == #char "=" {
             next(iterator);
-            token.kind = .MINUS_EQUEAL; // -=
+            token.kind = .MINUS_EQUAL; // -=
         } 
 
         if next_char == #char "-" {
@@ -594,9 +623,9 @@ parse_char_token :: (iterator: *Iterator) -> Token {
             
             if peek(iterator) == #char "-" {
                 next(iterator);
-                token.kind = .TRIPLE_MINUS;
+                token.kind = .TRIPLE_MINUS; // ---
             } else {
-                token.kind = .DOUBLE_MINUS;
+                token.kind = .DOUBLE_MINUS; // --
             }
 
         }
@@ -604,42 +633,105 @@ parse_char_token :: (iterator: *Iterator) -> Token {
 
     if char == #char "%" && next_char == #char "=" {
         next(iterator);
-        token.kind = .MOD_EQUEAL;
+        token.kind = .MOD_EQUAL;
     }
     
     if char == #char "/" && next_char == #char "=" {
         next(iterator);
-        token.kind = .DIV_EQUEAL;
+        token.kind = .DIV_EQUAL;
     }
     
     if char == #char "*" && next_char == #char "=" {
         next(iterator);
-        token.kind = .TIMES_EQUEAL;
+        token.kind = .TIMES_EQUAL;
     }
 
     if char == #char "<" && next_char == #char "<" {
-        next(iterator);
-        token.kind = .POINTER_DEREFERENCE;
+        next(iterator); // <
+
+        if peek(iterator) == #char "<" {
+            next(iterator); // <
+
+            if peek(iterator) == #char "=" {
+                next(iterator); // =
+                token.kind = .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
+            } else {
+                token.kind = .UNSIGNED_LEFT_SHIFT;
+            }
+
+        } else if peek(iterator) == #char "=" {
+            next(iterator); // =
+            token.kind = .LEFT_SHIFT_ASSIGNMENT;
+        } else {
+            token.kind = .LEFT_SHIFT;
+        }
+
     }
-    
+
     if char == #char "<" && next_char == #char "=" {
         next(iterator);
-        token.kind = .LESS_EQUEAL;
+        token.kind = .LESS_EQUAL;
+    }
+
+    if char == #char ">" && next_char == #char ">" {
+        next(iterator); // >
+
+        if peek(iterator) == #char ">" {
+            next(iterator); // >
+
+            if peek(iterator) == #char "=" {
+                next(iterator); // =
+                token.kind = .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;
+            } else {
+                token.kind = .UNSIGNED_RIGHT_SHIFT;
+            }
+
+        } else if peek(iterator) == #char "=" {
+            next(iterator); // =
+            token.kind = .RIGHT_SHIFT_ASSIGNMENT;
+        } else {
+            token.kind = .RIGHT_SHIFT;
+        }
+
     }
     
     if char == #char ">" && next_char == #char "=" {
         next(iterator);
-        token.kind = .GREATER_EQUEAL;
+        token.kind = .GREATER_EQUAL;
+    }
+
+    if char == #char "&" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .BITWISE_EQUAL;
     }
     
     if char == #char "&" && next_char == #char "&" {
         next(iterator);
-        token.kind = .LOGICAL_AND;
+
+        if peek(iterator) == #char "=" {
+            next(iterator); // =
+            token.kind = .LOGICAL_AND_ASSIGNMENT;
+        } else {
+            token.kind = .LOGICAL_AND;
+        }
+
+    }
+
+    if char == #char "|" && next_char == #char "=" {
+        next(iterator);
+        token.kind = .PIPE_EQUAL;
     }
     
     if char == #char "|" && next_char == #char "|" {
         next(iterator);
-        token.kind = .LOGICAL_OR;
+
+        if peek(iterator) == #char "=" {
+            next(iterator); // =
+            token.kind = .LOGICAL_OR_ASSIGNMENT;
+        } else {
+            token.kind = .LOGICAL_OR;
+        }
+
     }
     
     if char == #char "=" {
