@@ -103,6 +103,7 @@ Node :: struct {
         DIRECTIVE_TYPE;
         DIRECTIVE_CODE;
         DIRECTIVE_ADD_CONTEXT;
+        DIRECTIVE_ASSERT;
     }
 
     Location :: struct {
@@ -522,6 +523,14 @@ Directive_Add_Context :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_ADD_CONTEXT;
     expression: *Node;
+}
+
+Directive_Assert :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_ASSERT;
+
+    condition: *Node;
+    message: string;
 }
 
 Array_Type :: struct {
@@ -1125,6 +1134,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "code";            return parse_directive_code(tokenizer);
         case "char";            return parse_directive_char(tokenizer);
         case "add_context";     return parse_directive_add_context(tokenizer);
+        case "assert";          return parse_directive_assert(tokenizer);
         case "asm";             return parse_inline_assembly(tokenizer);
     }
 
@@ -1223,6 +1233,19 @@ parse_directive_type :: (tokenizer: *Tokenizer) -> *Directive_Type {
 
     directive_type.expression = parse(tokenizer);
     return directive_type;
+}
+
+parse_directive_assert :: (tokenizer: *Tokenizer) -> *Directive_Assert {
+    directive_assert := New(Directive_Assert);
+
+    directive_assert.condition = parse(tokenizer);
+
+    if is_token(tokenizer, .STRING) {
+        message_token := eat_token(tokenizer, .STRING);
+        directive_assert.message = message_token.string_value;
+    }
+
+    return directive_assert;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
