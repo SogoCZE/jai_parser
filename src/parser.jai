@@ -78,7 +78,8 @@ Node :: struct {
         PROCEDURE;
         PROCEDURE_CALL;
         QUICK_LAMBDA;
-        TYPE_INSTANTIATION;
+        ARRAY_TYPE;
+        // TYPE_INSTANTIATION;
         IDENTIFIER;
         DIRECTIVE;
         LITERAL;
@@ -224,15 +225,16 @@ For :: struct {
     body: *Node;    
 }
 
-Type_Instantiation :: struct {
-    using #as node: Node;
-    kind = .TYPE_INSTANTIATION;
+// Type_Instantiation :: struct {
+//     using #as node: Node;
+//     kind = .TYPE_INSTANTIATION;
 
-    array: bool;
+//     array_element_type: *Node;
+//     array_dimension: *Node;
+//     array_resizable: *Node;
 
-
-    result: *Node; 
-}
+//     result: *Node; 
+// }
 
 Procedure :: struct {
     using #as node: Node;
@@ -379,12 +381,10 @@ Literal :: struct {
 }
 
 Struct_Literal_Info :: struct {
-    type_expression: *Type_Instantiation;  // May be null if it's the unary dot version of struct literals.
     arguments: [] *Node;
 }
 
 Array_Literal_Info :: struct {
-    element_type: *Type_Instantiation;
     // alignment: *Node;
     array_members: [] *Node;
 }
@@ -503,6 +503,15 @@ Directive_Type :: struct {
     isa: bool;
     distinct: bool;
     expression: *Node;
+}
+
+Array_Type :: struct {
+    using #as node: Node;
+    kind = .ARRAY_TYPE;
+
+    dimension: *Node;
+    element_type: *Node;
+    resizable: bool;   
 }
 
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
@@ -766,6 +775,11 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     // Block
     if is_token(tokenizer, #char "{") {
         return parse_block(tokenizer);
+    }
+
+    // Array_Type
+    if is_token(tokenizer, #char "[") {
+        return parse_array_type(tokenizer);
     }
 
     // Comment
@@ -1095,6 +1109,27 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     }
 
     return literal;
+}
+
+parse_array_type :: (tokenizer: *Tokenizer) -> *Array_Type {
+    array_type := New(Array_Type);
+
+    eat_token(tokenizer, #char "[");
+
+    if !is_token(tokenizer, #char "]") {
+
+        if maybe_eat_token(tokenizer, .DOUBLE_DOT) {
+            array_type.resizable = true;
+        } else {
+            array_type.dimension = parse(tokenizer);
+        }
+
+    }
+
+    eat_token(tokenizer, #char "]");
+    array_type.element_type = parse(tokenizer);
+
+    return array_type;
 }
 
 is_unary_operator :: (tokenizer: *Tokenizer) -> bool {

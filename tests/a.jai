@@ -1,3 +1,4 @@
-array_view: []int;
+array_view: []*Entity;
 static_array: [10]int;
-dynamic_array: [..]int;
+static_array: [SIZE]float;
+dynamic_array: [..]string;
