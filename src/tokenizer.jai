@@ -75,8 +75,6 @@ Token_Kind :: enum {
     KEYWORD_INLINE;
     KEYWORD_NO_INLINE;
     KEYWORD_CAST;
-    // KEYWORD_CONTEXT;
-    // KEYWORD_ADD_CONTEXT;
     KEYWORD_PUSH_CONTEXT;
     KEYWORD_OPERATOR;
     KEYWORD_CONTINUE; 
@@ -84,8 +82,10 @@ Token_Kind :: enum {
     KEYWORD_LOAD;
     KEYWORD_FALSE;
     KEYWORD_TRUE;
-    KEYWORD_IS_CONSTANT;
     KEYWORD_AUTO_CAST; // xx
+    // KEYWORD_IS_CONSTANT;
+    // KEYWORD_CONTEXT;
+    // KEYWORD_ADD_CONTEXT;
 
     UNKNOWN;
 }
@@ -406,20 +406,21 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
 
         token_kind_lower_without_prefix := token_kind;
         token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
-        to_lower_in_place(token_kind_lower_without_prefix);
+        to_lower_in_place(token_kind_lower_without_prefix); // @TODO: this is dangerous because we lowering values in the enum type info!!! :lowering_in_type_info:
 
-        if identifier == token_kind_lower_without_prefix || identifier == "xx" {
+        if identifier == "xx" {
+            keyword = "KEYWORD_auto_cast"; // This has to be lower because of :lowering_in_type_info:
+            break;
+        }
+
+        if identifier == token_kind_lower_without_prefix {
             keyword = token_kind;
             break;
         }
     }
 
     if keyword {
-        if keyword == "XX" {
-            keyword = "AUTO_CAST";
-        }
-
-        enum_value, ok := enum_name_to_value(Token_Kind, keyword);
+        enum_value, ok := enum_name_to_value(Token_Kind, keyword); // This works with KEYWORD_lower because of :lowering_in_type_info:
         assert(ok, "invalid keyword %", keyword);
         token.kind = enum_value;
     } else {

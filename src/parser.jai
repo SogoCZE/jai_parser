@@ -2,8 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #if
-// - #ifx
 // - #bake_arguments
 // - #bake_constants
 // - #bytes
@@ -328,11 +326,13 @@ If :: struct {
     kind = .IF;
 
     If_Kind :: enum u8 {
+        UNKNOWN;
         IF;
         IFX;
         SWITCH;
     }
 
+    compile_time: bool;
     condition: *Node;
     if_kind: If_Kind;
     marked_as_complete: bool;
@@ -1163,6 +1163,8 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "add_context";     return parse_directive_add_context(tokenizer);
         case "assert";          return parse_directive_assert(tokenizer);
         case "asm";             return parse_inline_assembly(tokenizer);
+        case "if";              return parse_if(tokenizer, .IF, true);
+        case "ifx";             return parse_if(tokenizer, .IFX, true);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -1505,17 +1507,22 @@ parse_for :: (tokenizer: *Tokenizer) -> *Node {
     return _for;
 }
 
-parse_if :: (tokenizer: *Tokenizer) -> *Node {
+parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time := false) -> *Node {
     _if := New(If);
+    _if.compile_time = compile_time;
     
-    if_token: *Token;
+    if kind == .UNKNOWN {
+        if_token: *Token;
 
-    if is_token(tokenizer, .KEYWORD_IFX) {
-        if_token = eat_token(tokenizer, .KEYWORD_IFX);
-        _if.if_kind = .IFX;
+        if is_token(tokenizer, .KEYWORD_IFX) {
+            if_token = eat_token(tokenizer, .KEYWORD_IFX);
+            _if.if_kind = .IFX;
+        } else {
+            if_token = eat_token(tokenizer, .KEYWORD_IF);
+            _if.if_kind = .IF;
+        }
     } else {
-        if_token = eat_token(tokenizer, .KEYWORD_IF);
-        _if.if_kind = .IF;
+        _if.if_kind = kind;
     }
 
     has_directive, directive_token := maybe_eat_token(tokenizer, .DIRECTIVE);

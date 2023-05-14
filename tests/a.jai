@@ -1,1 +1,3 @@
-a||=some;
+if some {
+
+}
