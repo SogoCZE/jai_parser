@@ -1,8 +1,7 @@
 // @TODO:
-// - operator (override)
-// - operators (bitshift, rotate, bitwise)
-// - multiple assings declaration
-// - notes
+// - Split parsing into multiple files? 
+
+// To Parse:
 // - #code
 // - #add_context
 // - #asm
@@ -54,6 +53,9 @@
 // - #import,file
 // - #import,dir
 // - #import,string
+// - notes
+// - multiple assings declaration
+// - operators (bitshift, rotate, bitwise)
 // - type keywords (is this needed?)
 
 Files :: Table(string, []*Node);
@@ -69,6 +71,7 @@ Node :: struct {
         ENUM;
         PUSH_CONTEXT;
         PROCEDURE;
+        OPERATOR_OVERLOAD;
         PROCEDURE_CALL;
         QUICK_LAMBDA;
         ARRAY_TYPE;
@@ -324,7 +327,7 @@ If :: struct {
     using #as node: Node;
     kind = .IF;
 
-    If_Kind :: enum {
+    If_Kind :: enum u8 {
         IF;
         IFX;
         SWITCH;
@@ -357,7 +360,7 @@ Literal :: struct {
     using #as node: Node; 
     kind = .LITERAL;
 
-    Value_Type :: enum s16 {
+    Value_Type :: enum u8 {
         UNINITIALIZED;
         INT;
         FLOAT;
@@ -392,41 +395,41 @@ Array_Literal_Info :: struct {
     elements: [] *Node;
 }
 
+// @InComplete: >>> <<< >>= <<=, &, | ...
+_Operator :: enum u8 {
+    INVALID;
+
+    DOT; // .
+    RANGE; // ..
+
+    ADDITION; // +
+    SUBTRACTION; // -
+    MULTIPLICATION; // *
+    DIVISION; // /
+    MODULO; // %
+    LESS; // >
+    GREATER; // <
+    ASSING; // =
+
+    GREATER_EQUEAL; // >=
+    LESS_EQUEAL; // <=
+    PLUS_EQUEAL; // +=
+    MINUS_EQUEAL; // -=
+    MOD_EQUEAL; // %=
+    DIV_EQUEAL; // /=
+    TIMES_EQUEAL; // *=
+    LOGICAL_AND; // &&
+    LOGICAL_OR; // ||
+    IS_EQUAL; // ==
+    IS_NOT_EQUAL; // !=
+} 
+
 Binary_Operation :: struct {
     using #as node: Node; 
     kind = .BINARY_OPERATION;
 
-    // @InComplete: >>> <<< >>= <<= ...
-    Operation :: enum {
-        INVALID;
-
-        DOT; // .
-        RANGE; // ..
-
-        ADDITION; // +
-        SUBTRACTION; // -
-        MULTIPLICATION; // *
-        DIVISION; // /
-        MODULO; // %
-        LESS; // >
-        GREATER; // <
-        ASSING; // =
-
-        GREATER_EQUEAL; // >=
-        LESS_EQUEAL; // <=
-        PLUS_EQUEAL; // +=
-        MINUS_EQUEAL; // -=
-        MOD_EQUEAL; // %=
-        DIV_EQUEAL; // /=
-        TIMES_EQUEAL; // *=
-        LOGICAL_AND; // &&
-        LOGICAL_OR; // ||
-        IS_EQUAL; // ==
-        IS_NOT_EQUAL; // !=
-    }
-
     left: *Node;
-    operation: Operation = .INVALID;
+    operation: _Operator = .INVALID;
     right: *Node;
 }
 
@@ -530,6 +533,14 @@ Push_Context :: struct {
     block: *Block; 
 }
 
+Operator_Overload :: struct {
+    using #as node: Node;
+    kind = .OPERATOR_OVERLOAD;
+
+    operation: _Operator;
+    procedure: *Node;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
     nodes: [..]*Node;
 
@@ -575,6 +586,39 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
     }
 
     return nodes;
+}
+
+create_operator_from_token :: (kind: Token_Kind) -> _Operator {
+    // @InComplete
+    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automaticly...
+    if kind == {
+        case #char ">";         return .GREATER;
+        case #char "<";         return .LESS;
+        case #char "+";         return .ADDITION;
+        case #char "-";         return .SUBTRACTION;
+        case #char "*";         return .MULTIPLICATION;
+        case #char "/";         return .DIVISION;
+        case #char "%";         return .MODULO;
+        case #char "=";         return .ASSING;
+        case #char ".";         return .DOT;
+
+        case .GREATER_EQUEAL;   return .GREATER_EQUEAL;
+        case .LESS_EQUEAL;      return .LESS_EQUEAL;
+        case .PLUS_EQUEAL;      return .PLUS_EQUEAL;
+        case .MINUS_EQUEAL;     return .MINUS_EQUEAL;
+        case .MOD_EQUEAL;       return .MOD_EQUEAL;
+        case .DIV_EQUEAL;       return .DIV_EQUEAL;
+        case .TIMES_EQUEAL;     return .TIMES_EQUEAL;
+        case .LOGICAL_AND;      return .LOGICAL_AND;
+        case .LOGICAL_OR;       return .LOGICAL_OR;
+        case .IS_EQUAL;         return .IS_EQUAL;
+        case .IS_NOT_EQUAL;     return .IS_NOT_EQUAL;
+        case .DOUBLE_DOT;       return .RANGE;
+    }
+
+    log_error(tprint("Invalid operator '%'.", kind));
+    
+    return .INVALID;
 }
 
 get_module_entry :: (root: string) -> string {
@@ -682,8 +726,13 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         return parse_inline(tokenizer);
     }
 
+    // Push Context
     if is_token(tokenizer, .KEYWORD_PUSH_CONTEXT) {
         return parse_push_context(tokenizer);
+    }
+
+    if is_token(tokenizer, .KEYWORD_OPERATOR) {
+        return parse_operator_overload(tokenizer);
     }
 
     // Polymorphic_Constant
@@ -1260,35 +1309,7 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
 
     op := eat_token(tokenizer);
     assert(is_operator(op));
-
-    // @InComplete
-    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automaticly...
-    if op.kind == {
-        case #char ">";         binary_operation.operation = .GREATER;
-        case #char "<";         binary_operation.operation = .LESS;
-        case #char "+";         binary_operation.operation = .ADDITION;
-        case #char "-";         binary_operation.operation = .SUBTRACTION;
-        case #char "*";         binary_operation.operation = .MULTIPLICATION;
-        case #char "/";         binary_operation.operation = .DIVISION;
-        case #char "%";         binary_operation.operation = .MODULO;
-        case #char "=";         binary_operation.operation = .ASSING;
-        case #char ".";         binary_operation.operation = .DOT;
-
-        case .GREATER_EQUEAL;   binary_operation.operation = .GREATER_EQUEAL;
-        case .LESS_EQUEAL;      binary_operation.operation = .LESS_EQUEAL;
-        case .PLUS_EQUEAL;      binary_operation.operation = .PLUS_EQUEAL;
-        case .MINUS_EQUEAL;     binary_operation.operation = .MINUS_EQUEAL;
-        case .MOD_EQUEAL;       binary_operation.operation = .MOD_EQUEAL;
-        case .DIV_EQUEAL;       binary_operation.operation = .DIV_EQUEAL;
-        case .TIMES_EQUEAL;     binary_operation.operation = .TIMES_EQUEAL;
-        case .LOGICAL_AND;      binary_operation.operation = .LOGICAL_AND;
-        case .LOGICAL_OR;       binary_operation.operation = .LOGICAL_OR;
-        case .IS_EQUAL;         binary_operation.operation = .IS_EQUAL;
-        case .IS_NOT_EQUAL;     binary_operation.operation = .IS_NOT_EQUAL;
-        case .DOUBLE_DOT;       binary_operation.operation = .RANGE;
-
-        case; log_error(tprint("Invalid operator '%'.", op.kind));
-    }
+    binary_operation.operation = create_operator_from_token(op.kind);
 
     binary_operation.right = parse(tokenizer); // @TODO: anything?
     
@@ -1530,4 +1551,20 @@ parse_push_context :: (tokenizer: *Tokenizer) -> *Push_Context {
     }
 
     return _push_context;
+}
+
+parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
+    operator_overload := New(Operator_Overload);
+
+    eat_token(tokenizer, .KEYWORD_OPERATOR);
+
+    op := eat_token(tokenizer);
+    assert(is_operator(op));
+    operator_overload.operation = create_operator_from_token(op.kind);
+
+    eat_token(tokenizer, .CONSTANT_DECLARATION);
+
+    operator_overload.procedure = parse_procedure(tokenizer);
+
+    return operator_overload;
 }
