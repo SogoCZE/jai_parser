@@ -5,9 +5,12 @@ Person :: struct {
 } 
 
 // @TODO:
+// - Array Type
+// - Literals 
 // - autocast
 // - push_context
 // - operator (override)
+// - operators (bitshift, rotate, bitwise)
 // - multiple assings declaration
 // - notes
 // - #code
@@ -224,6 +227,9 @@ For :: struct {
 Type_Instantiation :: struct {
     using #as node: Node;
     kind = .TYPE_INSTANTIATION;
+
+    array: bool;
+
 
     result: *Node; 
 }
