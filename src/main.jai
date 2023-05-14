@@ -60,7 +60,7 @@ main :: () {
 
     parse_file(*files, cmd_arguments[1]);
 
-    // for nodes, file: files output_file_to_json(file, nodes);
+    for nodes, file: files output_file_to_json(file, nodes);
 
     release(*pool);
 
