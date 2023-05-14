@@ -1031,6 +1031,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
     return _struct;
 }
 
+// union {}
 parse_union :: (tokenizer: *Tokenizer) -> *Union {
     _union := New(Union);
 
@@ -1046,6 +1047,7 @@ parse_union :: (tokenizer: *Tokenizer) -> *Union {
     return _union;
 }
 
+// enum {}
 parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     _enum := New(Enum);
     _enum.is_enum_flags = is_enum_flags;
@@ -1068,12 +1070,14 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     return _enum;
 }
 
+// {}
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block := New(Block);
     block.members = delimeted(tokenizer, #char "{", #char "}");
     return block;
 }
  
+// print()
 parse_procedure_call :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Procedure_Call {
     proc_call := New(Procedure_Call);
     proc_call.name = ident_token.string_value;
@@ -1082,6 +1086,7 @@ parse_procedure_call :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Procedu
     return proc_call;
 }
 
+// #run 
 parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
