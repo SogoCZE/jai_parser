@@ -1,3 +1,3 @@
-operator + :: (a: Entity, b: Entity) -> Entity {
-    
-}
+#string,cr DONE
+    test
+DONE;

@@ -10,6 +10,7 @@ Token_Kind :: enum {
     IDENTIFIER :: 256; // person
     NUMBER; // 10, 3.14, 2_456_000
     STRING; // "text"
+    // HERE_STRING; // "text"
     COMMENT; // */ */ //
     NULL; // NULL
 
@@ -82,6 +83,8 @@ Token :: struct {
     l1: int;
     c1: int;
     
+    here_string_cr: bool; // @TODO: Is this good to have this here?
+
     union {
         string_value: string;
         integer_value: int;
@@ -442,6 +445,16 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
     token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
+
+    // #string,cr
+    if peek(iterator) == #char "," {
+        next(iterator); // eat ,
+
+        if is_identifier_char(peek(iterator)) {
+            token.here_string_cr = parse_identifier(iterator).string_value == "cr";
+        }
+
+    }
 
     next_while(iterator, is_space); // Skip all whitespaces
 

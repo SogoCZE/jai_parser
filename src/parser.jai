@@ -96,12 +96,14 @@ Node :: struct {
         BREAK;
         FOR;
         WHILE;
+
         DIRECTIVE_IMPORT_OR_LOAD;
         DIRECTIVE_RUN;
         DIRECTIVE_CHAR;
         DIRECTIVE_AS;
         DIRECTIVE_PLACE;
         DIRECTIVE_TYPE;
+        DIRECTIVE_CODE;
     }
 
     Location :: struct {
@@ -371,6 +373,7 @@ Literal :: struct {
     }
 
     value_type: Value_Type;
+    here_string_cr: bool;
 
     using values: union {
         _string:  string;
@@ -504,6 +507,15 @@ Directive_Type :: struct {
 
     isa: bool;
     distinct: bool;
+    expression: *Node;
+}
+
+Directive_Code :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_CODE;
+
+    typed: bool;
+    _null: bool;
     expression: *Node;
 }
 
@@ -1097,6 +1109,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "as";      return parse_directive_as(tokenizer);
         case "place";   return parse_directive_place(tokenizer);
         case "type";    return parse_directive_type(tokenizer);
+        case "code";    return parse_directive_code(tokenizer);
         case "char";    return parse_directive_char(tokenizer);
     }
 
@@ -1127,6 +1140,18 @@ parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
     directive_char := New(Directive_Char);
     directive_char.string_literal = parse(tokenizer);
     return directive_char;
+}
+
+parse_directive_code :: (tokenizer: *Tokenizer) -> *Directive_Code {
+    directive_code := New(Directive_Code);
+
+    #code,null;
+
+    if maybe_eat_token(tokenizer, #char ",") {  
+
+    }
+
+    return directive_code;
 }
 
 parse_directive_as :: (tokenizer: *Tokenizer) -> *Directive_As {
@@ -1202,6 +1227,7 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     if base_literal.kind == {
         case .STRING;
             literal.value_type = .STRING;
+            literal.here_string_cr = base_literal.here_string_cr;
             literal._string = base_literal.string_value;
         case .KEYWORD_TRUE;
             literal.value_type = .BOOL;
