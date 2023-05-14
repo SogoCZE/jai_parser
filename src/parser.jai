@@ -2,7 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #assert
 // - #if
 // - #ifx
 // - #bake_arguments
