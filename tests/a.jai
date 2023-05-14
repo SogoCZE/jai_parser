@@ -1,1 +1,1 @@
-#bake_arguments adder(y=42);
+#bake_constants adder(y=42);

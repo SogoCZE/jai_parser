@@ -100,6 +100,7 @@ Node :: struct {
         DIRECTIVE_ADD_CONTEXT;
         DIRECTIVE_ASSERT;
         DIRECTIVE_BAKE_ARGUMENTS;
+        DIRECTIVE_BAKE_CONSTANTS;
     }
 
     Location :: struct {
@@ -548,6 +549,13 @@ Directive_Assert :: struct {
 Directive_Bake_Arguments :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_BAKE_ARGUMENTS;
+
+    expression: *Node;
+}
+
+Directive_Bake_Constants :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_BAKE_CONSTANTS;
 
     expression: *Node;
 }
@@ -1170,6 +1178,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "add_context";      return parse_directive_add_context(tokenizer);
         case "assert";           return parse_directive_assert(tokenizer);
         case "bake_arguments";   return parse_directive_bake_arguments(tokenizer);
+        case "bake_constants";   return parse_directive_bake_constants(tokenizer);
 
         case "asm";              return parse_inline_assembly(tokenizer);
         case "if";               return parse_if(tokenizer, .IF, true);
@@ -1291,6 +1300,13 @@ parse_directive_bake_arguments :: (tokenizer: *Tokenizer) -> *Directive_Bake_Arg
     directive_bake_arguments.expression = parse(tokenizer);
 
     return directive_bake_arguments;
+}
+
+parse_directive_bake_constants :: (tokenizer: *Tokenizer) -> *Directive_Bake_Constants {
+    directive_bake_constants := New(Directive_Bake_Constants);
+    directive_bake_constants.expression = parse(tokenizer);
+
+    return directive_bake_constants;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
