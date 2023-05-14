@@ -1,3 +1,1 @@
-if some {
-
-}
+#bake_arguments adder(y=42);

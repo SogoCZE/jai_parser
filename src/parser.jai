@@ -2,7 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #bake_arguments
 // - #bake_constants
 // - #bytes
 // - #caller_code
@@ -100,6 +99,7 @@ Node :: struct {
         DIRECTIVE_CODE;
         DIRECTIVE_ADD_CONTEXT;
         DIRECTIVE_ASSERT;
+        DIRECTIVE_BAKE_ARGUMENTS;
     }
 
     Location :: struct {
@@ -543,6 +543,13 @@ Directive_Assert :: struct {
 
     condition: *Node;
     message: string;
+}
+
+Directive_Bake_Arguments :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_BAKE_ARGUMENTS;
+
+    expression: *Node;
 }
 
 Array_Type :: struct {
@@ -1152,19 +1159,21 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import";          return parse_directive_import_or_load(tokenizer, false);
-        case "load";            return parse_directive_import_or_load(tokenizer, true);
-        case "run";             return parse_directive_run(tokenizer);
-        case "as";              return parse_directive_as(tokenizer);
-        case "place";           return parse_directive_place(tokenizer);
-        case "type";            return parse_directive_type(tokenizer);
-        case "code";            return parse_directive_code(tokenizer);
-        case "char";            return parse_directive_char(tokenizer);
-        case "add_context";     return parse_directive_add_context(tokenizer);
-        case "assert";          return parse_directive_assert(tokenizer);
-        case "asm";             return parse_inline_assembly(tokenizer);
-        case "if";              return parse_if(tokenizer, .IF, true);
-        case "ifx";             return parse_if(tokenizer, .IFX, true);
+        case "import";           return parse_directive_import_or_load(tokenizer, false);
+        case "load";             return parse_directive_import_or_load(tokenizer, true);
+        case "run";              return parse_directive_run(tokenizer);
+        case "as";               return parse_directive_as(tokenizer);
+        case "place";            return parse_directive_place(tokenizer);
+        case "type";             return parse_directive_type(tokenizer);
+        case "code";             return parse_directive_code(tokenizer);
+        case "char";             return parse_directive_char(tokenizer);
+        case "add_context";      return parse_directive_add_context(tokenizer);
+        case "assert";           return parse_directive_assert(tokenizer);
+        case "bake_arguments";   return parse_directive_bake_arguments(tokenizer);
+
+        case "asm";              return parse_inline_assembly(tokenizer);
+        case "if";               return parse_if(tokenizer, .IF, true);
+        case "ifx";              return parse_if(tokenizer, .IFX, true);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -1275,6 +1284,13 @@ parse_directive_assert :: (tokenizer: *Tokenizer) -> *Directive_Assert {
     }
 
     return directive_assert;
+}
+
+parse_directive_bake_arguments :: (tokenizer: *Tokenizer) -> *Directive_Bake_Arguments {
+    directive_bake_arguments := New(Directive_Bake_Arguments);
+    directive_bake_arguments.expression = parse(tokenizer);
+
+    return directive_bake_arguments;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
