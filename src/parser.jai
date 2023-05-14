@@ -2,7 +2,6 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #asm
 // - #assert
 // - #if
 // - #ifx
@@ -94,6 +93,7 @@ Node :: struct {
         BREAK;
         FOR;
         WHILE;
+        INLINE_ASSEMBLY;
 
         DIRECTIVE_IMPORT_OR_LOAD;
         DIRECTIVE_RUN;
@@ -556,6 +556,14 @@ Operator_Overload :: struct {
 
     operation: _Operator;
     procedure: *Node;
+}
+
+Inline_Assembly :: struct {
+    using #as node: Node;
+    kind = .INLINE_ASSEMBLY;
+
+    expression: *Node;
+    body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks. 
 }
 
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
@@ -1117,6 +1125,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "code";            return parse_directive_code(tokenizer);
         case "char";            return parse_directive_char(tokenizer);
         case "add_context";     return parse_directive_add_context(tokenizer);
+        case "asm";             return parse_inline_assembly(tokenizer);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -1620,4 +1629,20 @@ parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
     operator_overload.procedure = parse_procedure(tokenizer);
 
     return operator_overload;
+}
+
+// @TODO: We currently don't parse ASM blocks body.
+// @TODO: We want catch the ASM block probably at tokenizer level not in parser. (useless tokens being created)
+parse_inline_assembly :: (tokenizer: *Tokenizer) -> *Inline_Assembly {
+    inline_assembly := New(Inline_Assembly);
+
+    if !is_token(tokenizer, #char "{") {
+        inline_assembly.expression = parse(tokenizer);
+    }
+
+    eat_token(tokenizer, #char "{");
+    while !is_token(tokenizer, #char "}") eat_token(tokenizer);
+    eat_token(tokenizer, #char "}");
+
+    return inline_assembly;
 }
