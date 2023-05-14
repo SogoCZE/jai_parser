@@ -5,7 +5,6 @@ Person :: struct {
 } 
 
 // @TODO:
-// - Array Type
 // - Literals 
 // - autocast
 // - push_context
@@ -363,7 +362,6 @@ Literal :: struct {
         BOOL;
         ARRAY;
         STRUCT;
-        POINTER;
     }
 
     value_type: Value_Type;
@@ -374,23 +372,21 @@ Literal :: struct {
         _int:     int;
         _bool:    bool;
         
-        struct_literal_info : *Struct_Literal_Info;
-        array_literal_info  : *Array_Literal_Info;
-        pointer_literal_info: *Pointer_Literal_Info;
+        struct_literal_info: Struct_Literal_Info;
+        array_literal_info: Array_Literal_Info;
     };
 }
 
+// :array_literal_json_export_structure:
 Struct_Literal_Info :: struct {
-    arguments: [] *Node;
+    type: *Node;
+    body: [] *Node;
 }
 
+// :struct_literal_json_export_structure:
 Array_Literal_Info :: struct {
-    // alignment: *Node;
-    array_members: [] *Node;
-}
-
-Pointer_Literal_Info :: struct {
-    // TODO: ?
+    element_type: *Node;
+    elements: [] *Node;
 }
 
 Binary_Operation :: struct {
@@ -611,6 +607,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         // age+20
         if is_operator(peek_token(tokenizer)) {
             identifier := parse_identifier(ident);
+
+            // Array or Struct literal
+            if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+                return parse_array_or_struct_literal(tokenizer, identifier);
+            } 
+
             return parse_binary_operation(tokenizer, identifier);
         }
 
@@ -667,6 +669,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
 
     // Unary Operation
     if is_unary_operator(tokenizer) {
+
+        // Array or Struct literal
+        if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+            return parse_array_or_struct_literal(tokenizer, null);
+        } 
+
         return parse_unary_operation(tokenizer);
     }
 
@@ -1080,6 +1088,24 @@ parse_identifier :: (ident_token: *Token) -> *Identifier {
     return identifier;
 }
 
+parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Literal {
+    literal := New(Literal);
+
+    eat_token(tokenizer, #char ".");
+
+    if maybe_eat_token(tokenizer, #char "[") {
+        literal.value_type = .ARRAY;
+        literal.values.array_literal_info = .{element_type=type};
+        literal.values.array_literal_info.elements = eat_until(tokenizer, token => token.kind == #char "]", #char ",");
+    } else if maybe_eat_token(tokenizer, #char "{") {
+        literal.value_type = .STRUCT;
+        literal.values.struct_literal_info = .{type=type};
+        literal.values.struct_literal_info.body = eat_until(tokenizer, token => token.kind == #char "}", #char ",");
+    }
+
+    return literal;
+}
+
 parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
     literal := New(Literal);
 
@@ -1194,7 +1220,7 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
     assert(is_operator(op));
 
     // @InComplete
-    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automatic...
+    // @TODO: this is proably silly we could use some sort of metaprogramming to make this automaticly...
     if op.kind == {
         case #char ">";         binary_operation.operation = .GREATER;
         case #char "<";         binary_operation.operation = .LESS;

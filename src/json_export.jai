@@ -77,7 +77,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                 // Fix this :number_types:
                 print_to_builder(*builder, #string _STR
 
-                    append(*json_builder, "\"value\":");
+                    append(*json_builder, "\"values\":");
 
                     if node.value_type == {
                         case .BOOL;
@@ -88,6 +88,44 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                             append(*json_builder, json_write_string(node._string));
                         case .STRING;
                             append(*json_builder, json_write_string(node._string));
+
+                        // :array_literal_json_export_structure:
+                        case .ARRAY;
+                            append(*json_builder, "{");
+
+                            append(*json_builder, "\"element_type\":");
+                            append(*json_builder, to_json(node.array_literal_info.element_type));
+                            
+                            append(*json_builder, ",");
+                            append(*json_builder, "\"elements\":");
+                            append(*json_builder, "[");
+
+                            for element: node.array_literal_info.elements {
+                                if it_index != 0 append(*json_builder, ",");
+                                append(*json_builder, to_json(element));
+                            }
+
+                            append(*json_builder, "]");
+                            append(*json_builder, "}");
+
+                        // :struct_literal_json_export_structure:
+                        case .STRUCT;
+                            append(*json_builder, "{");
+
+                            append(*json_builder, "\"type\":");
+                            append(*json_builder, to_json(node.struct_literal_info.type));
+
+                            append(*json_builder, ",");
+                            append(*json_builder, "\"body\":");
+                            append(*json_builder, "[");
+
+                            for node: node.struct_literal_info.body {
+                                if it_index != 0 append(*json_builder, ",");
+                                append(*json_builder, to_json(node));
+                            }
+
+                            append(*json_builder, "]");
+                            append(*json_builder, "}");
                         case;
                             append(*json_builder, "null");
                     }
