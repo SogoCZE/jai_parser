@@ -1145,11 +1145,21 @@ parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
 parse_directive_code :: (tokenizer: *Tokenizer) -> *Directive_Code {
     directive_code := New(Directive_Code);
 
-    #code,null;
-
     if maybe_eat_token(tokenizer, #char ",") {  
 
+        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "typed") {
+            eat_token(tokenizer, .IDENTIFIER);
+            directive_code.typed = true;
+        }
+        
+        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "null") {
+            eat_token(tokenizer, .IDENTIFIER);
+            directive_code._null = true;
+        }
+
     }
+
+    directive_code.expression = parse(tokenizer);
 
     return directive_code;
 }
