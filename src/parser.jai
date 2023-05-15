@@ -12,9 +12,6 @@
 // - #this
 // - #through
 
-// Procedure:
-// - #modify
-
 // Custom:
 // - #library
 // - #system_library
@@ -284,6 +281,7 @@ Procedure :: struct {
     flags: Flags;
     arguments: []*Node;
     returns: []*Node;
+    modify_block: *Block;
     body: *Block; // @TODO: Defer this...? Why?
 }
 
@@ -1093,6 +1091,8 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 proc.flags |= .RUNTIME_SUPPORT;
             case "symmetric"; // @TODO: this is only needed for Operator Overload
                 proc.flags |= .SYMMETRIC;
+            case "modify";
+                proc.modify_block = parse_block(tokenizer);
         }
 
         if is_token(tokenizer, .DIRECTIVE) {
@@ -1358,7 +1358,7 @@ parse_directive_bytes :: (tokenizer: *Tokenizer) -> *Directive_Bytes {
 
     return directive_bytes;
 }
- 
+
 parse_identifier :: (ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
     identifier.name = ident_token.string_value;
