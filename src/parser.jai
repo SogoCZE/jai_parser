@@ -2,49 +2,64 @@
 // - Split parsing into multiple files? 
 
 // To Parse:
-// - #bytes
+
+// General: (Directive)
 // - #caller_code
 // - #caller_location
-// - #code
+// - #file
+// - #filepath
+// - #line
+// - #this
+// - #through
+
+// Procedure:
 // - #compiler
 // - #cpp_return_type_is_non_pod
 // - #deprecated
 // - #dump
-// - #dynamic_specialize
-// - #file
-// - #filepath
+// - #modify
+// - #must
+// - #no_alias
+// - #runtime_support
+// - #symmetric
+
+// Custom:
 // - #library
 // - #system_library
 // - #insert
 // - #insert,scope
 // - #insert_internal
-// - #line
 // - #location
-// - #modify
 // - #module_parameters
-// - #must
-// - #no_abc
-// - #no_alias
-// - #no_padding
+// - #no_abc (Procedure and For)
 // - #no_reset
 // - #placeholder
-// - #poke_name
 // - #procedure_of_call
 // - #program_export
-// - #runtime_support
+
+// Struct:
+// - #type_info_no_size_complaint
+// - #type_info_procedures_are_void_pointers
+// - #type_info_none
+// - #no_padding (after)
+
+// Dont know:
+// - #poke_name
+// - #dynamic_specialize (??)
+
+// Scope:
 // - #scope_export
 // - #scope_file
 // - #scope_module
+
+// Enum:
 // - #specified
-// - #symmetric
-// - #this
-// - #through
-// - #type_info_no_size_complaint
-// - #type_info_none
-// - #type_info_procedures_are_void_pointers
+
+// Imports: 
 // - #import,file
 // - #import,dir
 // - #import,string
+
 // - notes
 // - multiple assings declaration
 // - type keywords (is this needed?)
