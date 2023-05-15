@@ -13,15 +13,7 @@
 // - #through
 
 // Procedure:
-// - #compiler
-// - #cpp_return_type_is_non_pod
-// - #deprecated
-// - #dump
 // - #modify
-// - #must
-// - #no_alias
-// - #runtime_support
-// - #symmetric
 
 // Custom:
 // - #library
@@ -38,6 +30,7 @@
 // - #program_export
 
 // Struct:
+// - #modify
 // - #type_info_no_size_complaint
 // - #type_info_procedures_are_void_pointers
 // - #type_info_none
@@ -61,7 +54,8 @@
 // - #import,string
 
 // - notes
-// - multiple assings declaration
+// - multiple assings declaration (a, b := 1, 2)
+// - multiple declaration (a, b: int)
 // - type keywords (is this needed?)
 
 Files :: Table(string, []*Node);
@@ -82,7 +76,6 @@ Node :: struct {
         QUICK_LAMBDA;
         ARRAY_TYPE;
         ARRAY_SUBSCRIPT;
-        // TYPE_INSTANTIATION;
         IDENTIFIER;
         DIRECTIVE;
         LITERAL;
@@ -103,6 +96,7 @@ Node :: struct {
         FOR;
         WHILE;
         INLINE_ASSEMBLY;
+        // TYPE_INSTANTIATION;
 
         DIRECTIVE_IMPORT_OR_LOAD;
         DIRECTIVE_RUN;
@@ -260,27 +254,32 @@ Procedure :: struct {
     kind = .PROCEDURE;
 
     Flags :: enum_flags u32 {
-        INLINE;                     
-        ELSEWHERE;                     
-        COMPILE_TIME;     
-        POLYMORPHIC;                   
-        COMPILER_GENERATED;            
-        DEBUG_DUMP;                    
-        C_CALL;                        
-        TYPE_ONLY;                     
-        INTRINSIC;                     
-        DEPRECATED;                    
-        SYNTACTICALLY_MARKED_AS_NO_CONTEXT;  // This means it has #no_context written in the declaration. There are other ways for a procedure to have no context, though (for example, being #c_call).
-        QUICK;
-        CPP_METHOD;
-        NO_CALL;
+        INLINE;                    
+
         MACRO;
+        NO_CONTEXT;
+        DEBUG_DUMP;                    
+        CPP_RETURN_TYPE_IS_NON_POD;       
+        CPP_METHOD;
         NO_DEBUG;
+        C_CALL;                        
+        INTRINSIC;                     
+        COMPILER;     
+        ELSEWHERE;                     
+        FOREIGN;               
+        NO_CALL;
+        DEPRECATED;       
+        MUST_CONSUME_RETURNS;       
+        NO_ALIAS;      
+        RUNTIME_SUPPORT;      
+        SYMMETRIC;      
     }
 
-    foreign: string;
+    foreign_lib: string;
+    foreign_alias: string;
     elsewhere: string;
     intrinsic: string;
+    deprecated_note: string;
 
     flags: Flags;
     arguments: []*Node;
@@ -1049,30 +1048,51 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
         directive := eat_token(tokenizer, .DIRECTIVE);
 
-        // @TODO: make directives more robust!
         if directive.string_value == {
             case "expand";
                 proc.flags |= .MACRO;
             case "no_context";
-                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+                proc.flags |= .NO_CONTEXT;
             case "dump";
                 proc.flags |= .DEBUG_DUMP;
             case "cpp_method";
                 proc.flags |= .CPP_METHOD;
+            case "cpp_return_type_is_non_pod";
+                proc.flags |= .CPP_RETURN_TYPE_IS_NON_POD;
             case "no_debug";
                 proc.flags |= .NO_DEBUG;
             case "c_call";
-                proc.flags |= .SYNTACTICALLY_MARKED_AS_NO_CONTEXT;
+                proc.flags |= .NO_CONTEXT;
                 proc.flags |= .C_CALL;
             case "intrinsic";
                 proc.flags |= .INTRINSIC;
                 proc.intrinsic = eat_token(tokenizer, .IDENTIFIER).string_value;
-
+            case "compiler";
+                proc.flags |= .COMPILER;
             case "elsewhere";
                 proc.flags |= .ELSEWHERE;
                 proc.elsewhere = eat_token(tokenizer, .IDENTIFIER).string_value;
             case "foreign";
-                proc.foreign = eat_token(tokenizer, .IDENTIFIER).string_value;
+                proc.flags |= .FOREIGN;
+                proc.foreign_lib = eat_token(tokenizer, .IDENTIFIER).string_value;
+                if is_token(tokenizer, .STRING) {
+                    proc.foreign_alias = eat_token(tokenizer, .STRING).string_value;
+                }
+            case "no_call";
+                proc.flags |= .NO_CALL;
+            case "deprecated";
+                proc.flags |= .DEPRECATED;
+                if is_token(tokenizer, .STRING) {
+                    proc.deprecated_note = eat_token(tokenizer, .STRING).string_value;
+                }
+            case "must";
+                proc.flags |= .MUST_CONSUME_RETURNS;
+            case "no_alias";
+                proc.flags |= .NO_ALIAS;
+            case "runtime_support";
+                proc.flags |= .RUNTIME_SUPPORT;
+            case "symmetric"; // @TODO: this is only needed for Operator Overload
+                proc.flags |= .SYMMETRIC;
         }
 
         if is_token(tokenizer, .DIRECTIVE) {
