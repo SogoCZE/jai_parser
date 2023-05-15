@@ -1,3 +1,5 @@
-Person :: struct #type_info_none {
-
-} #no_padding;
+Size :: enum u8 #specified {
+    SMALL;
+    MEDIUM;
+    LARGE;
+}

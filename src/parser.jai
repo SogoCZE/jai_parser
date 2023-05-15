@@ -35,9 +35,6 @@
 // - #scope_file
 // - #scope_module
 
-// Enum:
-// - #specified
-
 // Imports: 
 // - #import,file
 // - #import,dir
@@ -324,6 +321,7 @@ Enum :: struct {
     using #as node: Node; 
     kind = .ENUM;
 
+    specified: bool;
     is_enum_flags: bool;
     type: *Node;
     block: *Block;
@@ -1045,7 +1043,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     proc := New(Procedure);
     proc.arguments = members;
 
-    parse_proc_directives :: (tokenizer: *Tokenizer, proc: *Procedure) {
+    parse_proc_directive :: (tokenizer: *Tokenizer, proc: *Procedure) {
         directive := eat_token(tokenizer, .DIRECTIVE);
 
         if directive.string_value == {
@@ -1100,7 +1098,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
         }
 
         if is_token(tokenizer, .DIRECTIVE) {
-            parse_proc_directives(tokenizer, proc);
+            parse_proc_directive(tokenizer, proc);
         }
     }   
 
@@ -1113,7 +1111,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 
     // Directives
     if is_token(tokenizer, .DIRECTIVE) {
-        parse_proc_directives(tokenizer, proc);
+        parse_proc_directive(tokenizer, proc);
     }
 
     // Body
@@ -1143,7 +1141,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
         _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
     }
 
-    parse_struct_directives :: (tokenizer: *Tokenizer, _struct: *Struct) {
+    parse_struct_directive :: (tokenizer: *Tokenizer, _struct: *Struct) {
         directive := eat_token(tokenizer, .DIRECTIVE);
 
         if directive.string_value == {
@@ -1158,13 +1156,13 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
         }
 
         if is_token(tokenizer, .DIRECTIVE) {
-            parse_struct_directives(tokenizer, _struct);
+            parse_struct_directive(tokenizer, _struct);
         }
     }
 
     // Directives
     if is_token(tokenizer, .DIRECTIVE) {
-        parse_struct_directives(tokenizer, _struct);
+        parse_struct_directive(tokenizer, _struct);
     }
 
     if is_token(tokenizer, #char "{") {
@@ -1208,6 +1206,12 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     // Type specifier
     if !is_token(tokenizer, #char "{") {
         _enum.type = parse(tokenizer);
+    }
+
+    // Specified directive
+    if is_token(tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "specified") {
+        eat_token(tokenizer, .DIRECTIVE);
+        _enum.specified = true;
     }
 
     // Body
