@@ -26,13 +26,6 @@
 // - #procedure_of_call
 // - #program_export
 
-// Struct:
-// - #modify
-// - #type_info_no_size_complaint
-// - #type_info_procedures_are_void_pointers
-// - #type_info_none
-// - #no_padding (after)
-
 // Dont know:
 // - #poke_name
 // - #dynamic_specialize (??)
@@ -307,7 +300,16 @@ Struct :: struct {
     using #as node: Node; 
     kind = .STRUCT;
 
+    Flags :: enum_flags {
+        TYPE_INFO_NO_SIZE_COMPLAINT;
+        TYPE_INFO_PROCEDURES_ARE_VOID_POINTERS;
+        TYPE_INFO_NONE;
+        NO_PADDING;
+    }
+
+    flags: Flags;
     polymorphic_arguments: [] *Node;
+    modify_block: *Block;
     block: *Block;
 }
 
@@ -1139,11 +1141,40 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
         _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
     }
 
+    parse_struct_directives :: (tokenizer: *Tokenizer, _struct: *Struct) {
+        directive := eat_token(tokenizer, .DIRECTIVE);
+
+        if directive.string_value == {
+            case "modify";
+                _struct.modify_block = parse_block(tokenizer);
+            case "type_info_no_size_complaint";
+                _struct.flags |= .TYPE_INFO_NO_SIZE_COMPLAINT;
+            case "type_info_procedures_are_void_pointers";
+                _struct.flags |= .TYPE_INFO_PROCEDURES_ARE_VOID_POINTERS;
+            case "type_info_none";
+                _struct.flags |= .TYPE_INFO_NONE;
+        }
+
+        if is_token(tokenizer, .DIRECTIVE) {
+            parse_struct_directives(tokenizer, _struct);
+        }
+    }
+
+    // Directives
+    if is_token(tokenizer, .DIRECTIVE) {
+        parse_struct_directives(tokenizer, _struct);
+    }
+
     if is_token(tokenizer, #char "{") {
         _struct.block = parse_block(tokenizer);
     } else {
         print("Exprected struct body! Got:");
         print_token(peek_token(tokenizer));
+    }
+
+    if is_token(tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "no_padding") {
+        eat_token(tokenizer, .DIRECTIVE);
+        _struct.flags |= .NO_PADDING;
     }
 
     return _struct;
