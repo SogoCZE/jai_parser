@@ -1,1 +1,1 @@
-#no_reset some: int = 10;
+#insert,scope() test();

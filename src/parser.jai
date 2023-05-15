@@ -96,6 +96,7 @@ Node :: struct {
         DIRECTIVE_BYTES;
         DIRECTIVE_LIBRARY;
         DIRECTIVE_NO_RESET;
+        DIRECTIVE_INSERT;
     }
 
     Location :: struct {
@@ -591,6 +592,22 @@ Directive_No_Reset :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_NO_RESET;
 
+    expression: *Node;
+}
+
+Directive_Insert :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_INSERT;
+
+    Insert_Kind :: enum {
+        UNKNOWN;
+        STRING;
+        CODE;
+    }
+
+    type: Insert_Kind; // Set when using -> Code or -> string
+    scoped: bool; // #insert,scope()
+    scope: *Node; // #insert,scope(scope)
     expression: *Node;
 }
 
@@ -1275,6 +1292,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "bake_constants";   return parse_directive_bake_constants(tokenizer);
         case "bytes";            return parse_directive_bytes(tokenizer);
         case "no_reset";         return parse_directive_no_reset(tokenizer);
+        case "insert";           return parse_directive_insert(tokenizer);
 
         case "library";          return parse_directive_library(tokenizer, false);
         case "system_library";   return parse_directive_library(tokenizer, true);
@@ -1438,6 +1456,37 @@ parse_directive_no_reset :: (tokenizer: *Tokenizer) -> *Directive_No_Reset {
     return directive_no_reset;
 }
 
+parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
+    directive_insert := New(Directive_Insert);
+    
+    if maybe_eat_token(tokenizer, #char ",") 
+    && maybe_eat_token(tokenizer, token => token.string_value == "scope") {
+        directive_insert.scoped = true;
+
+        maybe_eat_token(tokenizer, #char "(");
+    
+        if !is_token(tokenizer, #char ")") {
+            directive_insert.scope = parse(tokenizer);
+        }
+
+        maybe_eat_token(tokenizer, #char ")");
+    }
+
+    if maybe_eat_token(tokenizer, .ARROW_RIGHT) {
+        insert_type_ident := eat_token(tokenizer, .IDENTIFIER);
+        
+        if insert_type_ident.string_value == {
+            case "string"; directive_insert.type   = .STRING;
+            case "Code"; directive_insert.type     = .CODE;
+        }
+
+    }
+
+    directive_insert.expression = parse(tokenizer);
+
+    return directive_insert;
+}
+ 
 parse_identifier :: (ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
     identifier.name = ident_token.string_value;
