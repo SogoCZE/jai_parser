@@ -9,7 +9,6 @@
 // - #file
 // - #filepath
 // - #line
-// - #this
 // - #through
 
 // Custom:
@@ -20,11 +19,12 @@
 // - #insert_internal
 // - #location
 // - #module_parameters
-// - #no_abc (Procedure and For)
+// - #no_abc (For)
 // - #no_reset
 // - #placeholder
 // - #procedure_of_call
 // - #program_export
+// - #this
 
 // Dont know:
 // - #poke_name
