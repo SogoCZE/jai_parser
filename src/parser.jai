@@ -12,8 +12,7 @@
 // - #through
 
 // Custom:
-// - #library
-// - #system_library
+// - #library, #system_library
 // - #insert
 // - #insert,scope
 // - #insert_internal
@@ -97,6 +96,7 @@ Node :: struct {
         DIRECTIVE_BAKE_ARGUMENTS;
         DIRECTIVE_BAKE_CONSTANTS;
         DIRECTIVE_BYTES;
+        DIRECTIVE_LIBRARY;
     }
 
     Location :: struct {
@@ -577,6 +577,15 @@ Directive_Bytes :: struct {
     kind = .DIRECTIVE_BYTES;
 
     expression: *Node;
+}
+
+Directive_Library :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_LIBRARY;
+
+    system: bool;
+    no_static_library: bool;
+    name: string;    
 }
 
 Array_Type :: struct {
@@ -1260,6 +1269,9 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "bake_constants";   return parse_directive_bake_constants(tokenizer);
         case "bytes";            return parse_directive_bytes(tokenizer);
 
+        case "library";          return parse_directive_library(tokenizer, false);
+        case "system_library";   return parse_directive_library(tokenizer, true);
+
         case "asm";              return parse_inline_assembly(tokenizer);
         case "if";               return parse_if(tokenizer, .IF, true);
         case "ifx";              return parse_if(tokenizer, .IFX, true);
@@ -1394,6 +1406,22 @@ parse_directive_bytes :: (tokenizer: *Tokenizer) -> *Directive_Bytes {
     directive_bytes.expression = parse(tokenizer);
 
     return directive_bytes;
+}
+
+parse_directive_library :: (tokenizer: *Tokenizer, system: bool) -> *Directive_Library {
+    directive_library := New(Directive_Library);
+    directive_library.system = system; 
+
+    if maybe_eat_token(tokenizer, #char ",") && maybe_eat_token(tokenizer, token => token.string_value == "no_static_library") {
+        directive_library.no_static_library = true;
+    }
+
+    if is_token(tokenizer, .STRING) {
+        name_token := eat_token(tokenizer, .STRING);
+        directive_library.name = name_token.string_value;
+    }
+
+    return directive_library;
 }
 
 parse_identifier :: (ident_token: *Token) -> *Identifier {

@@ -1,5 +1,2 @@
-Size :: enum u8 #specified {
-    SMALL;
-    MEDIUM;
-    LARGE;
-}
+Helper :: #library,no_static_library "helper";
+User32 :: #system_library "User32";
