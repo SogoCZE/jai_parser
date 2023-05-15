@@ -18,7 +18,6 @@
 // - #location
 // - #module_parameters
 // - #no_abc (For)
-// - #no_reset
 // - #placeholder
 // - #procedure_of_call
 // - #program_export
@@ -96,6 +95,7 @@ Node :: struct {
         DIRECTIVE_BAKE_CONSTANTS;
         DIRECTIVE_BYTES;
         DIRECTIVE_LIBRARY;
+        DIRECTIVE_NO_RESET;
     }
 
     Location :: struct {
@@ -585,6 +585,13 @@ Directive_Library :: struct {
     system: bool;
     no_static_library: bool;
     name: string;    
+}
+
+Directive_No_Reset :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_NO_RESET;
+
+    expression: *Node;
 }
 
 Array_Type :: struct {
@@ -1267,6 +1274,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "bake_arguments";   return parse_directive_bake_arguments(tokenizer);
         case "bake_constants";   return parse_directive_bake_constants(tokenizer);
         case "bytes";            return parse_directive_bytes(tokenizer);
+        case "no_reset";         return parse_directive_no_reset(tokenizer);
 
         case "library";          return parse_directive_library(tokenizer, false);
         case "system_library";   return parse_directive_library(tokenizer, true);
@@ -1421,6 +1429,13 @@ parse_directive_library :: (tokenizer: *Tokenizer, system: bool) -> *Directive_L
     }
 
     return directive_library;
+}
+
+parse_directive_no_reset :: (tokenizer: *Tokenizer) -> *Directive_No_Reset {
+    directive_no_reset := New(Directive_No_Reset);
+    directive_no_reset.expression = parse(tokenizer);
+
+    return directive_no_reset;
 }
 
 parse_identifier :: (ident_token: *Token) -> *Identifier {
