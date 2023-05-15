@@ -243,9 +243,8 @@ Procedure :: struct {
     using #as node: Node;
     kind = .PROCEDURE;
 
-    Flags :: enum_flags u32 {
+    Flags :: enum_flags {
         INLINE;                    
-
         MACRO;
         NO_CONTEXT;
         DEBUG_DUMP;                    
@@ -263,6 +262,7 @@ Procedure :: struct {
         NO_ALIAS;      
         RUNTIME_SUPPORT;      
         SYMMETRIC;      
+        NO_ABC;
     }
 
     foreign_lib: string;
@@ -1095,6 +1095,8 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 proc.flags |= .SYMMETRIC;
             case "modify";
                 proc.modify_block = parse_block(tokenizer);
+            case "no_abc";
+                proc.flags |= .NO_ABC;
         }
 
         if is_token(tokenizer, .DIRECTIVE) {
