@@ -1,1 +1,3 @@
-#import "Basic";
+test :: () -> end: int, string #must {
+
+}

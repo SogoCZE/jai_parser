@@ -12,8 +12,6 @@
 // - #scope_file
 // - #scope_module
 
-// - #must on individual returns
-
 // ??:
 // - type keywords (is this needed?)
 // - #insert_internal - deprecated
@@ -34,6 +32,7 @@ Node :: struct {
         OPERATOR_OVERLOAD;
         PROCEDURE_CALL;
         QUICK_LAMBDA;
+        RETURN_VALUE;
         ARRAY_TYPE;
         ARRAY_SUBSCRIPT;
         IDENTIFIER;
@@ -246,7 +245,7 @@ Procedure :: struct {
         FOREIGN;               
         NO_CALL;
         DEPRECATED;       
-        MUST_CONSUME_RETURNS;       
+        MUST_CONSUME_ALL_RETURNS;       
         NO_ALIAS;      
         RUNTIME_SUPPORT;      
         SYMMETRIC;      
@@ -261,7 +260,7 @@ Procedure :: struct {
 
     flags: Flags;
     arguments: []*Node;
-    returns: []*Node;
+    returns: []*Return_Value;
     modify_block: *Block;
     body: *Block; // @TODO: Defer this...? Why?
 }
@@ -282,6 +281,14 @@ Quick_Lambda :: struct {
 
     arguments: [] *Node;
     _return: *Node; 
+}
+
+Return_Value :: struct {
+    using #as node: Node;
+    kind = .RETURN_VALUE;
+
+    must: bool;
+    expression: *Node;
 }
 
 Struct :: struct {
@@ -1176,6 +1183,34 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     proc := New(Procedure);
     proc.arguments = members;
 
+    // returns
+    if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
+        meaybe_eat_token(tokenizer, #char "(");
+        returns: [..]*Return_Value;
+
+        while !end(tokenizer) && !is_token(tokenizer, #char ")") && !is_token(tokenizer, #char "{") {
+            if maybe_eat_token(tokenizer, #char ",") continue; 
+
+            return_value := New(Return_Value);
+            return_value.expression = parse(tokenizer);
+
+            if is_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
+                eat_token(tokenizer, .DIRECTIVE);
+                return_value.must = true;
+            }
+
+            array_add(*returns, return_value);
+        }
+
+        // If the last return value is must all the returns must be consumed.
+        if returns.count > 0 && returns[returns.count-1].must {
+            proc.flags |= .MUST_CONSUME_ALL_RETURNS;
+        }
+
+        proc.returns = returns;
+        meaybe_eat_token(tokenizer, #char ")");
+    }
+
     parse_proc_directive :: (tokenizer: *Tokenizer, proc: *Procedure) {
         directive := eat_token(tokenizer, .DIRECTIVE);
 
@@ -1216,8 +1251,6 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 if is_token(tokenizer, .STRING) {
                     proc.deprecated_note = eat_token(tokenizer, .STRING).string_value;
                 }
-            case "must";
-                proc.flags |= .MUST_CONSUME_RETURNS;
             case "no_alias";
                 proc.flags |= .NO_ALIAS;
             case "runtime_support";
@@ -1234,13 +1267,6 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
             parse_proc_directive(tokenizer, proc);
         }
     }   
-
-    // returns
-    if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
-        meaybe_eat_token(tokenizer, #char "(");
-        proc.returns = eat_until(tokenizer, token => token.kind == #char "{" || token.kind == #char ")" || token.kind == .DIRECTIVE, #char ",");
-        meaybe_eat_token(tokenizer, #char ")");
-    }
 
     // Directives
     if is_token(tokenizer, .DIRECTIVE) {

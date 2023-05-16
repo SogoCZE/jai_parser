@@ -35,7 +35,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
         if info.type != .STRUCT return false;
         _struct_info := cast(*Type_Info_Struct) info;
 
-        return _struct_info.name == "Node";
+        return _struct_info.name == "Node" || _struct_info.name == "Return_Value";
     }
 
     is_pointer_to_node :: (info: *Type_Info) -> bool {
