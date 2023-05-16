@@ -86,6 +86,7 @@ Node :: struct {
         DIRECTIVE_FILEPATH;
         DIRECTIVE_LINE;
         DIRECTIVE_THROUGH;
+        DIRECTIVE_SCOPE;
     }
 
     Location :: struct {
@@ -372,6 +373,20 @@ Directive_Load :: struct {
     kind = .DIRECTIVE_LOAD;
 
     file: string;
+}
+
+Directive_Scope :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_SCOPE;
+
+    Scope_Kind :: enum u8 {
+        EXPORT;
+        FILE;
+        MODULE;
+    }
+
+    scope_kind: Scope_Kind;
+    members: [] *Node;
 }
 
 Literal :: struct {
@@ -1437,6 +1452,10 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
 
         case "library";             return parse_directive_library(tokenizer, false);
         case "system_library";      return parse_directive_library(tokenizer, true);
+        
+        case "scope_export";        return parse_directive_scope(tokenizer, .EXPORT);
+        case "scope_file";          return parse_directive_scope(tokenizer, .FILE);
+        case "scope_module";        return parse_directive_scope(tokenizer, .MODULE);
 
         case "asm";                 return parse_inline_assembly(tokenizer);
         case "if";                  return parse_if(tokenizer, .IF, true);
@@ -1763,6 +1782,36 @@ parse_directive_line :: (tokenizer: *Tokenizer) -> *Directive_Line {
  
 parse_directive_through :: (tokenizer: *Tokenizer) -> *Directive_Through {
     return New(Directive_Through);
+}
+
+// @TODO: Consider this...
+// We currently wrap scoped stuff in another node but we could maybe just flag 
+// Directives that they are exported in some scope instead of wrapping it with new node...
+parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Scope_Kind) -> *Directive_Scope {
+    directive_scope := New(Directive_Scope);
+    directive_scope.scope_kind = scope_kind;
+
+    members: [..]*Node;
+
+    is_token_scope_directive :: (token: *Token) -> bool {
+        if token.kind != .DIRECTIVE return false;
+
+        if token.string_value == "scope_export" return true;
+        if token.string_value == "scope_file"   return true;
+        if token.string_value == "scope_module" return true;
+
+        return false;
+    }
+
+    while !end(tokenizer) && !is_token(tokenizer, is_token_scope_directive) {
+        node := parse(tokenizer);
+        if !node continue; // Skip null nodes...
+        array_add(*members, node);
+    }
+
+    directive_scope.members = members;
+
+    return directive_scope;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {

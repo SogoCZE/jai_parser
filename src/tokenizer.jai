@@ -3,9 +3,7 @@
 #import "Reflection";
 
 // TODO: Token\   Kind 
-
-b: int;
-b ||= 2;
+// TODO: .48;
 
 Token_Kind :: enum {
     // ASCII Types...
