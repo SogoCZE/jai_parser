@@ -7,33 +7,10 @@
 // - multiple assings declaration (a, b := 1, 2)
 // - multiple declaration (a, b: int)
 
-// General: (Directive)
-// - #caller_code
-// - #caller_location
-// - #file
-// - #filepath
-// - #line
-// - #through
-
-// Custom:
-// - #location
-// - #module_parameters
-// - #placeholder
-// - #procedure_of_call
-// - #program_export
-// - #this
-// - #poke_name
-// - #dynamic_specialize
-
 // Scope:
 // - #scope_export
 // - #scope_file
 // - #scope_module
-
-// Imports: 
-// - #import,file
-// - #import,dir
-// - #import,string
 
 // ??:
 // - type keywords (is this needed?)
@@ -58,7 +35,6 @@ Node :: struct {
         ARRAY_TYPE;
         ARRAY_SUBSCRIPT;
         IDENTIFIER;
-        DIRECTIVE;
         LITERAL;
         BINARY_OPERATION;
         UNARY_OPERATION;
@@ -79,7 +55,8 @@ Node :: struct {
         INLINE_ASSEMBLY;
         // TYPE_INSTANTIATION;
 
-        DIRECTIVE_IMPORT_OR_LOAD;
+        DIRECTIVE_IMPORT;
+        DIRECTIVE_LOAD;
         DIRECTIVE_RUN;
         DIRECTIVE_CHAR;
         DIRECTIVE_AS;
@@ -102,6 +79,12 @@ Node :: struct {
         DIRECTIVE_BAKE_ARGUMENTS;
         DIRECTIVE_BAKE_CONSTANTS;
         DIRECTIVE_DYNAMIC_SPECIALIZE;
+        DIRECTIVE_CALLER_CODE;
+        DIRECTIVE_CALLER_LOCATION;
+        DIRECTIVE_FILE;
+        DIRECTIVE_FILEPATH;
+        DIRECTIVE_LINE;
+        DIRECTIVE_THROUGH;
     }
 
     Location :: struct {
@@ -333,13 +316,6 @@ Enum :: struct {
     block: *Block;
 }
 
-Directive :: struct {
-    using #as node: Node; 
-    kind = .DIRECTIVE;
-
-    name: string;
-}
-
 If :: struct {
     using #as node: Node;
     kind = .IF;
@@ -367,11 +343,25 @@ Case :: struct {
     members: [] *Node;
 }
 
-Directive_Import_Or_Load :: struct {
+Directive_Import :: struct {
     using #as node: Node; 
-    kind = .DIRECTIVE_IMPORT_OR_LOAD;
+    kind = .DIRECTIVE_IMPORT;
 
-    load: bool;
+    Import_Kind :: enum u8 {
+        MODULE;
+        FILE;
+        DIR;
+        STRING;
+    }
+
+    import_kind: Import_Kind;
+    module: string;
+}
+
+Directive_Load :: struct {
+    using #as node: Node; 
+    kind = .DIRECTIVE_LOAD;
+
     file: string;
 }
 
@@ -677,6 +667,36 @@ Directive_Dynamic_Specialize :: struct {
     expression: *Node;
 }
 
+Directive_Caller_Code :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_CALLER_CODE;
+}
+
+Directive_Caller_Location :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_CALLER_LOCATION;
+}
+
+Directive_File :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_FILE;
+}
+
+Directive_Filepath :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_FILEPATH;
+}
+
+Directive_Line :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_LINE;
+}
+
+Directive_Through :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_THROUGH;
+}
+
 Array_Type :: struct {
     using #as node: Node;
     kind = .ARRAY_TYPE;
@@ -836,17 +856,30 @@ parse_file :: (files: *Files, path: string) {
         node := parse(*tokenizer);
         if !node continue;
 
-        if node.kind == .DIRECTIVE_IMPORT_OR_LOAD {
-            import_or_load := cast(*Directive_Import_Or_Load) node;
+        if node.kind == .DIRECTIVE_IMPORT {
+            _import := cast(*Directive_Import) node;
 
-            if import_or_load.load {
-                load_relative_path := tprint("%/%", path_without_filename, import_or_load.file);
-                parse_file(files, load_relative_path); // @TODO: Run this in another thread?
-            } else {
-                module_path := tprint("%/%", JAI_MODULES_PATH, import_or_load.file);
-                module_entry := get_module_entry(module_path);
-                parse_file(files, module_entry); // @TODO: Run this in another thread?
+            path: string;
+
+            if _import.import_kind == {
+                case .MODULE;
+                    module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
+                    path = get_module_entry(module_path);
+                case .FILE;
+                    path = tprint("%/%", path_without_filename, _import.module); 
+                case .DIR;
+                    path = tprint("%/%", path_without_filename, get_module_entry(_import.module)); 
+                case .STRING;
+                    // @TODO: Do we wanna parse the string here?
             }
+
+            parse_file(files, path); // @TODO: Run this in another thread?
+        }
+
+        if node.kind == .DIRECTIVE_LOAD {
+            _load := cast(*Directive_Load) node;
+            load_relative_path := tprint("%/%", path_without_filename, _load.file);
+            parse_file(files, load_relative_path); // @TODO: Run this in another thread?
         }
 
         array_add(*nodes, node);
@@ -1344,8 +1377,8 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import";              return parse_directive_import_or_load(tokenizer, false);
-        case "load";                return parse_directive_import_or_load(tokenizer, true);
+        case "import";              return parse_directive_import(tokenizer);
+        case "load";                return parse_directive_load(tokenizer);
         case "run";                 return parse_directive_run(tokenizer);
         case "as";                  return parse_directive_as(tokenizer);
         case "place";               return parse_directive_place(tokenizer);
@@ -1367,6 +1400,12 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "this";                return parse_directive_this(tokenizer);
         case "poke_name";           return parse_directive_poke_name(tokenizer);
         case "dynamic_specialize";  return parse_directive_dynamic_specialize(tokenizer);
+        case "caller_code";         return parse_directive_caller_code(tokenizer);
+        case "caller_location";     return parse_directive_caller_location(tokenizer);
+        case "file";                return parse_directive_file(tokenizer);
+        case "filepath";            return parse_directive_filepath(tokenizer);
+        case "line";                return parse_directive_line(tokenizer);
+        case "through";             return parse_directive_through(tokenizer);
 
         case "library";             return parse_directive_library(tokenizer, false);
         case "system_library";      return parse_directive_library(tokenizer, true);
@@ -1376,12 +1415,11 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "ifx";                 return parse_if(tokenizer, .IFX, true);
     }
 
-    directive_name_identifier := eat_token(tokenizer);
+    // @TODO: Unknown directive?
+    eat_token(tokenizer);
+    log_error("Unknown directive #'%'!", directive_token.string_value);
 
-    directive := New(Directive);
-    directive.name = directive_token.string_value;
-
-    return directive;
+    return null;
 }
 
 parse_directive_run :: (tokenizer: *Tokenizer) -> *Directive_Run {
@@ -1439,11 +1477,32 @@ parse_directive_add_context :: (tokenizer: *Tokenizer) -> *Directive_Add_Context
     return directive_add_context;
 }
 
-parse_directive_import_or_load :: (tokenizer: *Tokenizer, load: bool) -> *Directive_Import_Or_Load {
-    directive_import_or_load := New(Directive_Import_Or_Load);
-    directive_import_or_load.load = load;
-    directive_import_or_load.file = eat_token(tokenizer, .STRING).string_value;
-    return directive_import_or_load;
+parse_directive_import :: (tokenizer: *Tokenizer) -> *Directive_Import {
+    directive_import := New(Directive_Import);
+
+    if maybe_eat_token(tokenizer, #char ",") {
+        ok, modifier_token := maybe_eat_token(tokenizer, t => t.kind == .IDENTIFIER);
+        if ok {
+
+            if modifier_token.string_value == {
+                case "file"; directive_import.import_kind = .FILE;
+                case "dir"; directive_import.import_kind = .DIR;
+                case "string"; directive_import.import_kind = .STRING;
+            }
+
+        }
+
+    }
+
+    directive_import.module = eat_token(tokenizer, .STRING).string_value;
+    
+    return directive_import;
+}
+
+parse_directive_load :: (tokenizer: *Tokenizer) -> *Directive_Load {
+    directive_load := New(Directive_Load);
+    directive_load.file = eat_token(tokenizer, .STRING).string_value;
+    return directive_load;
 }
 
 parse_directive_place :: (tokenizer: *Tokenizer) -> *Directive_Place {
@@ -1651,6 +1710,31 @@ parse_directive_dynamic_specialize :: (tokenizer: *Tokenizer) -> *Directive_Dyna
     dynamic_specialize.expression = parse(tokenizer);
 
     return dynamic_specialize;
+}
+
+// @TODO: Those empty directives are kinda dumb... We could probably return then directly in parse_directive...
+parse_directive_caller_code :: (tokenizer: *Tokenizer) -> *Directive_Caller_Code {
+    return New(Directive_Caller_Code);
+}
+
+parse_directive_caller_location :: (tokenizer: *Tokenizer) -> *Directive_Caller_Location {
+    return New(Directive_Caller_Location);
+}
+
+parse_directive_file :: (tokenizer: *Tokenizer) -> *Directive_File {
+    return New(Directive_File);
+}
+
+parse_directive_filepath :: (tokenizer: *Tokenizer) -> *Directive_Filepath {
+    return New(Directive_Filepath);
+}
+
+parse_directive_line :: (tokenizer: *Tokenizer) -> *Directive_Line {
+    return New(Directive_Line);
+}
+ 
+parse_directive_through :: (tokenizer: *Tokenizer) -> *Directive_Through {
+    return New(Directive_Through);
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
