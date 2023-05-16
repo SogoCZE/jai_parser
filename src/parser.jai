@@ -12,6 +12,8 @@
 // - #scope_file
 // - #scope_module
 
+// - #must on individual returns
+
 // ??:
 // - type keywords (is this needed?)
 // - #insert_internal - deprecated
@@ -1417,7 +1419,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
 
     // @TODO: Unknown directive?
     eat_token(tokenizer);
-    log_error("Unknown directive #'%'!", directive_token.string_value);
+    log_error("Unknown directive #%!", directive_token.string_value);
 
     return null;
 }
