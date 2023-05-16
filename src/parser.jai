@@ -3,6 +3,10 @@
 
 // To Parse:
 
+// - notes
+// - multiple assings declaration (a, b := 1, 2)
+// - multiple declaration (a, b: int)
+
 // General: (Directive)
 // - #caller_code
 // - #caller_location
@@ -12,20 +16,14 @@
 // - #through
 
 // Custom:
-// - #insert
-// - #insert,scope
-// - #insert_internal
 // - #location
 // - #module_parameters
-// - #no_abc (For)
 // - #placeholder
 // - #procedure_of_call
 // - #program_export
 // - #this
-
-// Dont know:
 // - #poke_name
-// - #dynamic_specialize (??)
+// - #dynamic_specialize
 
 // Scope:
 // - #scope_export
@@ -37,10 +35,9 @@
 // - #import,dir
 // - #import,string
 
-// - notes
-// - multiple assings declaration (a, b := 1, 2)
-// - multiple declaration (a, b: int)
+// ??:
 // - type keywords (is this needed?)
+// - #insert_internal - deprecated
 
 Files :: Table(string, []*Node);
 
@@ -91,12 +88,20 @@ Node :: struct {
         DIRECTIVE_CODE;
         DIRECTIVE_ADD_CONTEXT;
         DIRECTIVE_ASSERT;
-        DIRECTIVE_BAKE_ARGUMENTS;
-        DIRECTIVE_BAKE_CONSTANTS;
         DIRECTIVE_BYTES;
         DIRECTIVE_LIBRARY;
         DIRECTIVE_NO_RESET;
         DIRECTIVE_INSERT;
+        DIRECTIVE_LOCATION;
+        DIRECTIVE_MODULE_PARAMETERS;
+        DIRECTIVE_PLACEHOLDER;
+        DIRECTIVE_PROCEDURE_OF_CALL;
+        DIRECTIVE_PROGRAM_EXPORT;
+        DIRECTIVE_THIS;
+        DIRECTIVE_POKE_NAME;
+        DIRECTIVE_BAKE_ARGUMENTS;
+        DIRECTIVE_BAKE_CONSTANTS;
+        DIRECTIVE_DYNAMIC_SPECIALIZE;
     }
 
     Location :: struct {
@@ -218,6 +223,7 @@ For :: struct {
 
     by_pointer: bool;
     reversed: bool;
+    no_abc: bool; // #no_abc
 
     value: *Node;
     index: *Node;
@@ -608,6 +614,66 @@ Directive_Insert :: struct {
     type: Insert_Kind; // Set when using -> Code or -> string
     scoped: bool; // #insert,scope()
     scope: *Node; // #insert,scope(scope)
+    expression: *Node;
+}
+
+Directive_Location :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_LOCATION;
+
+    expression: *Node;
+}
+
+Directive_Module_Parameters :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_MODULE_PARAMETERS;
+
+    // @TODO: rename this (currently we don't know why does the directive have double parameters)
+    parameters: [] *Node;
+    second_parameters: [] *Node;
+}
+
+Directive_Placeholder :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_PLACEHOLDER;
+
+    expression: *Node;
+}
+
+Directive_Procedure_Of_Call :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_PROCEDURE_OF_CALL;
+
+    expression: *Node;
+}
+
+Directive_Program_Export :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_PROGRAM_EXPORT;
+
+    exported_name: string;
+    expression: *Node;
+}
+
+Directive_This :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_THIS;
+
+    arguments: [] *Node; // In-case of #this(10, 20) - where #this is procedure.
+}
+
+Directive_Poke_Name :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_POKE_NAME;
+
+    module: string;
+    name: string; 
+}
+
+Directive_Dynamic_Specialize :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_DYNAMIC_SPECIALIZE;
+
     expression: *Node;
 }
 
@@ -1278,28 +1344,36 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
     directive_token := eat_token(tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import";           return parse_directive_import_or_load(tokenizer, false);
-        case "load";             return parse_directive_import_or_load(tokenizer, true);
-        case "run";              return parse_directive_run(tokenizer);
-        case "as";               return parse_directive_as(tokenizer);
-        case "place";            return parse_directive_place(tokenizer);
-        case "type";             return parse_directive_type(tokenizer);
-        case "code";             return parse_directive_code(tokenizer);
-        case "char";             return parse_directive_char(tokenizer);
-        case "add_context";      return parse_directive_add_context(tokenizer);
-        case "assert";           return parse_directive_assert(tokenizer);
-        case "bake_arguments";   return parse_directive_bake_arguments(tokenizer);
-        case "bake_constants";   return parse_directive_bake_constants(tokenizer);
-        case "bytes";            return parse_directive_bytes(tokenizer);
-        case "no_reset";         return parse_directive_no_reset(tokenizer);
-        case "insert";           return parse_directive_insert(tokenizer);
+        case "import";              return parse_directive_import_or_load(tokenizer, false);
+        case "load";                return parse_directive_import_or_load(tokenizer, true);
+        case "run";                 return parse_directive_run(tokenizer);
+        case "as";                  return parse_directive_as(tokenizer);
+        case "place";               return parse_directive_place(tokenizer);
+        case "type";                return parse_directive_type(tokenizer);
+        case "code";                return parse_directive_code(tokenizer);
+        case "char";                return parse_directive_char(tokenizer);
+        case "add_context";         return parse_directive_add_context(tokenizer);
+        case "assert";              return parse_directive_assert(tokenizer);
+        case "bake_arguments";      return parse_directive_bake_arguments(tokenizer);
+        case "bake_constants";      return parse_directive_bake_constants(tokenizer);
+        case "bytes";               return parse_directive_bytes(tokenizer);
+        case "no_reset";            return parse_directive_no_reset(tokenizer);
+        case "insert";              return parse_directive_insert(tokenizer);
+        case "location";            return parse_directive_location(tokenizer);
+        case "module_parameters";   return parse_directive_module_parameters(tokenizer);
+        case "placeholder";         return parse_directive_placeholder(tokenizer);
+        case "procedure_of_call";   return parse_directive_procedure_of_call(tokenizer);
+        case "program_export";      return parse_directive_program_export(tokenizer);
+        case "this";                return parse_directive_this(tokenizer);
+        case "poke_name";           return parse_directive_poke_name(tokenizer);
+        case "dynamic_specialize";  return parse_directive_dynamic_specialize(tokenizer);
 
-        case "library";          return parse_directive_library(tokenizer, false);
-        case "system_library";   return parse_directive_library(tokenizer, true);
+        case "library";             return parse_directive_library(tokenizer, false);
+        case "system_library";      return parse_directive_library(tokenizer, true);
 
-        case "asm";              return parse_inline_assembly(tokenizer);
-        case "if";               return parse_if(tokenizer, .IF, true);
-        case "ifx";              return parse_if(tokenizer, .IFX, true);
+        case "asm";                 return parse_inline_assembly(tokenizer);
+        case "if";                  return parse_if(tokenizer, .IF, true);
+        case "ifx";                 return parse_if(tokenizer, .IFX, true);
     }
 
     directive_name_identifier := eat_token(tokenizer);
@@ -1485,6 +1559,98 @@ parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
     directive_insert.expression = parse(tokenizer);
 
     return directive_insert;
+}
+
+parse_directive_location :: (tokenizer: *Tokenizer) -> *Directive_Location {
+    directive_location := New(Directive_Location);
+
+    if maybe_eat_token(tokenizer, #char "(") {
+        
+        if !is_token(tokenizer, #char ")") {
+            directive_location.expression = parse(tokenizer);
+        }
+        
+        eat_token(tokenizer, #char ")");
+    }
+
+    return directive_location;
+}
+
+parse_directive_module_parameters :: (tokenizer: *Tokenizer) -> *Directive_Module_Parameters {
+    directive_module_parameters := New(Directive_Module_Parameters);
+
+    if is_token(tokenizer, #char "(") {
+        directive_module_parameters.parameters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    }
+
+    if is_token(tokenizer, #char "(") {
+        directive_module_parameters.second_parameters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    }
+
+    return directive_module_parameters;
+}
+
+parse_directive_placeholder :: (tokenizer: *Tokenizer) -> *Directive_Placeholder {
+    directive_placeholder := New(Directive_Placeholder);
+
+    directive_placeholder.expression = parse(tokenizer);
+
+    return directive_placeholder;
+}
+
+parse_directive_procedure_of_call :: (tokenizer: *Tokenizer) -> *Directive_Procedure_Of_Call {
+    directive_procedure_of_call := New(Directive_Procedure_Of_Call);
+
+    directive_procedure_of_call.expression = parse(tokenizer);
+
+    return directive_procedure_of_call;
+}
+
+parse_directive_program_export :: (tokenizer: *Tokenizer) -> *Directive_Program_Export {
+    directive_program_export := New(Directive_Program_Export);
+
+    if is_token(tokenizer, .STRING) {
+        name_token := eat_token(tokenizer, .STRING);
+        directive_program_export.exported_name = name_token.string_value;
+    }
+
+    directive_program_export.expression = parse(tokenizer);
+
+    return directive_program_export;
+}
+
+parse_directive_this :: (tokenizer: *Tokenizer) -> *Directive_This {
+    directive_this := New(Directive_This);
+
+    if is_token(tokenizer, #char "(") {
+        directive_this.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    }
+
+    return directive_this;
+}
+
+parse_directive_poke_name :: (tokenizer: *Tokenizer) -> *Directive_Poke_Name {
+    directive_poke_name := New(Directive_Poke_Name);
+
+    if is_token(tokenizer, .IDENTIFIER) {
+        module_token := eat_token(tokenizer, .IDENTIFIER);
+        directive_poke_name.module = module_token.string_value;
+    }
+    
+    if is_token(tokenizer, .IDENTIFIER) {
+        name_token := eat_token(tokenizer, .IDENTIFIER);
+        directive_poke_name.name = name_token.string_value;
+    }
+
+    return directive_poke_name;
+}
+
+parse_directive_dynamic_specialize :: (tokenizer: *Tokenizer) -> *Directive_Dynamic_Specialize {
+    dynamic_specialize := New(Directive_Dynamic_Specialize);
+
+    dynamic_specialize.expression = parse(tokenizer);
+
+    return dynamic_specialize;
 }
  
 parse_identifier :: (ident_token: *Token) -> *Identifier {
@@ -1711,6 +1877,10 @@ parse_for :: (tokenizer: *Tokenizer) -> *Node {
 
         eat_token(tokenizer, #char ":");
         _for.iterator = parse(tokenizer);
+    }
+
+    if maybe_eat_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
+        _for.no_abc = true;
     }
 
     _for.body = parse(tokenizer);
