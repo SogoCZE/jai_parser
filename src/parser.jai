@@ -7,11 +7,6 @@
 // - multiple assings declaration (a, b := 1, 2)
 // - multiple declaration (a, b: int)
 
-// Scope:
-// - #scope_export
-// - #scope_file
-// - #scope_module
-
 // ??:
 // - type keywords (is this needed?)
 // - #insert_internal - deprecated
@@ -1203,7 +1198,14 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
         meaybe_eat_token(tokenizer, #char "(");
         returns: [..]*Return_Value;
 
-        while !end(tokenizer) && !is_token(tokenizer, #char ")") && !is_token(tokenizer, #char "{") {
+        is_returns_end_token :: (token: *Token) -> bool {
+            if token.kind == #char ")" return true;
+            if token.kind == #char "{" return true;
+            if token.kind == .DIRECTIVE return true;
+            return false;
+        }
+
+        while !end(tokenizer) && !is_token(tokenizer, is_returns_end_token) {
             if maybe_eat_token(tokenizer, #char ",") continue; 
 
             return_value := New(Return_Value);
@@ -1464,7 +1466,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
 
     // @TODO: Unknown directive?
     eat_token(tokenizer);
-    log_error("Unknown directive #%!", directive_token.string_value);
+    log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, directive_token.file, directive_token.l0, directive_token.c0);
 
     return null;
 }
