@@ -7,9 +7,10 @@
 // - multiple assings declaration (a, b := 1, 2)
 // - multiple declaration (a, b: int)
 
-// ??:
+// Later:
 // - type keywords (is this needed?)
 // - #insert_internal - deprecated
+// - fix floats...
 
 Files :: Table(string, []*Node);
 
