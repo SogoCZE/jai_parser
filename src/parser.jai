@@ -3,8 +3,6 @@
 
 // To Parse:
 
-// - notes
-//    - declaration 
 // - multiple assings declaration (a, b := 1, 2)
 // - multiple declaration (a, b: int)
 
