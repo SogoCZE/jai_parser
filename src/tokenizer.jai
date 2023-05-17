@@ -563,7 +563,7 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_number :: (using iterator: *Iterator, fromDot: bool) -> Token {
+parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.file = iterator.file;
@@ -571,7 +571,7 @@ parse_number :: (using iterator: *Iterator, fromDot: bool) -> Token {
     token.kind = .NUMBER; 
 
     hex := false;
-    if !fromDot && peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
+    if !from_dot && peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
         next(iterator); // eat 0
         next(iterator); // eat x
         hex = true;
@@ -580,14 +580,14 @@ parse_number :: (using iterator: *Iterator, fromDot: bool) -> Token {
     builder: String_Builder;
     init_string_builder(*builder);
 
-    if fromDot {
+    if from_dot {
         next(iterator); // eat .
         append(*builder, "0.");
     }
 
     if hex append(*builder, "0x");
 
-    is_float := fromDot;
+    is_float := from_dot;
 
     is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
         if is_digit(char) return true;
