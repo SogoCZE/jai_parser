@@ -4,6 +4,7 @@
 // To Parse:
 
 // - notes
+//    - declaration 
 // - multiple assings declaration (a, b := 1, 2)
 // - multiple declaration (a, b: int)
 
@@ -94,6 +95,11 @@ Node :: struct {
     // serial: s64;
 }
 
+Note :: struct {
+    name: string;
+    value: string;
+}
+
 Declaration :: struct {
     using #as node: Node;
     kind = .DECLARATION;
@@ -103,6 +109,7 @@ Declaration :: struct {
     type_inst: *Node;
     expression: *Node;
     backticked: bool;
+    notes: [] Note;
 }
 
 Comment :: struct {
@@ -259,6 +266,7 @@ Procedure :: struct {
     returns: []*Return_Value;
     modify_block: *Block;
     body: *Block; // @TODO: Defer this...? Why?
+    notes: [] Note;
 }
 
 Procedure_Call :: struct {
@@ -302,6 +310,8 @@ Struct :: struct {
     polymorphic_arguments: [] *Node;
     modify_block: *Block;
     block: *Block;
+
+    notes: [] Note;
 }
 
 Union :: struct {
@@ -309,6 +319,7 @@ Union :: struct {
     kind = .UNION;
 
     block: *Block;
+    notes: [] Note;
 }
 
 Enum :: struct {
@@ -319,6 +330,7 @@ Enum :: struct {
     is_enum_flags: bool;
     type: *Node;
     block: *Block;
+    notes: [] Note;
 }
 
 If :: struct {
@@ -1149,6 +1161,13 @@ parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Dec
         decl.expression = parse(tokenizer);
     }
 
+    maybe_eat_token(tokenizer, #char ";");
+
+    // Notes
+    if is_token(tokenizer, .NOTE) {
+        decl.notes = parse_notes(tokenizer);
+    }
+
     return decl;
 }
 
@@ -1160,6 +1179,14 @@ parse_constant_declaration :: (tokenizer: *Tokenizer, ident_token: *Token) -> *D
     decl.backticked = ident_token.backticked;
     decl.const = true;
     decl.expression = parse(tokenizer);
+
+    maybe_eat_token(tokenizer, #char ";");
+
+    // Notes
+    if is_token(tokenizer, .NOTE) {
+        decl.notes = parse_notes(tokenizer);
+    }
+
     return decl;
 }
 
@@ -1170,6 +1197,14 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> 
     decl.name = ident_token.string_value;
     decl.backticked = ident_token.backticked;
     decl.expression = parse(tokenizer);
+
+    maybe_eat_token(tokenizer, #char ";");
+
+    // Notes
+    if is_token(tokenizer, .NOTE) {
+        decl.notes = parse_notes(tokenizer);
+    }
+
     return decl;
 }
 
@@ -1295,6 +1330,11 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
         proc.body = parse_block(tokenizer);
     } 
 
+    // Notes
+    if is_token(tokenizer, .NOTE) {
+        proc.notes = parse_notes(tokenizer);
+    }
+
     return proc;
 }
 
@@ -1353,6 +1393,10 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
         _struct.flags |= .NO_PADDING;
     }
 
+    if is_token(tokenizer, .NOTE) {
+        _struct.notes = parse_notes(tokenizer);
+    }
+
     return _struct;
 }
 
@@ -1367,6 +1411,10 @@ parse_union :: (tokenizer: *Tokenizer) -> *Union {
     } else {
         print("Exprected union body! Got:");
         print_token(peek_token(tokenizer));
+    }
+
+    if is_token(tokenizer, .NOTE) {
+        _union.notes = parse_notes(tokenizer);
     }
 
     return _union;
@@ -1396,6 +1444,10 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     } else {
         print("Exprected enum body! Got:");
         print_token(peek_token(tokenizer));
+    }
+
+    if is_token(tokenizer, .NOTE) {
+        _enum.notes = parse_notes(tokenizer);
     }
 
     return _enum;
@@ -2245,4 +2297,43 @@ parse_inline_assembly :: (tokenizer: *Tokenizer) -> *Inline_Assembly {
     eat_token(tokenizer, #char "}");
 
     return inline_assembly;
+}
+
+parse_notes :: (tokenizer: *Tokenizer) -> []Note {
+    notes: [..] Note;
+    while is_token(tokenizer, .NOTE) array_add(*notes, parse_note(tokenizer));
+    return notes;
+}
+
+parse_note :: (tokenizer: *Tokenizer) -> Note  {
+    note_token := eat_token(tokenizer, .NOTE);
+    note: Note;
+    note.name = note_token.string_value;
+
+    // @TODO: This is ugly
+    if maybe_eat_token(tokenizer, #char "(") {
+        builder: String_Builder;
+
+        while !end(tokenizer) && !is_token(tokenizer, #char ")") {
+            token := eat_token(tokenizer);
+
+            if token.kind < 256 {
+                append(*builder, cast(u8) token.kind);
+                continue;
+            } 
+
+            if token.kind == .STRING || token.kind == .NUMBER || token.kind == .DIRECTIVE || token.kind == .NOTE || token.kind == .IDENTIFIER {
+                append(*builder, token.string_value);
+                continue;
+            }
+
+            // @TODO: Operators!
+            append(*builder, enum_value_to_name(token.kind));
+        }
+
+        note.value = builder_to_string(*builder);
+        maybe_eat_token(tokenizer, #char ")");
+    }
+
+    return note;
 }

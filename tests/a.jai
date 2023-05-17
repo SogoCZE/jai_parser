@@ -1,1 +1,3 @@
-#import "Basic";
+Note_Struct :: struct {
+
+} @Version(10)
