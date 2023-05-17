@@ -1,3 +1,1 @@
-Note_Struct :: struct {
-
-} @Version(10)
+Test\               Tabbed\     Stuff :: 10;

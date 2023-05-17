@@ -2,7 +2,6 @@
 #import "String";
 #import "Reflection";
 
-// TODO: Token\   Kind 
 // TODO: .48;
 
 Token_Kind :: enum {
@@ -394,7 +393,38 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
-    identifier := next_while(iterator,  char => is_identifier_char(char) || is_digit(char)); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
+    builder: String_Builder;
+    init_string_builder(*builder);
+
+    escaped_white_space: bool;
+    
+    while !end(iterator) {
+        char := peek(iterator);
+        is_ident_valid_char := is_identifier_char(char) || is_digit(char);
+
+        if escaped_white_space && char == #char " " || char == #char "\t" {
+            next(iterator); // eat space
+            continue;
+        }
+
+        if is_ident_valid_char {
+            append(*builder, next(iterator));
+
+            if escaped_white_space escaped_white_space = false;
+            
+            continue;
+        }
+
+        if char == #char "\\" {
+            escaped_white_space = true;
+            next(iterator); // eat \
+            continue;
+        }
+
+        break;
+    }
+
+    identifier := builder_to_string(*builder); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
     keyword: string;
 
     for token_kind: enum_names(Token_Kind) {
