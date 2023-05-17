@@ -2,13 +2,11 @@
 #import "String";
 #import "Reflection";
 
-// TODO: .48;
-
 Token_Kind :: enum {
     // ASCII Types...
 
     IDENTIFIER :: 256; // person
-    NUMBER; // 10, 3.14, 2_456_000
+    NUMBER; // 10, 3.14, 2_456_000, .40
     STRING; // "text"
     // HERE_STRING; // "text"
     COMMENT; // */ */ //
@@ -321,9 +319,14 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
         return parse_string(iterator);
     }
 
+    // .40
+    if char == #char "." && is_digit(peek(iterator, 2)) {
+        return parse_number(iterator, true);
+    }
+
     // Numbers
     if is_digit(char) {
-        return parse_number(iterator);
+        return parse_number(iterator, false);
     }
 
     // Backtick 
@@ -560,7 +563,7 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_number :: (using iterator: *Iterator) -> Token {
+parse_number :: (using iterator: *Iterator, fromDot: bool) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.file = iterator.file;
@@ -568,7 +571,7 @@ parse_number :: (using iterator: *Iterator) -> Token {
     token.kind = .NUMBER; 
 
     hex := false;
-    if peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
+    if !fromDot && peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
         next(iterator); // eat 0
         next(iterator); // eat x
         hex = true;
@@ -577,9 +580,14 @@ parse_number :: (using iterator: *Iterator) -> Token {
     builder: String_Builder;
     init_string_builder(*builder);
 
+    if fromDot {
+        next(iterator); // eat .
+        append(*builder, "0.");
+    }
+
     if hex append(*builder, "0x");
 
-    is_float: bool;
+    is_float := fromDot;
 
     is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
         if is_digit(char) return true;
