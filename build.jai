@@ -5,7 +5,7 @@
 #import "Process";
 
 
-// Základní build file
+// Basic build file
 #run {
     w := compiler_create_workspace("Target Program");
     if !w {

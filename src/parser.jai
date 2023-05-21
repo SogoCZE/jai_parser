@@ -449,7 +449,6 @@ Array_Literal_Info :: struct {
     elements: [] *Node;
 }
 
-// @InComplete: >>> <<< >>= <<=, &, | ...
 _Operator :: enum u8 {
     INVALID;
 
@@ -536,8 +535,6 @@ Comma_Seperated_Expression :: struct {
 
     members: []*Node;
 }
-
-
 
 Directive_Run :: struct {
     using #as node: Node;
@@ -2479,32 +2476,4 @@ parse_note :: (tokenizer: *Tokenizer) -> Note  {
     }
 
     return note;
-}
-
-// TODO: comma_seperated_expression!!
-
-parse_comma_seperated_expression :: (tokenizer: *Tokenizer, first: *Token) -> *Comma_Seperated_Expression {
-    comma_seperated_expression := New(Comma_Seperated_Expression);
-
-    members: [..]*Node;
-
-    array_add(*members, parse_identifier(first));
-
-    while !end(tokenizer) {
-        if maybe_eat_token(tokenizer, #char ",") continue;
-
-        node := parse(tokenizer);
-        if !node continue;
-
-        array_add(*members, node);
-    }
-
-    // eat_token(tokenizer, #char ":");
-
-    // compound_declaration.type_inst = parse(tokenizer);
-    comma_seperated_expression.members = members;
-
-    // print("type_inst: %\n", type_inst);
-
-    return comma_seperated_expression;
 }
