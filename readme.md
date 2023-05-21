@@ -359,7 +359,6 @@ Will generate:
 
 </details>
 
-<br/>
 To generate this run:
 
 ```sh
