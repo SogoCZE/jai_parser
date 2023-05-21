@@ -372,7 +372,7 @@ jai build.jai && ./bin/jai_parser ./tests/example.jai
 ## TODO:
 - Create automatic tests
 - Remove unnecessary heap allocations
-- Measure performance with Tracy and improve it (it's probably quite slow as of now)
+- Measure performance with Tracy and improve it (it's probably quite slow now)
 - Refactor data structures (maybe use linked list etc)
 - Rename to Jaiser? 
 
