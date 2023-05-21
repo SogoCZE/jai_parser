@@ -5,3 +5,4 @@ Jai Parser written in Jai.
 - Create automatic tests
 - Remove unnecessary heap allocations
 - Refactor data structures (maybe use linked list etc)
+- Rename to Jaiser? 

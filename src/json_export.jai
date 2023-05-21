@@ -9,6 +9,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
     append(*json_builder, "{");
 
     print_to_builder(*json_builder, "\"kind\": %,", json_write_string(node.kind));
+    print_to_builder(*json_builder, "\"location\": %,", json_write_string(node.location, indent_char=""));
 
     is_node :: (info: *Type_Info) -> bool {
         if info.type == {
@@ -35,7 +36,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
         if info.type != .STRUCT return false;
         _struct_info := cast(*Type_Info_Struct) info;
 
-        return _struct_info.name == "Node" || _struct_info.name == "Return_Value";
+        return _struct_info.name == "Node" || _struct_info.name == "Return_Value" || _struct_info.name == "Note";
     }
 
     is_pointer_to_node :: (info: *Type_Info) -> bool {

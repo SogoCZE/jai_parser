@@ -1,5 +1,4 @@
 // @TODO:
-// - Line and char numbers
 // - Fix floats...
 
 // To Parse:
@@ -50,7 +49,6 @@ Node :: struct {
         FOR;
         WHILE;
         INLINE_ASSEMBLY;
-        // TYPE_INSTANTIATION;
 
         DIRECTIVE_IMPORT;
         DIRECTIVE_LOAD;
@@ -84,10 +82,12 @@ Node :: struct {
         DIRECTIVE_THROUGH;
         DIRECTIVE_SCOPE;
         DIRECTIVE_COMPILE_TIME;
+
+        NOTE;
     }
 
     Location :: struct {
-        l0,l1,c0,c1: u32;
+        l0,c0,l1,c1: int;
         file: string;
     }
 
@@ -95,10 +95,12 @@ Node :: struct {
 
     location: Location;
     kind: Kind;
-    // serial: s64;
 }
 
 Note :: struct {
+    using #as node: Node;
+    kind = .NOTE;
+
     name: string;
     value: string;
 }
@@ -112,7 +114,7 @@ Declaration :: struct {
     type_inst: *Node;
     expression: *Node;
     backticked: bool;
-    notes: [] Note;
+    notes: [] *Note;
 }
 
 Compound_Declaration :: struct {
@@ -231,17 +233,6 @@ For :: struct {
     body: *Node;    
 }
 
-// Type_Instantiation :: struct {
-//     using #as node: Node;
-//     kind = .TYPE_INSTANTIATION;
-
-//     array_element_type: *Node;
-//     array_dimension: *Node;
-//     array_resizable: *Node;
-
-//     result: *Node; 
-// }
-
 Procedure :: struct {
     using #as node: Node;
     kind = .PROCEDURE;
@@ -279,7 +270,7 @@ Procedure :: struct {
     returns: []*Return_Value;
     modify_block: *Block;
     body: *Block; 
-    notes: [] Note;
+    notes: [] *Note;
 }
 
 Procedure_Call :: struct {
@@ -324,7 +315,7 @@ Struct :: struct {
     modify_block: *Block;
     block: *Block;
 
-    notes: [] Note;
+    notes: [] *Note;
 }
 
 Union :: struct {
@@ -332,7 +323,7 @@ Union :: struct {
     kind = .UNION;
 
     block: *Block;
-    notes: [] Note;
+    notes: [] *Note;
 }
 
 Enum :: struct {
@@ -343,7 +334,7 @@ Enum :: struct {
     is_enum_flags: bool;
     type: *Node;
     block: *Block;
-    notes: [] Note;
+    notes: [] *Note;
 }
 
 If :: struct {
@@ -787,6 +778,34 @@ Inline_Assembly :: struct {
     body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks. 
 }
 
+set_start_location :: (using node: *Node, token: *Token) {
+    if !token return;
+    location.file = token.file;
+    location.l0 = token.l0;
+    location.c0 = token.c0;
+}
+
+set_start_location :: (using node: *Node, from_node: *Node) {
+    if !from_node return;
+    location.file = from_node.location.file;
+    location.l0 = from_node.location.l0;
+    location.c0 = from_node.location.c0;
+}
+
+set_end_location :: (using node: *Node, token: *Token) {
+    if !token return;
+    location.file = token.file;
+    location.l1 = token.l1;
+    location.c1 = token.c1;
+}
+
+set_end_location :: (using node: *Node, from_node: *Node) {
+    if !from_node return;
+    location.file = from_node.location.file;
+    location.l1 = from_node.location.l1;
+    location.c1 = from_node.location.c1;
+}
+
 delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
@@ -908,7 +927,7 @@ parse_file :: (files: *Files, path: string) {
     table_set(files, path, nodes);
 
     while !end(*tokenizer) {
-        node := parse(*tokenizer);
+        node := parse(*tokenizer, null);
         if !node continue;
 
         if node.kind == .DIRECTIVE_IMPORT {
@@ -943,10 +962,12 @@ parse_file :: (files: *Files, path: string) {
     table_set(files, path, nodes);
 }
 
-parse :: (tokenizer: *Tokenizer, parent: *Node = null) -> *Node {
+parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
+    current_token := peek_token(tokenizer);
     base_node := parse_node(tokenizer);
     if !base_node return null;
     base_node.parent = parent;
+    set_start_location(base_node, current_token);
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
@@ -1011,6 +1032,7 @@ parse :: (tokenizer: *Tokenizer, parent: *Node = null) -> *Node {
             return compound_declaration;
         }   
 
+        // Compound Declaration
         if maybe_eat_token(tokenizer, .DECLARATION_AND_ASSIGN) {
             compound_declaration := New(Compound_Declaration);
 
@@ -1043,6 +1065,8 @@ parse :: (tokenizer: *Tokenizer, parent: *Node = null) -> *Node {
         return comma_seperated_expression;
     }
 
+    set_end_location(base_node, peek_token(tokenizer, -1));
+
     return base_node;
 }
 
@@ -1052,7 +1076,7 @@ parse_node :: (tokenizer: *Tokenizer) -> *Node {
     if is_identifier(tokenizer) {
         ident := eat_token(tokenizer, .IDENTIFIER);
 
-        // age+20
+        // health+20
         if is_operator(peek_token(tokenizer)) {
             identifier := parse_identifier(ident);
 
@@ -1254,10 +1278,7 @@ parse_node :: (tokenizer: *Tokenizer) -> *Node {
 
     // Comment
     if is_token(tokenizer, .COMMENT) {
-        comment_token := eat_token(tokenizer, .COMMENT);
-        comment := New(Comment);
-        comment.value = comment_token.string_value;
-        return comment;
+        return parse_comment(tokenizer);
     }
 
     // print("Eaten non match:\n");
@@ -1269,12 +1290,19 @@ parse_node :: (tokenizer: *Tokenizer) -> *Node {
     return null;
 }
 
+parse_comment :: (tokenizer: *Tokenizer) -> *Comment {
+    comment_token := eat_token(tokenizer, .COMMENT);
+    comment := New(Comment);
+    comment.value = comment_token.string_value;
+    return comment;
+}
+
 // player: Player;
 parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
     eat_token(tokenizer, #char ":");
     decl := New(Declaration);
     decl.name = ident_token.string_value;
-    decl.type_inst = parse(tokenizer);
+    decl.type_inst = parse(tokenizer, decl);
     decl.backticked = ident_token.backticked;
 
     // decl: type_inst = exp;
@@ -1287,7 +1315,7 @@ parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Dec
 
     // Notes
     if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer);
+        decl.notes = parse_notes(tokenizer, decl);
     }
 
     return decl;
@@ -1306,7 +1334,7 @@ parse_constant_declaration :: (tokenizer: *Tokenizer, ident_token: *Token) -> *D
 
     // Notes
     if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer);
+        decl.notes = parse_notes(tokenizer, decl);
     }
 
     return decl;
@@ -1324,7 +1352,7 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> 
 
     // Notes
     if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer);
+        decl.notes = parse_notes(tokenizer, decl);
     }
 
     return decl;
@@ -1343,9 +1371,13 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 
         // Comma Seperated Expression
         comma_seperated_expression := New(Comma_Seperated_Expression);
+
+        // set_start_location(comma_seperated_expression, members[0]);
         
         comma_seperated_expression.members = members;
         for comma_seperated_expression.members it.parent = comma_seperated_expression;
+
+        // set_end_location(comma_seperated_expression, members[members.count-1]);
 
         return comma_seperated_expression;
     }
@@ -1461,7 +1493,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 
     // Notes
     if is_token(tokenizer, .NOTE) {
-        proc.notes = parse_notes(tokenizer);
+        proc.notes = parse_notes(tokenizer, proc);
     }
 
     return proc;
@@ -1525,7 +1557,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
     }
 
     if is_token(tokenizer, .NOTE) {
-        _struct.notes = parse_notes(tokenizer);
+        _struct.notes = parse_notes(tokenizer, _struct);
     }
 
     return _struct;
@@ -1546,7 +1578,7 @@ parse_union :: (tokenizer: *Tokenizer) -> *Union {
     }
 
     if is_token(tokenizer, .NOTE) {
-        _union.notes = parse_notes(tokenizer);
+        _union.notes = parse_notes(tokenizer, _union);
     }
 
     return _union;
@@ -1580,7 +1612,7 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     }
 
     if is_token(tokenizer, .NOTE) {
-        _enum.notes = parse_notes(tokenizer);
+        _enum.notes = parse_notes(tokenizer, _enum);
     }
 
     return _enum;
@@ -1589,7 +1621,9 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
 // {}
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block := New(Block);
+    set_start_location(block, peek_token(tokenizer));
     block.members = delimeted(tokenizer, #char "{", #char "}", parent=block);
+    set_end_location(block, peek_token(tokenizer, -1));
     return block;
 }
  
@@ -2372,7 +2406,7 @@ parse_auto_cast :: (tokenizer: *Tokenizer) -> *Auto_Cast {
 
 parse_inline :: (tokenizer: *Tokenizer) -> *Node {
     eat_token(tokenizer, .KEYWORD_INLINE);
-    next_node := parse(tokenizer);
+    next_node := parse(tokenizer, null);
 
     if next_node.kind == .PROCEDURE {
         (cast(*Procedure) next_node).flags |= .INLINE;
@@ -2439,21 +2473,24 @@ parse_inline_assembly :: (tokenizer: *Tokenizer) -> *Inline_Assembly {
     return inline_assembly;
 }
 
-parse_notes :: (tokenizer: *Tokenizer) -> []Note {
-    notes: [..] Note;
-    while is_token(tokenizer, .NOTE) array_add(*notes, parse_note(tokenizer));
+parse_notes :: (tokenizer: *Tokenizer, parent: *Node) -> [] *Note {
+    notes: [..] *Note;
+    while is_token(tokenizer, .NOTE) array_add(*notes, parse_note(tokenizer, parent));
     return notes;
 }
 
-parse_note :: (tokenizer: *Tokenizer) -> Note  {
+parse_note :: (tokenizer: *Tokenizer, parent: *Node) -> *Note  {
     note_token := eat_token(tokenizer, .NOTE);
-    note: Note;
+    note := New(Note);
     note.name = note_token.string_value;
+    note.parent = parent;
 
-    // @TODO: This is ugly
+    set_start_location(note, note_token);
+
     if maybe_eat_token(tokenizer, #char "(") {
         builder: String_Builder;
 
+        // @TODO: This is ugly
         while !end(tokenizer) && !is_token(tokenizer, #char ")") {
             token := eat_token(tokenizer);
 
@@ -2474,6 +2511,8 @@ parse_note :: (tokenizer: *Tokenizer) -> Note  {
         note.value = builder_to_string(*builder);
         maybe_eat_token(tokenizer, #char ")");
     }
+
+    set_end_location(note, peek_token(tokenizer, -1));
 
     return note;
 }
