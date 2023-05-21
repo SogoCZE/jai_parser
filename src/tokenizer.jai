@@ -236,7 +236,11 @@ eat_token :: (using tokenizer: *Tokenizer) -> *Token {
 eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
     token := eat_token(tokenizer);
     assert(token != null, "Token is null!");
-    assert(token.kind == kind, "token % != required % (%:%:%)", token.kind, kind, token.file, token.l0, token.c0);
+
+    if token.kind != kind {
+        log_error("token % != required % (%:%:%)", token.kind, kind, token.file, token.l0, token.c0); // @TODO: is this ok?
+    }
+
     return token;
 }
 
