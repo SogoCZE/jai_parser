@@ -60,6 +60,8 @@ main :: () {
 
     parse_file(*files, cmd_arguments[1]);
 
+	File_Module.make_directory_if_it_does_not_exist("./out");
+
     for nodes, file: files output_file_to_json(file, nodes);
 
     release(*pool);

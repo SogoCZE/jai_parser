@@ -1,9 +1,3 @@
-#import "Basic";
-#import "Compiler";
-#import "File";
-#import "String";
-#import "Process";
-
 TRACY_PROFILE :: false;
 
 // Basic build file
@@ -71,3 +65,9 @@ message_loop :: (w: Workspace, tracy: *Metaprogram_Plugin) {
         break;
     }
 }
+
+#import "Basic";
+#import "Compiler";
+#import "File";
+#import "String";
+#import "Process";
