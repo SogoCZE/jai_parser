@@ -1,6 +1,5 @@
 // @TODO:
 // - Line and char numbers
-// - Resolve circular loads or imports!
 // - Fix floats...
 
 // To Parse:
@@ -817,7 +816,7 @@ delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, sepera
 }
 
 // @TODO: Rename this to parse_until?
-eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
+parse_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     while !end(tokenizer) {
@@ -896,13 +895,20 @@ get_module_entry :: (root: string) -> string {
 }
 
 parse_file :: (files: *Files, path: string) {
+    if table_contains(files, path) {
+        log("Skipping % because it already exists", path);
+        return;
+    }
+
+    path_without_filename := trim_right(path_strip_filename(path), "/");
     print("Parsing file %...\n", path);
-    path_without_filename := path_strip_filename(path);
 
     iterator := create_iterator(File_Module.read_entire_file(path), path);
     tokenizer := create_tokenizer(*iterator);
 
     nodes: [..]*Node;
+
+    table_set(files, path, nodes);
 
     while !end(*tokenizer) {
         node := parse(*tokenizer);
@@ -2012,11 +2018,11 @@ parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Litera
     if maybe_eat_token(tokenizer, #char "[") {
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
-        literal.values.array_literal_info.elements = eat_until(tokenizer, token => token.kind == #char "]", #char ",", parent=literal);
+        literal.values.array_literal_info.elements = parse_until(tokenizer, token => token.kind == #char "]", #char ",", parent=literal);
     } else if maybe_eat_token(tokenizer, #char "{") {
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info = .{type=type};
-        literal.values.struct_literal_info.body = eat_until(tokenizer, token => token.kind == #char "}", #char ",", parent=literal);
+        literal.values.struct_literal_info.body = parse_until(tokenizer, token => token.kind == #char "}", #char ",", parent=literal);
     }
 
     return literal;
@@ -2155,7 +2161,7 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     return_token := eat_token(tokenizer, .KEYWORD_RETURN);
     _return.backticked = return_token.backticked;
 
-    _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",", parent=_return);
+    _return.returns = parse_until(tokenizer, token => token.kind == #char ";", #char ",", parent=_return);
     for _return.returns it.parent = _return;
     
     return _return;
