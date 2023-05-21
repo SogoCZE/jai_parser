@@ -4,6 +4,7 @@
 #import "String";
 #import "Process";
 
+TRACY_PROFILE :: false;
 
 // Basic build file
 #run {
@@ -17,11 +18,8 @@
     options.output_executable_name = "jai_parser";
     options.output_path = "./bin";   
 
-    args := options.compile_time_command_line;
-    profile := array_find(args, "-profile");
-
     tracy: *Metaprogram_Plugin;
-    if profile {
+    #if TRACY_PROFILE {
         log("Adding tracy plugin");
         Tracy :: #import "tracy";
         tracy = Tracy.get_plugin();
