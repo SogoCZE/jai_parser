@@ -1,16 +1,16 @@
 // @TODO:
-// - Split parsing into multiple files? 
-// - resolve circular loads or imports!
+// - Line and char numbers
+// - Resolve circular loads or imports!
+// - Fix floats...
 
 // To Parse:
+// - All done?!
 
-// - multiple assings declaration (a, b := 1, 2)
-// - multiple declaration (a, b: int)
-
-// Later:
+// Maybe:
 // - type keywords (is this needed?)
-// - #insert_internal - deprecated
-// - fix floats...
+// - #insert_internal - deprecated (probably do not need anymore bacuse its deprecated)
+// - Split parsing into multiple files? 
+// - Tree ??
 
 Files :: Table(string, []*Node);
 
@@ -19,6 +19,7 @@ Node :: struct {
     Kind :: enum {
         UNINITIALIZATED;
         DECLARATION;
+        COMPOUND_DECLARATION;
         BLOCK;
         STRUCT;
         UNION;
@@ -83,12 +84,15 @@ Node :: struct {
         DIRECTIVE_LINE;
         DIRECTIVE_THROUGH;
         DIRECTIVE_SCOPE;
+        DIRECTIVE_COMPILE_TIME;
     }
 
     Location :: struct {
         l0,l1,c0,c1: u32;
         file: string;
     }
+
+    parent: *Node;
 
     location: Location;
     kind: Kind;
@@ -110,6 +114,16 @@ Declaration :: struct {
     expression: *Node;
     backticked: bool;
     notes: [] Note;
+}
+
+Compound_Declaration :: struct {
+    using #as node: Node;
+    kind = .COMPOUND_DECLARATION;
+
+    members: [] *Node;
+
+    type_inst: *Node;
+    expression: *Node;
 }
 
 Comment :: struct {
@@ -265,7 +279,7 @@ Procedure :: struct {
     arguments: []*Node;
     returns: []*Return_Value;
     modify_block: *Block;
-    body: *Block; // @TODO: Defer this...? Why?
+    body: *Block; 
     notes: [] Note;
 }
 
@@ -524,6 +538,8 @@ Comma_Seperated_Expression :: struct {
     members: []*Node;
 }
 
+
+
 Directive_Run :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_RUN;
@@ -718,6 +734,11 @@ Directive_Filepath :: struct {
     kind = .DIRECTIVE_FILEPATH;
 }
 
+Directive_Compile_Time :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_COMPILE_TIME;
+}
+
 Directive_Line :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_LINE;
@@ -770,7 +791,7 @@ Inline_Assembly :: struct {
     body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks. 
 }
 
-delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0) -> []*Node {
+delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     eat_token(tokenizer, open); 
@@ -783,7 +804,7 @@ delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, sepera
             continue;
         }
 
-        node := parse(tokenizer);
+        node := parse(tokenizer, parent);
         if node == null continue;
         array_add(*nodes, node);
 
@@ -796,7 +817,7 @@ delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, sepera
 }
 
 // @TODO: Rename this to parse_until?
-eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0) -> []*Node {
+eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     while !end(tokenizer) {
@@ -807,7 +828,7 @@ eat_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: T
             continue;
         }
 
-        node := parse(tokenizer);
+        node := parse(tokenizer, parent);
         if node == null continue;
         array_add(*nodes, node);
 
@@ -919,7 +940,110 @@ parse_file :: (files: *Files, path: string) {
     table_set(files, path, nodes);
 }
 
-parse :: (tokenizer: *Tokenizer) -> *Node {
+parse :: (tokenizer: *Tokenizer, parent: *Node = null) -> *Node {
+    base_node := parse_node(tokenizer);
+    if !base_node return null;
+    base_node.parent = parent;
+
+    can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
+        if kind == .BLOCK return true;
+        if kind == .STRUCT return true;
+        if kind == .ENUM return true;
+        if kind == .UNION return true;
+        if kind == .COMPOUND_DECLARATION return true;
+        return false;
+    }
+
+    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && maybe_eat_token(tokenizer, #char ",") {
+        unprocessed_tokens: [..]Token;
+
+        nodes: [..] *Node;
+        array_add(*nodes, base_node);
+
+        while !end(tokenizer) {
+
+            if maybe_eat_token(tokenizer, #char ",") {
+                local_tokenizer: Tokenizer;
+                local_tokenizer.tokens = unprocessed_tokens;
+                
+                while !end(*local_tokenizer) {
+                    node := parse(*local_tokenizer, *Node.{}); // @TODO: Parent hack!
+                    if !node continue;
+                    array_add(*nodes, node);
+                }
+
+                array_reset(*unprocessed_tokens);
+                continue;
+            }
+
+            // @TODO: Anything else?
+            if is_token(tokenizer, #char ";") break;
+            if is_token(tokenizer, #char ")") break;
+            if is_token(tokenizer, #char "{") break;
+            if is_token(tokenizer, #char ":") break;
+            if is_token(tokenizer, .DECLARATION_AND_ASSIGN) break;
+            if is_token(tokenizer, #char "=") break;
+
+            array_add(*unprocessed_tokens, eat_token(tokenizer));
+        }
+
+        local_tokenizer: Tokenizer;
+        local_tokenizer.tokens = unprocessed_tokens;
+        
+        while !end(*local_tokenizer) {
+            node := parse(*local_tokenizer, *Node.{}); // @TODO: Parent hack!
+            if !node continue;
+            array_add(*nodes, node);
+        }
+
+        // Compound Declaration
+        if maybe_eat_token(tokenizer, #char ":") {
+            compound_declaration := New(Compound_Declaration);
+            
+            compound_declaration.members = nodes;
+            for compound_declaration.members it.parent = compound_declaration;
+
+            compound_declaration.parent = parent;
+            compound_declaration.type_inst = parse(tokenizer, compound_declaration);
+            return compound_declaration;
+        }   
+
+        if maybe_eat_token(tokenizer, .DECLARATION_AND_ASSIGN) {
+            compound_declaration := New(Compound_Declaration);
+
+            compound_declaration.members = nodes;
+            for compound_declaration.members it.parent = compound_declaration;
+
+            compound_declaration.parent = parent;
+            compound_declaration.expression = parse(tokenizer, compound_declaration);
+            return compound_declaration;
+        }
+
+        comma_seperated_expression := New(Comma_Seperated_Expression);
+        comma_seperated_expression.members = nodes;
+        for comma_seperated_expression.members it.parent = comma_seperated_expression;
+
+        if maybe_eat_token(tokenizer, #char "=") {
+            binary_operation := New(Binary_Operation);
+            binary_operation.left = comma_seperated_expression;
+            binary_operation.operation = .ASSING;
+            binary_operation.right = parse(tokenizer, null);
+
+            binary_operation.left.parent  = binary_operation;
+            binary_operation.right.parent = binary_operation;
+
+            return binary_operation;
+        }     
+
+        comma_seperated_expression.parent = parent;
+
+        return comma_seperated_expression;
+    }
+
+    return base_node;
+}
+
+parse_node :: (tokenizer: *Tokenizer) -> *Node {
 
     // Declaration, Binary Operation, Unary Operation, Identifier
     if is_identifier(tokenizer) {
@@ -940,11 +1064,6 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
         // Array Subscript
         if is_token(tokenizer, #char "[") {
             return parse_array_subscript(tokenizer);
-        }
-
-        // Multiple Assings Declaration (a, b, c := 10, 20, 30)
-        if is_token(tokenizer, #char ",") {
-            // print("Some!\n");
         }
 
         if is_token(tokenizer, .QUICK_LAMBDA) {
@@ -1094,12 +1213,12 @@ parse :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     // String literal
-    if peek_token(tokenizer).kind == .STRING {
+    if is_token(tokenizer, .STRING) {
         return parse_literal(tokenizer);
     }    
     
     // Numeric literal
-    if peek_token(tokenizer).kind == .NUMBER {
+    if is_token(tokenizer, .NUMBER) {
    
         // 10+20
         if is_operator(peek_token(tokenizer, 1)) {
@@ -1158,7 +1277,7 @@ parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Dec
     // decl: type_inst = exp;
     if is_token(tokenizer, #char "=") {
         eat_token(tokenizer, #char "=");
-        decl.expression = parse(tokenizer);
+        decl.expression = parse(tokenizer, decl);
     }
 
     maybe_eat_token(tokenizer, #char ";");
@@ -1178,7 +1297,7 @@ parse_constant_declaration :: (tokenizer: *Tokenizer, ident_token: *Token) -> *D
     decl.name = ident_token.string_value;
     decl.backticked = ident_token.backticked;
     decl.const = true;
-    decl.expression = parse(tokenizer);
+    decl.expression = parse(tokenizer, decl);
 
     maybe_eat_token(tokenizer, #char ";");
 
@@ -1196,7 +1315,7 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> 
     decl := New(Declaration);
     decl.name = ident_token.string_value;
     decl.backticked = ident_token.backticked;
-    decl.expression = parse(tokenizer);
+    decl.expression = parse(tokenizer, decl);
 
     maybe_eat_token(tokenizer, #char ";");
 
@@ -1209,7 +1328,7 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> 
 }
 
 parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
-    members := delimeted(tokenizer, #char "(", #char ")", #char ",");
+    members := delimeted(tokenizer, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
 
     // @TODO: this is kinda messy? We probably want to do this in some other way...
     if members.count > 0 && members[0].kind != .DECLARATION {
@@ -1221,12 +1340,17 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 
         // Comma Seperated Expression
         comma_seperated_expression := New(Comma_Seperated_Expression);
+        
         comma_seperated_expression.members = members;
+        for comma_seperated_expression.members it.parent = comma_seperated_expression;
+
         return comma_seperated_expression;
     }
 
     proc := New(Procedure);
+
     proc.arguments = members;
+    for proc.arguments it.parent = proc;
 
     // returns
     if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
@@ -1244,7 +1368,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
             if maybe_eat_token(tokenizer, #char ",") continue; 
 
             return_value := New(Return_Value);
-            return_value.expression = parse(tokenizer);
+            return_value.expression = parse(tokenizer, proc);
 
             if is_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
                 eat_token(tokenizer, .DIRECTIVE);
@@ -1311,6 +1435,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 proc.flags |= .SYMMETRIC;
             case "modify";
                 proc.modify_block = parse_block(tokenizer);
+                proc.modify_block.parent = proc;
             case "no_abc";
                 proc.flags |= .NO_ABC;
         }
@@ -1328,6 +1453,7 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     // Body
     if is_token(tokenizer, #char "{") {
         proc.body = parse_block(tokenizer);
+        proc.body.parent = proc;
     } 
 
     // Notes
@@ -1341,9 +1467,10 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
 parse_quick_lambda :: (tokenizer: *Tokenizer, arguments: []*Node) -> *Quick_Lambda {
     quick_lambda := New(Quick_Lambda);
     quick_lambda.arguments = arguments;
+    for quick_lambda.arguments it.parent = quick_lambda;
 
     eat_token(tokenizer, .QUICK_LAMBDA);
-    quick_lambda._return = parse(tokenizer);
+    quick_lambda._return = parse(tokenizer, quick_lambda);
 
     return quick_lambda;
 }
@@ -1354,7 +1481,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
     eat_token(tokenizer, .KEYWORD_STRUCT);
 
     if is_token(tokenizer, #char "(") {
-        _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+        _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", _struct);
     }
 
     parse_struct_directive :: (tokenizer: *Tokenizer, _struct: *Struct) {
@@ -1383,6 +1510,7 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
 
     if is_token(tokenizer, #char "{") {
         _struct.block = parse_block(tokenizer);
+        _struct.block.parent = _struct;
     } else {
         print("Exprected struct body! Got:");
         print_token(peek_token(tokenizer));
@@ -1408,6 +1536,7 @@ parse_union :: (tokenizer: *Tokenizer) -> *Union {
 
     if is_token(tokenizer, #char "{") {
         _union.block = parse_block(tokenizer);
+        _union.block.parent = _union;
     } else {
         print("Exprected union body! Got:");
         print_token(peek_token(tokenizer));
@@ -1429,7 +1558,7 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
 
     // Type specifier
     if !is_token(tokenizer, #char "{") {
-        _enum.type = parse(tokenizer);
+        _enum.type = parse(tokenizer, _enum);
     }
 
     // Specified directive
@@ -1441,6 +1570,7 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
     // Body
     if is_token(tokenizer, #char "{") {
         _enum.block = parse_block(tokenizer);
+        _enum.block.parent = _enum;
     } else {
         print("Exprected enum body! Got:");
         print_token(peek_token(tokenizer));
@@ -1456,7 +1586,7 @@ parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
 // {}
 parse_block :: (tokenizer: *Tokenizer) -> *Block {
     block := New(Block);
-    block.members = delimeted(tokenizer, #char "{", #char "}");
+    block.members = delimeted(tokenizer, #char "{", #char "}", parent=block);
     return block;
 }
  
@@ -1465,7 +1595,7 @@ parse_procedure_call :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Procedu
     proc_call := New(Procedure_Call);
     proc_call.name = ident_token.string_value;
     proc_call.backticked = ident_token.backticked;
-    proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+    proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", proc_call);
     return proc_call;
 }
 
@@ -1503,6 +1633,7 @@ parse_directive :: (tokenizer: *Tokenizer) -> *Node {
         case "filepath";            return parse_directive_filepath(tokenizer);
         case "line";                return parse_directive_line(tokenizer);
         case "through";             return parse_directive_through(tokenizer);
+        case "compile_time";        return parse_directive_compile_time(tokenizer);
 
         case "library";             return parse_directive_library(tokenizer, false);
         case "system_library";      return parse_directive_library(tokenizer, true);
@@ -1533,14 +1664,14 @@ parse_directive_run :: (tokenizer: *Tokenizer) -> *Directive_Run {
         directive_run.stallable = true;
     }
 
-    directive_run.expression = parse(tokenizer);   
+    directive_run.expression = parse(tokenizer, directive_run);   
 
     return directive_run;
 }
 
 parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
     directive_char := New(Directive_Char);
-    directive_char.string_literal = parse(tokenizer);
+    directive_char.string_literal = parse(tokenizer, directive_char);
     return directive_char;
 }
 
@@ -1561,20 +1692,20 @@ parse_directive_code :: (tokenizer: *Tokenizer) -> *Directive_Code {
 
     }
 
-    directive_code.expression = parse(tokenizer);
+    directive_code.expression = parse(tokenizer, directive_code);
 
     return directive_code;
 }
 
 parse_directive_as :: (tokenizer: *Tokenizer) -> *Directive_As {
     directive_as := New(Directive_As);
-    directive_as.expression = parse(tokenizer);
+    directive_as.expression = parse(tokenizer, directive_as);
     return directive_as;
 }
 
 parse_directive_add_context :: (tokenizer: *Tokenizer) -> *Directive_Add_Context {
     directive_add_context := New(Directive_Add_Context);
-    directive_add_context.expression = parse(tokenizer);
+    directive_add_context.expression = parse(tokenizer, directive_add_context);
     return directive_add_context;
 }
 
@@ -1608,7 +1739,7 @@ parse_directive_load :: (tokenizer: *Tokenizer) -> *Directive_Load {
 
 parse_directive_place :: (tokenizer: *Tokenizer) -> *Directive_Place {
     directive_place := New(Directive_Place);
-    directive_place.expression = parse(tokenizer);
+    directive_place.expression = parse(tokenizer, directive_place);
     return directive_place;
 }
 
@@ -1629,14 +1760,14 @@ parse_directive_type :: (tokenizer: *Tokenizer) -> *Directive_Type {
 
     }
 
-    directive_type.expression = parse(tokenizer);
+    directive_type.expression = parse(tokenizer, directive_type);
     return directive_type;
 }
 
 parse_directive_assert :: (tokenizer: *Tokenizer) -> *Directive_Assert {
     directive_assert := New(Directive_Assert);
 
-    directive_assert.condition = parse(tokenizer);
+    directive_assert.condition = parse(tokenizer, directive_assert);
 
     if is_token(tokenizer, .STRING) {
         message_token := eat_token(tokenizer, .STRING);
@@ -1648,21 +1779,21 @@ parse_directive_assert :: (tokenizer: *Tokenizer) -> *Directive_Assert {
 
 parse_directive_bake_arguments :: (tokenizer: *Tokenizer) -> *Directive_Bake_Arguments {
     directive_bake_arguments := New(Directive_Bake_Arguments);
-    directive_bake_arguments.expression = parse(tokenizer);
+    directive_bake_arguments.expression = parse(tokenizer, directive_bake_arguments);
 
     return directive_bake_arguments;
 }
 
 parse_directive_bake_constants :: (tokenizer: *Tokenizer) -> *Directive_Bake_Constants {
     directive_bake_constants := New(Directive_Bake_Constants);
-    directive_bake_constants.expression = parse(tokenizer);
+    directive_bake_constants.expression = parse(tokenizer, directive_bake_constants);
 
     return directive_bake_constants;
 }
 
 parse_directive_bytes :: (tokenizer: *Tokenizer) -> *Directive_Bytes {
     directive_bytes := New(Directive_Bytes);
-    directive_bytes.expression = parse(tokenizer);
+    directive_bytes.expression = parse(tokenizer, directive_bytes);
 
     return directive_bytes;
 }
@@ -1685,7 +1816,7 @@ parse_directive_library :: (tokenizer: *Tokenizer, system: bool) -> *Directive_L
 
 parse_directive_no_reset :: (tokenizer: *Tokenizer) -> *Directive_No_Reset {
     directive_no_reset := New(Directive_No_Reset);
-    directive_no_reset.expression = parse(tokenizer);
+    directive_no_reset.expression = parse(tokenizer, directive_no_reset);
 
     return directive_no_reset;
 }
@@ -1700,7 +1831,7 @@ parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
         maybe_eat_token(tokenizer, #char "(");
     
         if !is_token(tokenizer, #char ")") {
-            directive_insert.scope = parse(tokenizer);
+            directive_insert.scope = parse(tokenizer, directive_insert);
         }
 
         maybe_eat_token(tokenizer, #char ")");
@@ -1716,7 +1847,7 @@ parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
 
     }
 
-    directive_insert.expression = parse(tokenizer);
+    directive_insert.expression = parse(tokenizer, directive_insert);
 
     return directive_insert;
 }
@@ -1727,7 +1858,7 @@ parse_directive_location :: (tokenizer: *Tokenizer) -> *Directive_Location {
     if maybe_eat_token(tokenizer, #char "(") {
         
         if !is_token(tokenizer, #char ")") {
-            directive_location.expression = parse(tokenizer);
+            directive_location.expression = parse(tokenizer, directive_location);
         }
         
         eat_token(tokenizer, #char ")");
@@ -1740,11 +1871,11 @@ parse_directive_module_parameters :: (tokenizer: *Tokenizer) -> *Directive_Modul
     directive_module_parameters := New(Directive_Module_Parameters);
 
     if is_token(tokenizer, #char "(") {
-        directive_module_parameters.parameters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+        directive_module_parameters.parameters = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     if is_token(tokenizer, #char "(") {
-        directive_module_parameters.second_parameters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+        directive_module_parameters.second_parameters = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     return directive_module_parameters;
@@ -1752,17 +1883,13 @@ parse_directive_module_parameters :: (tokenizer: *Tokenizer) -> *Directive_Modul
 
 parse_directive_placeholder :: (tokenizer: *Tokenizer) -> *Directive_Placeholder {
     directive_placeholder := New(Directive_Placeholder);
-
-    directive_placeholder.expression = parse(tokenizer);
-
+    directive_placeholder.expression = parse(tokenizer, directive_placeholder);
     return directive_placeholder;
 }
 
 parse_directive_procedure_of_call :: (tokenizer: *Tokenizer) -> *Directive_Procedure_Of_Call {
     directive_procedure_of_call := New(Directive_Procedure_Of_Call);
-
-    directive_procedure_of_call.expression = parse(tokenizer);
-
+    directive_procedure_of_call.expression = parse(tokenizer, directive_procedure_of_call);
     return directive_procedure_of_call;
 }
 
@@ -1774,7 +1901,7 @@ parse_directive_program_export :: (tokenizer: *Tokenizer) -> *Directive_Program_
         directive_program_export.exported_name = name_token.string_value;
     }
 
-    directive_program_export.expression = parse(tokenizer);
+    directive_program_export.expression = parse(tokenizer, directive_program_export);
 
     return directive_program_export;
 }
@@ -1783,7 +1910,7 @@ parse_directive_this :: (tokenizer: *Tokenizer) -> *Directive_This {
     directive_this := New(Directive_This);
 
     if is_token(tokenizer, #char "(") {
-        directive_this.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",");
+        directive_this.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_this);
     }
 
     return directive_this;
@@ -1807,9 +1934,7 @@ parse_directive_poke_name :: (tokenizer: *Tokenizer) -> *Directive_Poke_Name {
 
 parse_directive_dynamic_specialize :: (tokenizer: *Tokenizer) -> *Directive_Dynamic_Specialize {
     dynamic_specialize := New(Directive_Dynamic_Specialize);
-
-    dynamic_specialize.expression = parse(tokenizer);
-
+    dynamic_specialize.expression = parse(tokenizer, dynamic_specialize);
     return dynamic_specialize;
 }
 
@@ -1838,6 +1963,10 @@ parse_directive_through :: (tokenizer: *Tokenizer) -> *Directive_Through {
     return New(Directive_Through);
 }
 
+parse_directive_compile_time :: (tokenizer: *Tokenizer) -> *Directive_Compile_Time {
+    return New(Directive_Compile_Time);
+}
+
 // @TODO: Consider this...
 // We currently wrap scoped stuff in another node but we could maybe just flag 
 // Directives that they are exported in some scope instead of wrapping it with new node...
@@ -1858,7 +1987,7 @@ parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Sco
     }
 
     while !end(tokenizer) && !is_token(tokenizer, is_token_scope_directive) {
-        node := parse(tokenizer);
+        node := parse(tokenizer, directive_scope);
         if !node continue; // Skip null nodes...
         array_add(*members, node);
     }
@@ -1883,11 +2012,11 @@ parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Litera
     if maybe_eat_token(tokenizer, #char "[") {
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
-        literal.values.array_literal_info.elements = eat_until(tokenizer, token => token.kind == #char "]", #char ",");
+        literal.values.array_literal_info.elements = eat_until(tokenizer, token => token.kind == #char "]", #char ",", parent=literal);
     } else if maybe_eat_token(tokenizer, #char "{") {
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info = .{type=type};
-        literal.values.struct_literal_info.body = eat_until(tokenizer, token => token.kind == #char "}", #char ",");
+        literal.values.struct_literal_info.body = eat_until(tokenizer, token => token.kind == #char "}", #char ",", parent=literal);
     }
 
     return literal;
@@ -1928,7 +2057,7 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
 parse_array_subscript :: (tokenizer: *Tokenizer) -> *Array_Subscript {
     array_subscript := New(Array_Subscript);
     eat_token(tokenizer, #char "[");
-    array_subscript.subscript = parse(tokenizer); 
+    array_subscript.subscript = parse(tokenizer, array_subscript); 
     eat_token(tokenizer, #char "]");
     return array_subscript;
 }
@@ -1943,13 +2072,13 @@ parse_array_type :: (tokenizer: *Tokenizer) -> *Array_Type {
         if maybe_eat_token(tokenizer, .DOUBLE_DOT) {
             array_type.resizable = true;
         } else {
-            array_type.dimension = parse(tokenizer);
+            array_type.dimension = parse(tokenizer, array_type);
         }
 
     }
 
     eat_token(tokenizer, #char "]");
-    array_type.element_type = parse(tokenizer);
+    array_type.element_type = parse(tokenizer, array_type);
 
     return array_type;
 }
@@ -1984,7 +2113,7 @@ parse_polymorphic_constant :: (tokenizer: *Tokenizer, maybe_constant: bool) -> *
             polymorphic_constant.restrictions_interface = true;
         }
 
-        polymorphic_constant.restriction = parse(tokenizer);
+        polymorphic_constant.restriction = parse(tokenizer, polymorphic_constant);
     }
 
     return polymorphic_constant;
@@ -2003,7 +2132,7 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
-    unary_operation.expression = parse(tokenizer);
+    unary_operation.expression = parse(tokenizer, unary_operation);
 
     return unary_operation;
 }
@@ -2016,7 +2145,7 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operat
     assert(is_operator(op));
     binary_operation.operation = create_operator_from_token(op.kind);
 
-    binary_operation.right = parse(tokenizer); // @TODO: anything?
+    binary_operation.right = parse(tokenizer, binary_operation); // @TODO: anything?
     
     return binary_operation;
 }
@@ -2025,7 +2154,10 @@ parse_return :: (tokenizer: *Tokenizer) -> *Node {
     _return := New(Return);
     return_token := eat_token(tokenizer, .KEYWORD_RETURN);
     _return.backticked = return_token.backticked;
-    _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",");
+
+    _return.returns = eat_until(tokenizer, token => token.kind == #char ";", #char ",", parent=_return);
+    for _return.returns it.parent = _return;
+    
     return _return;
 }
 
@@ -2034,7 +2166,7 @@ parse_continue :: (tokenizer: *Tokenizer) -> *Node {
     eat_token(tokenizer, .KEYWORD_CONTINUE);
 
     if !is_token(tokenizer, #char ";") {
-        _continue.expression = parse(tokenizer);
+        _continue.expression = parse(tokenizer, _continue);
     }
 
     return _continue;
@@ -2047,7 +2179,7 @@ parse_defer :: (tokenizer: *Tokenizer) -> *Node {
     _defer.backticked = defer_token.backticked;
 
     if !is_token(tokenizer, #char ";") {
-        _defer.expression = parse(tokenizer);
+        _defer.expression = parse(tokenizer, _defer);
     }
 
     return _defer;
@@ -2056,8 +2188,8 @@ parse_defer :: (tokenizer: *Tokenizer) -> *Node {
 parse_while :: (tokenizer: *Tokenizer) -> *Node {
     _while := New(While);
     eat_token(tokenizer, .KEYWORD_WHILE);
-    _while.expression = parse(tokenizer);
-    _while.body = parse(tokenizer);
+    _while.expression = parse(tokenizer, _while);
+    _while.body = parse(tokenizer, _while);
     return _while;
 }
 
@@ -2078,27 +2210,29 @@ parse_for :: (tokenizer: *Tokenizer) -> *Node {
 
     // Only iterator
     if !is_token(tokenizer, #char ":", 1) && !is_token(tokenizer, #char ",", 1) {
-        _for.iterator = parse(tokenizer);
+        _for.iterator = parse(tokenizer, _for);
     } else {
         _for.index = parse_identifier(eat_token(tokenizer, .IDENTIFIER));
+        _for.index.parent = _for;
 
         // @TODO: Is this correct?
         if maybe_eat_token(tokenizer, #char ",") {
             _for.value = parse_identifier(eat_token(tokenizer, .IDENTIFIER));
+            _for.value.parent = _for;
         } else {
             _for.value = _for.index;
             _for.index = null;
         }
 
         eat_token(tokenizer, #char ":");
-        _for.iterator = parse(tokenizer);
+        _for.iterator = parse(tokenizer, _for);
     }
 
     if maybe_eat_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
         _for.no_abc = true;
     }
 
-    _for.body = parse(tokenizer);
+    _for.body = parse(tokenizer, _for);
     return _for;
 }
 
@@ -2125,7 +2259,7 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
         _if.marked_as_complete = true;
     }
 
-    _if.condition = parse(tokenizer);
+    _if.condition = parse(tokenizer, _if);
 
     switch := false;
 
@@ -2136,10 +2270,10 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
 
     if !switch {
         maybe_eat_token(tokenizer, .KEYWORD_THEN);
-        _if._then = parse(tokenizer);
+        _if._then = parse(tokenizer, _if);
     
         if maybe_eat_token(tokenizer, .KEYWORD_ELSE) {
-            _if._else = parse(tokenizer);
+            _if._else = parse(tokenizer, _if);
         }
     } else {
         _if.if_kind = .SWITCH;
@@ -2151,9 +2285,11 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
 parse_case :: (tokenizer: *Tokenizer) -> *Node {
     _case := New(Case);
     eat_token(tokenizer, .KEYWORD_CASE);
-    _case.expression = parse(tokenizer);
+    _case.expression = parse(tokenizer, _case);
     maybe_eat_token(tokenizer, #char ";");
-    _case.members = eat_until(tokenizer, token => token.kind == .KEYWORD_CASE || token.kind == #char "}");
+    
+    for _case.members it.parent = _case;
+
     return _case;
 }
 
@@ -2162,7 +2298,7 @@ parse_break :: (tokenizer: *Tokenizer) -> *Node {
     eat_token(tokenizer, .KEYWORD_BREAK);
 
     if !is_token(tokenizer, #char ";") {
-        _break.expression = parse(tokenizer);
+        _break.expression = parse(tokenizer, _break);
     }
 
     return _break;
@@ -2189,10 +2325,10 @@ parse_using :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     if is_token(tokenizer, #char "(") {
-        _using.filters = delimeted(tokenizer, #char "(", #char ")", #char ",");
+        _using.filters = delimeted(tokenizer, #char "(", #char ")", #char ",", _using);
     }
 
-    _using.expression = parse(tokenizer);
+    _using.expression = parse(tokenizer, _using);
 
     return _using;
 }
@@ -2216,10 +2352,10 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Cast {
     }
 
     eat_token(tokenizer, #char "(");
-    _cast.cast_expression = parse(tokenizer);
+    _cast.cast_expression = parse(tokenizer, _cast);
     eat_token(tokenizer, #char ")");
 
-    _cast.expression = parse(tokenizer);
+    _cast.expression = parse(tokenizer, _cast);
 
     return _cast;
 }
@@ -2227,7 +2363,7 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Cast {
 parse_auto_cast :: (tokenizer: *Tokenizer) -> *Auto_Cast {
     auto_cast := New(Auto_Cast);
     eat_token(tokenizer, .KEYWORD_AUTO_CAST);
-    auto_cast.expression = parse(tokenizer);
+    auto_cast.expression = parse(tokenizer, auto_cast);
     return auto_cast;
 }
 
@@ -2257,11 +2393,12 @@ parse_push_context :: (tokenizer: *Tokenizer) -> *Push_Context {
         _push_context.defer_pop = modifier_token.string_value == "defer_pop";
     }
 
-    _push_context.pushed = parse(tokenizer);
+    _push_context.pushed = parse(tokenizer, _push_context);
 
     // @TODO: Block only?
     if is_token(tokenizer, #char "{") {
         _push_context.block = parse_block(tokenizer);
+        _push_context.block.parent = _push_context;
     }
 
     return _push_context;
@@ -2278,7 +2415,7 @@ parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
 
     eat_token(tokenizer, .CONSTANT_DECLARATION);
 
-    operator_overload.procedure = parse(tokenizer);
+    operator_overload.procedure = parse(tokenizer, operator_overload);
 
     return operator_overload;
 }
@@ -2289,7 +2426,7 @@ parse_inline_assembly :: (tokenizer: *Tokenizer) -> *Inline_Assembly {
     inline_assembly := New(Inline_Assembly);
 
     if !is_token(tokenizer, #char "{") {
-        inline_assembly.expression = parse(tokenizer);
+        inline_assembly.expression = parse(tokenizer, inline_assembly);
     }
 
     eat_token(tokenizer, #char "{");
@@ -2336,4 +2473,32 @@ parse_note :: (tokenizer: *Tokenizer) -> Note  {
     }
 
     return note;
+}
+
+// TODO: comma_seperated_expression!!
+
+parse_comma_seperated_expression :: (tokenizer: *Tokenizer, first: *Token) -> *Comma_Seperated_Expression {
+    comma_seperated_expression := New(Comma_Seperated_Expression);
+
+    members: [..]*Node;
+
+    array_add(*members, parse_identifier(first));
+
+    while !end(tokenizer) {
+        if maybe_eat_token(tokenizer, #char ",") continue;
+
+        node := parse(tokenizer);
+        if !node continue;
+
+        array_add(*members, node);
+    }
+
+    // eat_token(tokenizer, #char ":");
+
+    // compound_declaration.type_inst = parse(tokenizer);
+    comma_seperated_expression.members = members;
+
+    // print("type_inst: %\n", type_inst);
+
+    return comma_seperated_expression;
 }

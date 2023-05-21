@@ -48,7 +48,7 @@ output_file_to_json :: (file_path: string, nodes: []*Node) {
 
 main :: () {
     files: Table(string, []*Node);
-    cmd_arguments := get_command_line_arguments(); @Get(/user) 
+    cmd_arguments := get_command_line_arguments();
 
     if cmd_arguments.count < 2 {
         print("You dont provide any file to parse.\n");
