@@ -39,6 +39,8 @@ Will generate:
     },
     "name": "demo_command_line_arguments",
     "const": true,
+    "has_elsewhere": false,
+    "elsewhere": "",
     "type_inst": null,
     "expression": {
       "kind": "PROCEDURE",
@@ -83,6 +85,8 @@ Will generate:
             },
             "name": "args",
             "const": false,
+            "has_elsewhere": false,
+            "elsewhere": "",
             "type_inst": null,
             "expression": {
               "kind": "PROCEDURE_CALL",
@@ -95,7 +99,18 @@ Will generate:
               },
               "inlined": false,
               "backticked": false,
-              "name": "get_command_line_arguments",
+              "procedure": {
+                "kind": "IDENTIFIER",
+                "location": {
+                  "l0": 2,
+                  "c0": 13,
+                  "l1": 2,
+                  "c1": 39,
+                  "file": "./tests/example.jai"
+                },
+                "backticked": false,
+                "name": "get_command_line_arguments"
+              },
               "arguments": [
                 
               ]
@@ -125,7 +140,18 @@ Will generate:
               },
               "inlined": false,
               "backticked": false,
-              "name": "array_reset",
+              "procedure": {
+                "kind": "IDENTIFIER",
+                "location": {
+                  "l0": 3,
+                  "c0": 10,
+                  "l1": 3,
+                  "c1": 21,
+                  "file": "./tests/example.jai"
+                },
+                "backticked": false,
+                "name": "array_reset"
+              },
               "arguments": [
                 {
                   "kind": "UNARY_OPERATION",
@@ -176,7 +202,18 @@ Will generate:
             },
             "inlined": false,
             "backticked": false,
-            "name": "print",
+            "procedure": {
+              "kind": "IDENTIFIER",
+              "location": {
+                "l0": 5,
+                "c0": 4,
+                "l1": 5,
+                "c1": 9,
+                "file": "./tests/example.jai"
+              },
+              "backticked": false,
+              "name": "print"
+            },
             "arguments": [
               {
                 "kind": "LITERAL",
@@ -203,11 +240,11 @@ Will generate:
                 "left": {
                   "kind": "IDENTIFIER",
                   "location": {
-                    "l0": 0,
-                    "c0": 0,
-                    "l1": 0,
-                    "c1": 0,
-                    "file": ""
+                    "l0": 5,
+                    "c0": 51,
+                    "l1": 5,
+                    "c1": 61,
+                    "file": "./tests/example.jai"
                   },
                   "backticked": false,
                   "name": "args"
@@ -275,7 +312,18 @@ Will generate:
                   },
                   "inlined": false,
                   "backticked": false,
-                  "name": "print",
+                  "procedure": {
+                    "kind": "IDENTIFIER",
+                    "location": {
+                      "l0": 7,
+                      "c0": 9,
+                      "l1": 7,
+                      "c1": 14,
+                      "file": "./tests/example.jai"
+                    },
+                    "backticked": false,
+                    "name": "print"
+                  },
                   "arguments": [
                     {
                       "kind": "LITERAL",
@@ -302,11 +350,11 @@ Will generate:
                       "left": {
                         "kind": "IDENTIFIER",
                         "location": {
-                          "l0": 0,
-                          "c0": 0,
-                          "l1": 0,
-                          "c1": 0,
-                          "file": ""
+                          "l0": 7,
+                          "c0": 34,
+                          "l1": 7,
+                          "c1": 44,
+                          "file": "./tests/example.jai"
                         },
                         "backticked": false,
                         "name": "it_index"
