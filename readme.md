@@ -1,6 +1,6 @@
 # Jai Parser
 
-Handwritten Jai parser written in Jai. The parser has not been tested on larger projects so there may be some serious bugs and stuff. Currently, it's able to parse itself including all the Jai modules used in it.
+Handwritten Jai parser in Jai. The parser has not been tested on larger projects so there may be some serious bugs and stuff. Currently, it's able to parse itself including all the Jai modules used in it.
 
 The current plan for this parser is to provide information about Jai programs for [Jails](https://github.com/SogoCZE/Jails) and [Jai Autodoc](https://github.com/SogoCZE/jai_autodoc) together with information provided by the compiler.
 
