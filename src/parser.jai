@@ -981,22 +981,6 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
 
     set_start_location(base_node, current_token);
     defer set_end_location(base_node, peek_token(tokenizer, -1));
-    
-    // recursive_parse_binary_op :: (tokenizer: *Tokenizer, base_left: *Node) -> *Node {
-    //     binary_op := parse_binary_operation(tokenizer, base_left);
-    //     Binary operation
-    //     if is_operator(peek_token(tokenizer)) {
-    //         print("Next\n");
-    //         return recursive_parse_binary_op(tokenizer, binary_op);
-    //     }
-
-    //     return binary_op;
-    // }
-
-    // Binary operation
-    if is_operator(peek_token(tokenizer)) {
-        return parse_binary_operation(tokenizer, base_node);
-    }
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
@@ -1004,6 +988,7 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
         if kind == .ENUM return true;
         if kind == .UNION return true;
         if kind == .COMPOUND_DECLARATION return true;
+        // if kind == .BINARY_OPERATION return false;
         return false;
     }
 
@@ -1103,6 +1088,11 @@ parse_node :: (tokenizer: *Tokenizer) -> *Node {
     // Declaration, Binary Operation, Unary Operation, Identifier
     if is_identifier(tokenizer) {
         ident := eat_token(tokenizer, .IDENTIFIER);
+
+        // Binary operation   
+        if is_operator(peek_token(tokenizer)) {
+            return parse_binary_operation(tokenizer, parse_identifier(tokenizer, ident));
+        }
 
         // Array Subscript
         if is_token(tokenizer, #char "[") {
@@ -2090,7 +2080,7 @@ parse_identifier :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Identifier 
     return identifier;
 }
 
-parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Literal {
+parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Node {
     literal := New(Literal);
 
     eat_token(tokenizer, #char ".");
@@ -2107,10 +2097,15 @@ parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Litera
         eat_token(tokenizer, #char "}");
     }
 
+    // Binary operation   
+    if is_operator(peek_token(tokenizer)) {
+        return parse_binary_operation(tokenizer, literal);
+    }
+
     return literal;
 }
 
-parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
+parse_literal :: (tokenizer: *Tokenizer) -> *Node {
     literal := New(Literal);
 
     base_literal := eat_token(tokenizer);
@@ -2139,10 +2134,15 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Literal {
             }
     }
 
+    // Binary operation   
+    if is_operator(peek_token(tokenizer)) {
+        return parse_binary_operation(tokenizer, literal);
+    }
+
     return literal;
 }
 
-parse_array_subscript :: (tokenizer: *Tokenizer, expression: *Node) -> *Array_Subscript {
+parse_array_subscript :: (tokenizer: *Tokenizer, expression: *Node) -> *Node {
     array_subscript := New(Array_Subscript);
     array_subscript.expression = expression;
     array_subscript.expression.parent = array_subscript;
@@ -2154,6 +2154,11 @@ parse_array_subscript :: (tokenizer: *Tokenizer, expression: *Node) -> *Array_Su
     }
    
     eat_token(tokenizer, #char "]");
+
+    // Binary operation   
+    if is_operator(peek_token(tokenizer)) {
+        return parse_binary_operation(tokenizer, array_subscript);
+    }
 
     return array_subscript;
 }
@@ -2215,7 +2220,7 @@ parse_polymorphic_constant :: (tokenizer: *Tokenizer, maybe_constant: bool) -> *
     return polymorphic_constant;
 }
 
-parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
+parse_unary_operation :: (tokenizer: *Tokenizer) -> *Node {
     unary_operation := New(Unary_Operation);
 
     op := eat_token(tokenizer);
@@ -2229,6 +2234,11 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
     }
 
     unary_operation.expression = parse(tokenizer, unary_operation);
+
+    // Binary operation   
+    if is_operator(peek_token(tokenizer)) {
+        return parse_binary_operation(tokenizer, unary_operation);
+    }
 
     return unary_operation;
 }
