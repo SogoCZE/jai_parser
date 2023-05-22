@@ -627,8 +627,15 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
         return false;
     }
 
-    while !end(iterator) && is_valid_numeric_char(peek(iterator), iterator, *is_float) {
-        append(*builder, next(iterator));
+    // @TOOD: clean this up!
+    if hex {
+        while !end(iterator) && (is_digit(peek(iterator)) || is_identifier_char(peek(iterator))) {
+            append(*builder, next(iterator));
+        }
+    } else {
+        while !end(iterator) && is_valid_numeric_char(peek(iterator), iterator, *is_float) {
+            append(*builder, next(iterator));
+        }
     }
 
     number_value := builder_to_string(*builder);

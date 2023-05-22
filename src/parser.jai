@@ -1,5 +1,6 @@
 // @TODO:
-// - Fix floats...
+// - Fix floats
+// - Operator precedence
 
 // To Parse:
 // - All done?!
@@ -8,7 +9,7 @@
 // - type keywords (is this needed?)
 // - #insert_internal - deprecated (probably do not need anymore bacuse its deprecated)
 // - Split parsing into multiple files? 
-// - Tree ??
+// - Tree ?
 
 Files :: Table(string, []*Node);
 
@@ -112,6 +113,8 @@ Declaration :: struct {
 
     name: string;
     const: bool;
+    has_elsewhere: bool;
+    elsewhere: string;
     type_inst: *Node;
     expression: *Node;
     backticked: bool;
@@ -979,13 +982,19 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
     set_start_location(base_node, current_token);
     defer set_end_location(base_node, peek_token(tokenizer, -1));
     
-    // Binary operation
-    if is_operator(peek_token(tokenizer)) {
-        // Array or Struct literal
-        if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-            return parse_array_or_struct_literal(tokenizer, base_node);
-        } 
+    // recursive_parse_binary_op :: (tokenizer: *Tokenizer, base_left: *Node) -> *Node {
+    //     binary_op := parse_binary_operation(tokenizer, base_left);
+    //     Binary operation
+    //     if is_operator(peek_token(tokenizer)) {
+    //         print("Next\n");
+    //         return recursive_parse_binary_op(tokenizer, binary_op);
+    //     }
 
+    //     return binary_op;
+    // }
+
+    // Binary operation
+    if is_operator(peek_token(tokenizer)) && (!parent || parent.kind != .DECLARATION) {
         return parse_binary_operation(tokenizer, base_node);
     }
 
@@ -1302,7 +1311,8 @@ parse_comment :: (tokenizer: *Tokenizer) -> *Comment {
     return comment;
 }
 
-// player: Player;
+// player: Entity;
+// player: Entity = .{health=20};
 parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
     eat_token(tokenizer, #char ":");
     decl := New(Declaration);
@@ -1311,12 +1321,18 @@ parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Dec
     decl.backticked = ident_token.backticked;
 
     // decl: type_inst = exp;
-    if is_token(tokenizer, #char "=") {
-        eat_token(tokenizer, #char "=");
+    if meaybe_eat_token(tokenizer, #char "=") {
         decl.expression = parse(tokenizer, decl);
     }
 
     maybe_eat_token(tokenizer, #char ";");
+
+    if maybe_eat_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "elsewhere") {
+        decl.has_elsewhere = true;
+        if is_token(tokenizer, .IDENTIFIER) {
+            decl.elsewhere = eat_token(tokenizer, .IDENTIFIER).string_value;
+        }
+    }
 
     // Notes
     if is_token(tokenizer, .NOTE) {
@@ -1366,8 +1382,18 @@ parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> 
 parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     members := delimeted(tokenizer, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
 
+    // Probably @InComplete
+    is_procedure_args :: (kind: Node.Kind) -> bool {
+        if kind == .DECLARATION return true;
+        if kind == .USING return true;
+        if kind == .POLYMORPHIC_CONSTANT return true;
+        // ...
+
+        return false;
+    }
+
     // @TODO: this is kinda messy? We probably want to do this in some other way...
-    if members.count > 0 && members[0].kind != .DECLARATION && members[0].kind != .USING {
+    if members.count > 0 && !is_procedure_args(members[0].kind) {
 
         // Quick Lambda
         if is_token(tokenizer, .QUICK_LAMBDA) {
@@ -1745,7 +1771,9 @@ parse_directive_code :: (tokenizer: *Tokenizer) -> *Directive_Code {
 
     }
 
-    directive_code.expression = parse(tokenizer, directive_code);
+    if !directive_code._null {
+        directive_code.expression = parse(tokenizer, directive_code);
+    }
 
     return directive_code;
 }
@@ -2200,7 +2228,12 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Unary_Operation {
     return unary_operation;
 }
 
-parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Binary_Operation {
+parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Node {
+    // Array or Struct literal
+    if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+        return parse_array_or_struct_literal(tokenizer, left);
+    } 
+
     binary_operation := New(Binary_Operation);
     binary_operation.left = left;
 
@@ -2330,8 +2363,17 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
 
     switch := false;
 
+    find_last_binary_operator :: (binary_operation: *Binary_Operation) -> *Binary_Operation {
+        if binary_operation.right && binary_operation.right.kind == . BINARY_OPERATION {
+            return find_last_binary_operator(xx binary_operation.right);
+        }
+
+        return binary_operation;
+    }
+
     if _if.condition && _if.condition.kind == .BINARY_OPERATION {
-        binary_op := cast(*Binary_Operation) _if.condition;
+        binary_op := find_last_binary_operator(xx _if.condition);
+
         switch = binary_op.operation == .IS_EQUAL && binary_op.right && binary_op.right.kind == .BLOCK;
     }
 
@@ -2355,7 +2397,7 @@ parse_case :: (tokenizer: *Tokenizer) -> *Node {
     _case.expression = parse(tokenizer, _case);
     maybe_eat_token(tokenizer, #char ";");
     
-    for _case.members it.parent = _case;
+    _case.members = parse_until(tokenizer, token => token.kind == .KEYWORD_CASE || token.kind == #char "}", parent = _case);
 
     return _case;
 }
@@ -2480,9 +2522,9 @@ parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
     // assert(is_operator(op));
     operator_overload.operation = create_operator_from_token(op.kind);
 
-    eat_token(tokenizer, .CONSTANT_DECLARATION);
-
-    operator_overload.procedure = parse(tokenizer, operator_overload);
+    if maybe_eat_token(tokenizer, .CONSTANT_DECLARATION) {
+        operator_overload.procedure = parse(tokenizer, operator_overload);
+    }
 
     return operator_overload;
 }
