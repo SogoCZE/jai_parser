@@ -994,7 +994,7 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
     // }
 
     // Binary operation
-    if is_operator(peek_token(tokenizer)) && (!parent || parent.kind != .DECLARATION) {
+    if is_operator(peek_token(tokenizer)) {
         return parse_binary_operation(tokenizer, base_node);
     }
 
