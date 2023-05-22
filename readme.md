@@ -374,5 +374,6 @@ jai build.jai && ./bin/jai_parser ./tests/example.jai
 - Remove unnecessary heap allocations
 - Measure performance with Tracy and improve it (it's probably quite slow now)
 - Refactor data structures (maybe use linked list etc)
+- Rename stuff to their correct names (binary_operation vs binary_expression etc...)
 - Rename to Jaiser? 
 

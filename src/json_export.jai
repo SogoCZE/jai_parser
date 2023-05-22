@@ -9,7 +9,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
     append(*json_builder, "{");
 
     print_to_builder(*json_builder, "\"kind\": %,", json_write_string(node.kind));
-    print_to_builder(*json_builder, "\"location\": %,", json_write_string(node.location, indent_char=""));
+    print_to_builder(*json_builder, "\"location\": %", json_write_string(node.location, indent_char=""));
 
     is_node :: (info: *Type_Info) -> bool {
         if info.type == {
@@ -67,11 +67,9 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
             if member.name == "node" continue;
             if member.type.type == .TYPE continue;
 
-            if real_index > 0 {
-                append(*builder, #string STR 
-                    append(*json_builder, ",");
-                STR);
-            }
+             append(*builder, #string STR 
+                append(*json_builder, ",");
+            STR);
 
             if member.name == "values" {
 

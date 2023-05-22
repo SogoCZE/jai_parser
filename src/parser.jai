@@ -2057,7 +2057,10 @@ parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Sco
 
     members: [..]*Node;
 
-    is_token_scope_directive :: (token: *Token) -> bool {
+    is_token_end_of_scope_directive :: (token: *Token) -> bool {
+        // end of scope
+        if token.kind == #char "}" return true;
+
         if token.kind != .DIRECTIVE return false;
 
         if token.string_value == "scope_export" return true;
@@ -2067,7 +2070,7 @@ parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Sco
         return false;
     }
 
-    while !end(tokenizer) && !is_token(tokenizer, is_token_scope_directive) {
+    while !end(tokenizer) && !is_token(tokenizer, is_token_end_of_scope_directive) {
         node := parse(tokenizer, directive_scope);
         if !node continue; // Skip null nodes...
         array_add(*members, node);
@@ -2096,10 +2099,12 @@ parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Litera
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
         literal.values.array_literal_info.elements = parse_until(tokenizer, token => token.kind == #char "]", #char ",", parent=literal);
+        eat_token(tokenizer, #char "]");
     } else if maybe_eat_token(tokenizer, #char "{") {
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info = .{type=type};
         literal.values.struct_literal_info.body = parse_until(tokenizer, token => token.kind == #char "}", #char ",", parent=literal);
+        eat_token(tokenizer, #char "}");
     }
 
     return literal;
