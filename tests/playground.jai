@@ -1,3 +1,1 @@
-foo :: () {
-    
-} @Version(10)
+array[another_array[it]-1];

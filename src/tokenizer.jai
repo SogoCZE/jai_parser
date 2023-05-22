@@ -161,6 +161,14 @@ print_token :: (token: *Token) {
     }
 }
 
+token_kind_to_string :: (kind: Token_Kind) -> string {
+    if kind > 255 {
+        return tprint("%", kind);
+    } else {
+        return tprint("%", to_string(*(cast(u8) kind), 1));
+    }
+}
+
 // @TODO: Is this complete? ...
 is_operator :: (token: *Token) -> bool {
     if !token return false;
@@ -238,7 +246,7 @@ eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
     assert(token != null, "Token is null!");
 
     if token.kind != kind {
-        log_error("token % != required % (%:%:%)", token.kind, kind, token.file, token.l0, token.c0); // @TODO: is this ok?
+        log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?
     }
 
     return token;
@@ -357,13 +365,28 @@ parse_comment :: (using iterator: *Iterator) -> Token {
 
     builder: String_Builder;
     init_string_builder(*builder);
+    
+    nested_comment: int;
 
     while !end(iterator) {
         char := next(iterator);
         if !multiline && char == #char "\n" break;
-        if multiline && char == #char "*" && peek(iterator) == #char "/" {
-            next(iterator); // We remove end "/"
-            break;
+
+        if multiline {
+
+            if char == #char "/" && peek(iterator) == #char "*" {
+                nested_comment += 1;
+            }
+
+            if char == #char "*" && peek(iterator) == #char "/" {
+                if nested_comment == 0 {
+                    next(iterator); // We remove end "/"
+                    break;
+                }
+
+                nested_comment -= 1;
+            } 
+            
         }
 
         append(*builder, char);

@@ -10,7 +10,7 @@
             "name": "Debug",
             "program": "${workspaceFolder}/bin/jai_parser",
             "args": [
-                "tests/a.jai"
+                "tests/playground.jai"
             ],
             "cwd": "${workspaceFolder}"
         }
