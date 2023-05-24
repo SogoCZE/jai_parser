@@ -286,6 +286,7 @@ is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
 
 maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool, *Token {
     token := peek_token(tokenizer);
+    if !token return false, null;
     if !predicate(token) return false, null;
     return true, eat_token(tokenizer);
 }

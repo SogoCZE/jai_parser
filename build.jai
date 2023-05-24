@@ -11,6 +11,7 @@ TRACY_PROFILE :: false;
     options := get_build_options(w);
     options.output_executable_name = "jai_parser";
     options.output_path = "./bin";   
+    options.use_natvis_compatible_types = true;   
 
     tracy: *Metaprogram_Plugin;
     #if TRACY_PROFILE {

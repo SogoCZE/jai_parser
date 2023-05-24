@@ -11,6 +11,12 @@
 // - Split parsing into multiple files? 
 // - Tree ?
 
+Parser :: struct(User_Data_Type: Type) {
+    tokenizer: *Tokenizer;
+    node_visit: (node: *Node, user_data: User_Data_Type);
+    user_data: User_Data_Type;
+}
+
 Files :: Table(string, []*Node);
 
 Node :: struct {
@@ -119,6 +125,7 @@ Declaration :: struct {
     expression: *Node;
     backticked: bool;
     notes: [] *Note;
+    alignment: int; // @TODO: move this maybe into Type Instantiation struct?
 }
 
 Compound_Declaration :: struct {
@@ -816,48 +823,48 @@ set_end_location :: (using node: *Node, from_node: *Node) {
     location.c1 = from_node.location.c1;
 }
 
-delimeted :: (tokenizer: *Tokenizer, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
+delimeted :: (parser: *Parser, open: Token_Kind, close: Token_Kind, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
+    
+    eat_token(parser.tokenizer, open); 
 
-    eat_token(tokenizer, open); 
+    while !end(parser.tokenizer) {
+        if is_token(parser.tokenizer, close) break;
 
-    while !end(tokenizer) {
-        if is_token(tokenizer, close) break;
-
-        if seperator != 0 && is_token(tokenizer, seperator) {
-            eat_token(tokenizer, seperator);
+        if seperator != 0 && is_token(parser.tokenizer, seperator) {
+            eat_token(parser.tokenizer, seperator);
             continue;
         }
 
-        node := parse(tokenizer, parent);
+        node := parse(parser, parent);
         if node == null continue;
         array_add(*nodes, node);
 
-        if is_token(tokenizer, close) break;
+        if is_token(parser.tokenizer, close) break;
     }
 
-    maybe_eat_token(tokenizer, close);
+    maybe_eat_token(parser.tokenizer, close);
 
     return nodes;
 }
 
 // @TODO: Rename this to parse_until?
-parse_until :: (tokenizer: *Tokenizer, stop: (token: *Token) -> bool, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
+parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, seperator: Token_Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
-    while !end(tokenizer) {
-        if !peek_token(tokenizer) || stop(peek_token(tokenizer)) break;
+    while !end(parser.tokenizer) {
+        if !peek_token(parser.tokenizer) || stop(peek_token(parser.tokenizer)) break;
 
-        if seperator != 0 && is_token(tokenizer, seperator) {
-            eat_token(tokenizer, seperator);
+        if seperator != 0 && is_token(parser.tokenizer, seperator) {
+            eat_token(parser.tokenizer, seperator);
             continue;
         }
 
-        node := parse(tokenizer, parent);
+        node := parse(parser, parent);
         if node == null continue;
         array_add(*nodes, node);
 
-        if !peek_token(tokenizer) || stop(peek_token(tokenizer)) break;
+        if !peek_token(parser.tokenizer) || stop(peek_token(parser.tokenizer)) break;
     }
 
     return nodes;
@@ -920,6 +927,40 @@ get_module_entry :: (root: string) -> string {
     return uri;
 }
 
+Node_Visit_Data :: struct {
+    path_without_filename: string;
+    files: *Files;
+}
+
+node_visit :: (node: *Node, data: Node_Visit_Data) {
+
+    if node.kind == .DIRECTIVE_IMPORT {
+        _import := cast(*Directive_Import) node;
+
+        path: string;
+
+        if _import.import_kind == {
+            case .MODULE;
+                module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
+                path = get_module_entry(module_path);
+            case .FILE;
+                path = tprint("%/%", data.path_without_filename, _import.module); 
+            case .DIR;
+                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module)); 
+            case .STRING;
+                // @TODO: Do we wanna parse the string here?
+        }
+
+        parse_file(data.files, path); // @TODO: Run this in another thread?
+    }
+
+    if node.kind == .DIRECTIVE_LOAD {
+        _load := cast(*Directive_Load) node;
+        load_relative_path := tprint("%/%", data.path_without_filename, _load.file);
+        parse_file(data.files, load_relative_path); // @TODO: Run this in another thread?
+    }
+}
+
 parse_file :: (files: *Files, path: string) {
     if table_contains(files, path) {
         log("Skipping % because it already exists", path);
@@ -930,57 +971,36 @@ parse_file :: (files: *Files, path: string) {
     print("Parsing file %...\n", path);
 
     iterator := create_iterator(File_Module.read_entire_file(path), path);
-    tokenizer := create_tokenizer(*iterator);
+    parser: Parser(Node_Visit_Data);
+    parser.user_data = .{
+        files=files,
+        path_without_filename=path_without_filename,
+    };
+    parser.node_visit = node_visit;
+    parser.tokenizer = *create_tokenizer(*iterator);
 
     nodes: [..]*Node;
 
     table_set(files, path, nodes);
 
-    while !end(*tokenizer) {
-        node := parse(*tokenizer, null);
+    while !end(parser.tokenizer) {
+        node := parse(*parser, null);
         if !node continue;
-
-        if node.kind == .DIRECTIVE_IMPORT {
-            _import := cast(*Directive_Import) node;
-
-            path: string;
-
-            if _import.import_kind == {
-                case .MODULE;
-                    module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
-                    path = get_module_entry(module_path);
-                case .FILE;
-                    path = tprint("%/%", path_without_filename, _import.module); 
-                case .DIR;
-                    path = tprint("%/%", path_without_filename, get_module_entry(_import.module)); 
-                case .STRING;
-                    // @TODO: Do we wanna parse the string here?
-            }
-
-            parse_file(files, path); // @TODO: Run this in another thread?
-        }
-
-        if node.kind == .DIRECTIVE_LOAD {
-            _load := cast(*Directive_Load) node;
-            load_relative_path := tprint("%/%", path_without_filename, _load.file);
-            parse_file(files, load_relative_path); // @TODO: Run this in another thread?
-        }
-
         array_add(*nodes, node);
     }
 
     table_set(files, path, nodes);
 }
  
-parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
-    current_token := peek_token(tokenizer);
+parse :: (parser: *Parser, parent: *Node) -> *Node {
+    current_token := peek_token(parser.tokenizer);
 
-    base_node := parse_node(tokenizer);
+    base_node := parse_node(parser);
     if !base_node return null;
     base_node.parent = parent;
 
     set_start_location(base_node, current_token);
-    defer set_end_location(base_node, peek_token(tokenizer, -1));
+    defer set_end_location(base_node, peek_token(parser.tokenizer, -1));
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
@@ -993,20 +1013,23 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
     }
 
     // Comma Separated Expression, Compound Declaration ...
-    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && maybe_eat_token(tokenizer, #char ",") {
+    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && maybe_eat_token(parser.tokenizer, #char ",") {
         unprocessed_tokens: [..]Token;
 
         nodes: [..] *Node;
         array_add(*nodes, base_node);
 
-        while !end(tokenizer) {
+        while !end(parser.tokenizer) {
 
-            if maybe_eat_token(tokenizer, #char ",") {
-                local_tokenizer: Tokenizer;
-                local_tokenizer.tokens = unprocessed_tokens;
+            if maybe_eat_token(parser.tokenizer, #char ",") {
+                local_parser: Parser(Node_Visit_Data);
+                local_parser.node_visit = parser.node_visit;
+                local_parser.user_data = parser.user_data;
+                local_parser.tokenizer = *Tokenizer.{};
+                local_parser.tokenizer.tokens = unprocessed_tokens;
                 
-                while !end(*local_tokenizer) {
-                    node := parse(*local_tokenizer, *Node.{}); // @TODO: Parent hack!
+                while !end(local_parser.tokenizer) {
+                    node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
                     if !node continue;
                     array_add(*nodes, node);
                 }
@@ -1016,46 +1039,49 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
             }
 
             // @TODO: Anything else?
-            if is_token(tokenizer, #char ";") break;
-            if is_token(tokenizer, #char ")") break;
-            if is_token(tokenizer, #char "{") break;
-            if is_token(tokenizer, #char ":") break;
-            if is_token(tokenizer, .DECLARATION_AND_ASSIGN) break;
-            if is_token(tokenizer, #char "=") break;
+            if is_token(parser.tokenizer, #char ";") break;
+            if is_token(parser.tokenizer, #char ")") break;
+            if is_token(parser.tokenizer, #char "{") break;
+            if is_token(parser.tokenizer, #char ":") break;
+            if is_token(parser.tokenizer, .DECLARATION_AND_ASSIGN) break;
+            if is_token(parser.tokenizer, #char "=") break;
 
-            array_add(*unprocessed_tokens, eat_token(tokenizer));
+            array_add(*unprocessed_tokens, eat_token(parser.tokenizer));
         }
 
-        local_tokenizer: Tokenizer;
-        local_tokenizer.tokens = unprocessed_tokens;
+        local_parser: Parser(Node_Visit_Data);
+        local_parser.node_visit = parser.node_visit;
+        local_parser.user_data = parser.user_data;
+        local_parser.tokenizer = *Tokenizer.{};
+        local_parser.tokenizer.tokens = unprocessed_tokens;
         
-        while !end(*local_tokenizer) {
-            node := parse(*local_tokenizer, *Node.{}); // @TODO: Parent hack!
+        while !end(local_parser.tokenizer) {
+            node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
             if !node continue;
             array_add(*nodes, node);
         }
 
         // Compound Declaration
-        if maybe_eat_token(tokenizer, #char ":") {
+        if maybe_eat_token(parser.tokenizer, #char ":") {
             compound_declaration := New(Compound_Declaration);
             
             compound_declaration.members = nodes;
             for compound_declaration.members it.parent = compound_declaration;
 
             compound_declaration.parent = parent;
-            compound_declaration.type_inst = parse(tokenizer, compound_declaration);
+            compound_declaration.type_inst = parse(parser, compound_declaration);
             return compound_declaration;
         }   
 
         // Compound Declaration
-        if maybe_eat_token(tokenizer, .DECLARATION_AND_ASSIGN) {
+        if maybe_eat_token(parser.tokenizer, .DECLARATION_AND_ASSIGN) {
             compound_declaration := New(Compound_Declaration);
 
             compound_declaration.members = nodes;
             for compound_declaration.members it.parent = compound_declaration;
 
             compound_declaration.parent = parent;
-            compound_declaration.expression = parse(tokenizer, compound_declaration);
+            compound_declaration.expression = parse(parser, compound_declaration);
             return compound_declaration;
         }
 
@@ -1063,11 +1089,11 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
         comma_seperated_expression.members = nodes;
         for comma_seperated_expression.members it.parent = comma_seperated_expression;
 
-        if maybe_eat_token(tokenizer, #char "=") {
+        if maybe_eat_token(parser.tokenizer, #char "=") {
             binary_operation := New(Binary_Operation);
             binary_operation.left = comma_seperated_expression;
             binary_operation.operation = .ASSING;
-            binary_operation.right = parse(tokenizer, null);
+            binary_operation.right = parse(parser, null);
 
             binary_operation.left.parent  = binary_operation;
             binary_operation.right.parent = binary_operation;
@@ -1076,226 +1102,230 @@ parse :: (tokenizer: *Tokenizer, parent: *Node) -> *Node {
         }     
 
         comma_seperated_expression.parent = parent;
+    
+        parser.node_visit(comma_seperated_expression, parser.user_data);
 
         return comma_seperated_expression;
     }
 
+    parser.node_visit(base_node, parser.user_data);
+
     return base_node;
 }
 
-parse_node :: (tokenizer: *Tokenizer) -> *Node {
+parse_node :: (parser: *Parser) -> *Node {
 
     // Declaration, Binary Operation, Unary Operation, Identifier
-    if is_identifier(tokenizer) {
-        ident := eat_token(tokenizer, .IDENTIFIER);
+    if is_identifier(parser.tokenizer) {
+        ident := eat_token(parser.tokenizer, .IDENTIFIER);
 
         // Binary operation   
-        if is_operator(peek_token(tokenizer)) {
-            return parse_binary_operation(tokenizer, parse_identifier(tokenizer, ident));
+        if is_operator(peek_token(parser.tokenizer)) {
+            return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
 
         // Array Subscript
-        if is_token(tokenizer, #char "[") {
-            return parse_array_subscript(tokenizer, parse_identifier(tokenizer, ident));
+        if is_token(parser.tokenizer, #char "[") {
+            return parse_array_subscript(parser, parse_identifier(parser, ident));
         }
 
-        if is_token(tokenizer, .QUICK_LAMBDA) {
-            identifier := parse_identifier(tokenizer, ident);
+        if is_token(parser.tokenizer, .QUICK_LAMBDA) {
+            identifier := parse_identifier(parser, ident);
             arguments := NewArray(1, *Node);
             arguments[0] = identifier;
-            return parse_quick_lambda(tokenizer, arguments);
+            return parse_quick_lambda(parser, arguments);
         }
 
-        if is_token(tokenizer, #char "(") {
-            return parse_procedure_call(tokenizer, parse_identifier(tokenizer, ident));
+        if is_token(parser.tokenizer, #char "(") {
+            return parse_procedure_call(parser, parse_identifier(parser, ident));
         }
 
-        if is_token(tokenizer, .CONSTANT_DECLARATION) {
-            return parse_constant_declaration(tokenizer, ident);
+        if is_token(parser.tokenizer, .CONSTANT_DECLARATION) {
+            return parse_constant_declaration(parser, ident);
         }
         
-        if is_token(tokenizer, .DECLARATION_AND_ASSIGN) {
-            return parse_declaration_and_assign(tokenizer, ident);
+        if is_token(parser.tokenizer, .DECLARATION_AND_ASSIGN) {
+            return parse_declaration_and_assign(parser, ident);
         }
         
-        if is_token(tokenizer, #char ":") {
-            return parse_type_instantiation(tokenizer, ident);
+        if is_token(parser.tokenizer, #char ":") {
+            return parse_type_instantiation(parser, ident);
         }
 
-        return parse_identifier(tokenizer, ident);
+        return parse_identifier(parser, ident);
     }
 
     // Procedure
-    if is_token(tokenizer, #char "(") { 
-        return parse_procedure(tokenizer);
+    if is_token(parser.tokenizer, #char "(") { 
+        return parse_procedure(parser);
     }
 
     // Inline
-    if is_token(tokenizer, .KEYWORD_INLINE) {
-        return parse_inline(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_INLINE) {
+        return parse_inline(parser);
     }
 
     // Push Context
-    if is_token(tokenizer, .KEYWORD_PUSH_CONTEXT) {
-        return parse_push_context(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_PUSH_CONTEXT) {
+        return parse_push_context(parser);
     }
 
-    if is_token(tokenizer, .KEYWORD_OPERATOR) {
-        return parse_operator_overload(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_OPERATOR) {
+        return parse_operator_overload(parser);
     }
 
     // Polymorphic_Constant
-    if is_token(tokenizer, #char "$") {
-        return parse_polymorphic_constant(tokenizer, false);
+    if is_token(parser.tokenizer, #char "$") {
+        return parse_polymorphic_constant(parser, false);
     }
 
     // INITIALIZE ZERO
-    if is_token(tokenizer, .TRIPLE_MINUS) {
-        return parse_initialize_zero(tokenizer);
+    if is_token(parser.tokenizer, .TRIPLE_MINUS) {
+        return parse_initialize_zero(parser);
     }
     
     // Polymorphic_Constant
-    if is_token(tokenizer, .DOUBLE_DOLLAR) {
-        return parse_polymorphic_constant(tokenizer, true);
+    if is_token(parser.tokenizer, .DOUBLE_DOLLAR) {
+        return parse_polymorphic_constant(parser, true);
     }
 
     // Unary Operation
-    if is_unary_operator(tokenizer) {
+    if is_unary_operator(parser) {
 
         // Array or Struct literal
-        if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-            return parse_array_or_struct_literal(tokenizer, null);
+        if is_token(parser.tokenizer, #char ".") && is_token(parser.tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+            return parse_array_or_struct_literal(parser, null);
         } 
 
-        return parse_unary_operation(tokenizer);
+        return parse_unary_operation(parser);
     }
 
     // If
-    if is_token(tokenizer, .KEYWORD_IF) || is_token(tokenizer, .KEYWORD_IFX) {
-        return parse_if(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_IF) || is_token(parser.tokenizer, .KEYWORD_IFX) {
+        return parse_if(parser);
     }
 
     // Case
-    if is_token(tokenizer, .KEYWORD_CASE) {
-        return parse_case(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_CASE) {
+        return parse_case(parser);
     }
 
     // While
-    if is_token(tokenizer, .KEYWORD_WHILE) {
-        return parse_while(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_WHILE) {
+        return parse_while(parser);
     }
     
     // For
-    if is_token(tokenizer, .KEYWORD_FOR) {
-        return parse_for(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_FOR) {
+        return parse_for(parser);
     }
 
     // Struct
-    if is_token(tokenizer, .KEYWORD_STRUCT) {
-        return parse_struct(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_STRUCT) {
+        return parse_struct(parser);
     }
 
     // Union
-    if is_token(tokenizer, .KEYWORD_UNION) {
-        return parse_union(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_UNION) {
+        return parse_union(parser);
     }
     
     // Enum
-    if is_token(tokenizer, .KEYWORD_ENUM) {
-        return parse_enum(tokenizer, false);
+    if is_token(parser.tokenizer, .KEYWORD_ENUM) {
+        return parse_enum(parser, false);
     }
 
     // Enum_Flags
-    if is_token(tokenizer, .KEYWORD_ENUM_FLAGS) {
-        return parse_enum(tokenizer, true);
+    if is_token(parser.tokenizer, .KEYWORD_ENUM_FLAGS) {
+        return parse_enum(parser, true);
     }
     
     // Return
-    if is_token(tokenizer, .KEYWORD_RETURN) {
-        return parse_return(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_RETURN) {
+        return parse_return(parser);
     }
 
     // Using
-    if is_token(tokenizer, .KEYWORD_USING) {
-        return parse_using(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_USING) {
+        return parse_using(parser);
     }
     
     // Break
-    if is_token(tokenizer, .KEYWORD_BREAK) {
-        return parse_break(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_BREAK) {
+        return parse_break(parser);
     }
 
     // Continue
-    if is_token(tokenizer, .KEYWORD_CONTINUE) {
-        return parse_continue(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_CONTINUE) {
+        return parse_continue(parser);
     }
     
     // Defer
-    if is_token(tokenizer, .KEYWORD_DEFER) {
-        return parse_defer(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_DEFER) {
+        return parse_defer(parser);
     }
 
     // Cast
-    if is_token(tokenizer, .KEYWORD_CAST) {
-        return parse_cast(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_CAST) {
+        return parse_cast(parser);
     }
     
     // Auto Cast (xx)
-    if is_token(tokenizer, .KEYWORD_AUTO_CAST) {
-        return parse_auto_cast(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_AUTO_CAST) {
+        return parse_auto_cast(parser);
     }
 
     // Directive
-    if is_token(tokenizer, .DIRECTIVE) {
-        return parse_directive(tokenizer);
+    if is_token(parser.tokenizer, .DIRECTIVE) {
+        return parse_directive(parser);
     }
 
     // String literal
-    if is_token(tokenizer, .STRING) {
-        return parse_literal(tokenizer);
+    if is_token(parser.tokenizer, .STRING) {
+        return parse_literal(parser);
     }    
     
     // Numeric literal
-    if is_token(tokenizer, .NUMBER) {
-        return parse_literal(tokenizer);
+    if is_token(parser.tokenizer, .NUMBER) {
+        return parse_literal(parser);
     }
 
     // True literal
-    if is_token(tokenizer, .KEYWORD_TRUE) {
-        return parse_literal(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_TRUE) {
+        return parse_literal(parser);
     }    
     
     // False literal
-    if is_token(tokenizer, .KEYWORD_FALSE) {
-        return parse_literal(tokenizer);
+    if is_token(parser.tokenizer, .KEYWORD_FALSE) {
+        return parse_literal(parser);
     }
 
     // Block
-    if is_token(tokenizer, #char "{") {
-        return parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        return parse_block(parser);
     }
 
     // Array_Type
-    if is_token(tokenizer, #char "[") {
-        return parse_array_type(tokenizer);
+    if is_token(parser.tokenizer, #char "[") {
+        return parse_array_type(parser);
     }
 
     // Comment
-    if is_token(tokenizer, .COMMENT) {
-        return parse_comment(tokenizer);
+    if is_token(parser.tokenizer, .COMMENT) {
+        return parse_comment(parser);
     }
 
     // print("Eaten non match:\n");
-    // print_token(eat_token(tokenizer));
+    // print_token(eat_token(parser.tokenizer));
 
     // Skip other
-    eat_token(tokenizer);
+    eat_token(parser.tokenizer);
 
     return null;
 }
 
-parse_comment :: (tokenizer: *Tokenizer) -> *Comment {
-    comment_token := eat_token(tokenizer, .COMMENT);
+parse_comment :: (parser: *Parser) -> *Comment {
+    comment_token := eat_token(parser.tokenizer, .COMMENT);
     comment := New(Comment);
     comment.value = comment_token.string_value;
     return comment;
@@ -1303,74 +1333,80 @@ parse_comment :: (tokenizer: *Tokenizer) -> *Comment {
 
 // player: Entity;
 // player: Entity = .{health=20};
-parse_type_instantiation :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
-    eat_token(tokenizer, #char ":");
+parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declaration {
+    eat_token(parser.tokenizer, #char ":");
     decl := New(Declaration);
     decl.name = ident_token.string_value;
-    decl.type_inst = parse(tokenizer, decl);
+    decl.type_inst = parse(parser, decl);
     decl.backticked = ident_token.backticked;
 
-    // decl: type_inst = exp;
-    if meaybe_eat_token(tokenizer, #char "=") {
-        decl.expression = parse(tokenizer, decl);
+    // decl: u8 #align 32
+    if maybe_eat_token(parser.tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "align") {
+        align_token := eat_token(parser.tokenizer, .NUMBER);
+        decl.alignment = parse_int(*align_token.string_value);
     }
 
-    maybe_eat_token(tokenizer, #char ";");
+    // decl: type_inst = exp;
+    if meaybe_eat_token(parser.tokenizer, #char "=") {
+        decl.expression = parse(parser, decl);
+    }
 
-    if maybe_eat_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "elsewhere") {
+    maybe_eat_token(parser.tokenizer, #char ";");
+
+    if maybe_eat_token(parser.tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "elsewhere") {
         decl.has_elsewhere = true;
-        if is_token(tokenizer, .IDENTIFIER) {
-            decl.elsewhere = eat_token(tokenizer, .IDENTIFIER).string_value;
+        if is_token(parser.tokenizer, .IDENTIFIER) {
+            decl.elsewhere = eat_token(parser.tokenizer, .IDENTIFIER).string_value;
         }
     }
 
     // Notes
-    if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer, decl);
+    if is_token(parser.tokenizer, .NOTE) {
+        decl.notes = parse_notes(parser, decl);
     }
 
     return decl;
 }
 
 // PLAYER_MAX_HP :: 120;
-parse_constant_declaration :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
-    eat_token(tokenizer, .CONSTANT_DECLARATION);
+parse_constant_declaration :: (parser: *Parser, ident_token: *Token) -> *Declaration {
+    eat_token(parser.tokenizer, .CONSTANT_DECLARATION);
     decl := New(Declaration);
     decl.name = ident_token.string_value;
     decl.backticked = ident_token.backticked;
     decl.const = true;
-    decl.expression = parse(tokenizer, decl);
+    decl.expression = parse(parser, decl);
 
-    maybe_eat_token(tokenizer, #char ";");
+    maybe_eat_token(parser.tokenizer, #char ";");
 
     // Notes
-    if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer, decl);
+    if is_token(parser.tokenizer, .NOTE) {
+        decl.notes = parse_notes(parser, decl);
     }
 
     return decl;
 }
 
 // player_position := Vec3.{10, 20, 10};
-parse_declaration_and_assign :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Declaration {
-    eat_token(tokenizer, .DECLARATION_AND_ASSIGN);
+parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Declaration {
+    eat_token(parser.tokenizer, .DECLARATION_AND_ASSIGN);
     decl := New(Declaration);
     decl.name = ident_token.string_value;
     decl.backticked = ident_token.backticked;
-    decl.expression = parse(tokenizer, decl);
+    decl.expression = parse(parser, decl);
 
-    maybe_eat_token(tokenizer, #char ";");
+    maybe_eat_token(parser.tokenizer, #char ";");
 
     // Notes
-    if is_token(tokenizer, .NOTE) {
-        decl.notes = parse_notes(tokenizer, decl);
+    if is_token(parser.tokenizer, .NOTE) {
+        decl.notes = parse_notes(parser, decl);
     }
 
     return decl;
 }
 
-parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
-    members := delimeted(tokenizer, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
+parse_procedure :: (parser: *Parser) -> *Node {
+    members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
 
     // Probably @InComplete
     is_procedure_args :: (kind: Node.Kind) -> bool {
@@ -1386,8 +1422,8 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     if members.count > 0 && !is_procedure_args(members[0].kind) {
 
         // Quick Lambda
-        if is_token(tokenizer, .QUICK_LAMBDA) {
-            return parse_quick_lambda(tokenizer, members);
+        if is_token(parser.tokenizer, .QUICK_LAMBDA) {
+            return parse_quick_lambda(parser, members);
         }
 
         // Comma Seperated Expression
@@ -1405,8 +1441,8 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
     for proc.arguments it.parent = proc;
 
     // returns
-    if meaybe_eat_token(tokenizer, .ARROW_RIGHT) {
-        meaybe_eat_token(tokenizer, #char "(");
+    if meaybe_eat_token(parser.tokenizer, .ARROW_RIGHT) {
+        meaybe_eat_token(parser.tokenizer, #char "(");
         returns: [..]*Return_Value;
 
         is_returns_end_token :: (token: *Token) -> bool {
@@ -1416,14 +1452,14 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
             return false;
         }
 
-        while !end(tokenizer) && !is_token(tokenizer, is_returns_end_token) {
-            if maybe_eat_token(tokenizer, #char ",") continue; 
+        while !end(parser.tokenizer) && !is_token(parser.tokenizer, is_returns_end_token) {
+            if maybe_eat_token(parser.tokenizer, #char ",") continue; 
 
             return_value := New(Return_Value);
-            return_value.expression = parse(tokenizer, proc);
+            return_value.expression = parse(parser, proc);
 
-            if is_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
-                eat_token(tokenizer, .DIRECTIVE);
+            if is_token(parser.tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
+                eat_token(parser.tokenizer, .DIRECTIVE);
                 return_value.must = true;
             }
 
@@ -1436,11 +1472,11 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
         }
 
         proc.returns = returns;
-        meaybe_eat_token(tokenizer, #char ")");
+        meaybe_eat_token(parser.tokenizer, #char ")");
     }
 
-    parse_proc_directive :: (tokenizer: *Tokenizer, proc: *Procedure) {
-        directive := eat_token(tokenizer, .DIRECTIVE);
+    parse_proc_directive :: (parser: *Parser, proc: *Procedure) {
+        directive := eat_token(parser.tokenizer, .DIRECTIVE);
 
         if directive.string_value == {
             case "expand";
@@ -1460,24 +1496,29 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
                 proc.flags |= .C_CALL;
             case "intrinsic";
                 proc.flags |= .INTRINSIC;
-                proc.intrinsic = eat_token(tokenizer, .IDENTIFIER).string_value;
+                proc.intrinsic = eat_token(parser.tokenizer, .IDENTIFIER).string_value;
             case "compiler";
                 proc.flags |= .COMPILER;
             case "elsewhere";
                 proc.flags |= .ELSEWHERE;
-                proc.elsewhere = eat_token(tokenizer, .IDENTIFIER).string_value;
+                proc.elsewhere = eat_token(parser.tokenizer, .IDENTIFIER).string_value;
             case "foreign";
                 proc.flags |= .FOREIGN;
-                proc.foreign_lib = eat_token(tokenizer, .IDENTIFIER).string_value;
-                if is_token(tokenizer, .STRING) {
-                    proc.foreign_alias = eat_token(tokenizer, .STRING).string_value;
+    
+                if is_token(parser.tokenizer, .IDENTIFIER) {
+                    proc.foreign_lib = eat_token(parser.tokenizer, .IDENTIFIER).string_value;
+
+                    if is_token(parser.tokenizer, .STRING) {
+                        proc.foreign_alias = eat_token(parser.tokenizer, .STRING).string_value;
+                    }
                 }
+              
             case "no_call";
                 proc.flags |= .NO_CALL;
             case "deprecated";
                 proc.flags |= .DEPRECATED;
-                if is_token(tokenizer, .STRING) {
-                    proc.deprecated_note = eat_token(tokenizer, .STRING).string_value;
+                if is_token(parser.tokenizer, .STRING) {
+                    proc.deprecated_note = eat_token(parser.tokenizer, .STRING).string_value;
                 }
             case "no_alias";
                 proc.flags |= .NO_ALIAS;
@@ -1486,62 +1527,62 @@ parse_procedure :: (tokenizer: *Tokenizer) -> *Node {
             case "symmetric"; // @TODO: this is only needed for Operator Overload
                 proc.flags |= .SYMMETRIC;
             case "modify";
-                proc.modify_block = parse_block(tokenizer);
+                proc.modify_block = parse_block(parser);
                 proc.modify_block.parent = proc;
             case "no_abc";
                 proc.flags |= .NO_ABC;
         }
 
-        if is_token(tokenizer, .DIRECTIVE) {
-            parse_proc_directive(tokenizer, proc);
+        if is_token(parser.tokenizer, .DIRECTIVE) {
+            parse_proc_directive(parser, proc);
         }
     }   
 
     // Directives
-    if is_token(tokenizer, .DIRECTIVE) {
-        parse_proc_directive(tokenizer, proc);
+    if is_token(parser.tokenizer, .DIRECTIVE) {
+        parse_proc_directive(parser, proc);
     }
 
     // Body
-    if is_token(tokenizer, #char "{") {
-        proc.body = parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        proc.body = parse_block(parser);
         proc.body.parent = proc;
     } 
 
     // Notes
-    if is_token(tokenizer, .NOTE) {
-        proc.notes = parse_notes(tokenizer, proc);
+    if is_token(parser.tokenizer, .NOTE) {
+        proc.notes = parse_notes(parser, proc);
     }
 
     return proc;
 }
 
-parse_quick_lambda :: (tokenizer: *Tokenizer, arguments: []*Node) -> *Quick_Lambda {
+parse_quick_lambda :: (parser: *Parser, arguments: []*Node) -> *Quick_Lambda {
     quick_lambda := New(Quick_Lambda);
     quick_lambda.arguments = arguments;
     for quick_lambda.arguments it.parent = quick_lambda;
 
-    eat_token(tokenizer, .QUICK_LAMBDA);
-    quick_lambda._return = parse(tokenizer, quick_lambda);
+    eat_token(parser.tokenizer, .QUICK_LAMBDA);
+    quick_lambda._return = parse(parser, quick_lambda);
 
     return quick_lambda;
 }
 
-parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
+parse_struct :: (parser: *Parser) -> *Struct {
     _struct := New(Struct);
 
-    eat_token(tokenizer, .KEYWORD_STRUCT);
+    eat_token(parser.tokenizer, .KEYWORD_STRUCT);
 
-    if is_token(tokenizer, #char "(") {
-        _struct.polymorphic_arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", _struct);
+    if is_token(parser.tokenizer, #char "(") {
+        _struct.polymorphic_arguments = delimeted(parser, #char "(", #char ")", #char ",", _struct);
     }
 
-    parse_struct_directive :: (tokenizer: *Tokenizer, _struct: *Struct) {
-        directive := eat_token(tokenizer, .DIRECTIVE);
+    parse_struct_directive :: (parser: *Parser, _struct: *Struct) {
+        directive := eat_token(parser.tokenizer, .DIRECTIVE);
 
         if directive.string_value == {
             case "modify";
-                _struct.modify_block = parse_block(tokenizer);
+                _struct.modify_block = parse_block(parser);
             case "type_info_no_size_complaint";
                 _struct.flags |= .TYPE_INFO_NO_SIZE_COMPLAINT;
             case "type_info_procedures_are_void_pointers";
@@ -1550,102 +1591,102 @@ parse_struct :: (tokenizer: *Tokenizer) -> *Struct {
                 _struct.flags |= .TYPE_INFO_NONE;
         }
 
-        if is_token(tokenizer, .DIRECTIVE) {
-            parse_struct_directive(tokenizer, _struct);
+        if is_token(parser.tokenizer, .DIRECTIVE) {
+            parse_struct_directive(parser, _struct);
         }
     }
 
     // Directives
-    if is_token(tokenizer, .DIRECTIVE) {
-        parse_struct_directive(tokenizer, _struct);
+    if is_token(parser.tokenizer, .DIRECTIVE) {
+        parse_struct_directive(parser, _struct);
     }
 
-    if is_token(tokenizer, #char "{") {
-        _struct.block = parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
     } else {
         print("Exprected struct body! Got:");
-        print_token(peek_token(tokenizer));
+        print_token(peek_token(parser.tokenizer));
     }
 
-    if is_token(tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "no_padding") {
-        eat_token(tokenizer, .DIRECTIVE);
+    if is_token(parser.tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "no_padding") {
+        eat_token(parser.tokenizer, .DIRECTIVE);
         _struct.flags |= .NO_PADDING;
     }
 
-    if is_token(tokenizer, .NOTE) {
-        _struct.notes = parse_notes(tokenizer, _struct);
+    if is_token(parser.tokenizer, .NOTE) {
+        _struct.notes = parse_notes(parser, _struct);
     }
 
     return _struct;
 }
 
 // union {}
-parse_union :: (tokenizer: *Tokenizer) -> *Union {
+parse_union :: (parser: *Parser) -> *Union {
     _union := New(Union);
 
-    eat_token(tokenizer, .KEYWORD_UNION);
+    eat_token(parser.tokenizer, .KEYWORD_UNION);
 
-    if is_token(tokenizer, #char "{") {
-        _union.block = parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        _union.block = parse_block(parser);
         _union.block.parent = _union;
     } else {
         print("Exprected union body! Got:");
-        print_token(peek_token(tokenizer));
+        print_token(peek_token(parser.tokenizer));
     }
 
-    if is_token(tokenizer, .NOTE) {
-        _union.notes = parse_notes(tokenizer, _union);
+    if is_token(parser.tokenizer, .NOTE) {
+        _union.notes = parse_notes(parser, _union);
     }
 
     return _union;
 }
 
 // enum {}
-parse_enum :: (tokenizer: *Tokenizer, is_enum_flags: bool) -> *Enum {
+parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
     _enum := New(Enum);
     _enum.is_enum_flags = is_enum_flags;
 
-    eat_token(tokenizer, ifx is_enum_flags then Token_Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM );
+    eat_token(parser.tokenizer, ifx is_enum_flags then Token_Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM );
 
     // Type specifier
-    if !is_token(tokenizer, #char "{") {
-        _enum.type = parse(tokenizer, _enum);
+    if !is_token(parser.tokenizer, #char "{") {
+        _enum.type = parse(parser, _enum);
     }
 
     // Specified directive
-    if is_token(tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "specified") {
-        eat_token(tokenizer, .DIRECTIVE);
+    if is_token(parser.tokenizer, token => token.kind == .DIRECTIVE && token.string_value == "specified") {
+        eat_token(parser.tokenizer, .DIRECTIVE);
         _enum.specified = true;
     }
 
     // Body
-    if is_token(tokenizer, #char "{") {
-        _enum.block = parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        _enum.block = parse_block(parser);
         _enum.block.parent = _enum;
     } else {
         print("Exprected enum body! Got:");
-        print_token(peek_token(tokenizer));
+        print_token(peek_token(parser.tokenizer));
     }
 
-    if is_token(tokenizer, .NOTE) {
-        _enum.notes = parse_notes(tokenizer, _enum);
+    if is_token(parser.tokenizer, .NOTE) {
+        _enum.notes = parse_notes(parser, _enum);
     }
 
     return _enum;
 }
 
 // {}
-parse_block :: (tokenizer: *Tokenizer) -> *Block {
+parse_block :: (parser: *Parser) -> *Block {
     block := New(Block);
-    set_start_location(block, peek_token(tokenizer));
-    block.members = delimeted(tokenizer, #char "{", #char "}", parent=block);
-    set_end_location(block, peek_token(tokenizer, -1));
+    set_start_location(block, peek_token(parser.tokenizer));
+    block.members = delimeted(parser, #char "{", #char "}", parent=block);
+    set_end_location(block, peek_token(parser.tokenizer, -1));
     return block;
 }
 
 // print()
-parse_procedure_call :: (tokenizer: *Tokenizer, procedure: *Node) -> *Node {
+parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     proc_call := New(Procedure_Call);
     proc_call.procedure = procedure;
 
@@ -1653,138 +1694,143 @@ parse_procedure_call :: (tokenizer: *Tokenizer, procedure: *Node) -> *Node {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
     }
 
-    proc_call.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", proc_call);
+    proc_call.arguments = delimeted(parser, #char "(", #char ")", #char ",", proc_call);
 
     // Array Subscript generate_array()[0]
-    if is_token(tokenizer, #char "[") {
-        return parse_array_subscript(tokenizer, proc_call);
+    if is_token(parser.tokenizer, #char "[") {
+        return parse_array_subscript(parser, proc_call);
     }
 
     // Procedure Call generate_proc()();
-    if is_token(tokenizer, #char "(") {
-        return parse_procedure_call(tokenizer, proc_call);
+    if is_token(parser.tokenizer, #char "(") {
+        return parse_procedure_call(parser, proc_call);
+    }
+
+    // Binary operation   
+    if is_operator(peek_token(parser.tokenizer)) {
+        return parse_binary_operation(parser, proc_call);
     }
 
     return proc_call;
 }
 
 // #run 
-parse_directive :: (tokenizer: *Tokenizer) -> *Node {
-    directive_token := eat_token(tokenizer, .DIRECTIVE);
+parse_directive :: (parser: *Parser) -> *Node {
+    directive_token := eat_token(parser.tokenizer, .DIRECTIVE);
 
     if directive_token.string_value == {
-        case "import";              return parse_directive_import(tokenizer);
-        case "load";                return parse_directive_load(tokenizer);
-        case "run";                 return parse_directive_run(tokenizer);
-        case "as";                  return parse_directive_as(tokenizer);
-        case "place";               return parse_directive_place(tokenizer);
-        case "type";                return parse_directive_type(tokenizer);
-        case "code";                return parse_directive_code(tokenizer);
-        case "char";                return parse_directive_char(tokenizer);
-        case "add_context";         return parse_directive_add_context(tokenizer);
-        case "assert";              return parse_directive_assert(tokenizer);
-        case "bake_arguments";      return parse_directive_bake_arguments(tokenizer);
-        case "bake_constants";      return parse_directive_bake_constants(tokenizer);
-        case "bytes";               return parse_directive_bytes(tokenizer);
-        case "no_reset";            return parse_directive_no_reset(tokenizer);
-        case "insert";              return parse_directive_insert(tokenizer);
-        case "location";            return parse_directive_location(tokenizer);
-        case "module_parameters";   return parse_directive_module_parameters(tokenizer);
-        case "placeholder";         return parse_directive_placeholder(tokenizer);
-        case "procedure_of_call";   return parse_directive_procedure_of_call(tokenizer);
-        case "program_export";      return parse_directive_program_export(tokenizer);
-        case "this";                return parse_directive_this(tokenizer);
-        case "poke_name";           return parse_directive_poke_name(tokenizer);
-        case "dynamic_specialize";  return parse_directive_dynamic_specialize(tokenizer);
-        case "caller_code";         return parse_directive_caller_code(tokenizer);
-        case "caller_location";     return parse_directive_caller_location(tokenizer);
-        case "file";                return parse_directive_file(tokenizer);
-        case "filepath";            return parse_directive_filepath(tokenizer);
-        case "line";                return parse_directive_line(tokenizer);
-        case "through";             return parse_directive_through(tokenizer);
-        case "compile_time";        return parse_directive_compile_time(tokenizer);
+        case "import";              return parse_directive_import(parser);
+        case "load";                return parse_directive_load(parser);
+        case "run";                 return parse_directive_run(parser);
+        case "as";                  return parse_directive_as(parser);
+        case "place";               return parse_directive_place(parser);
+        case "type";                return parse_directive_type(parser);
+        case "code";                return parse_directive_code(parser);
+        case "char";                return parse_directive_char(parser);
+        case "add_context";         return parse_directive_add_context(parser);
+        case "assert";              return parse_directive_assert(parser);
+        case "bake_arguments";      return parse_directive_bake_arguments(parser);
+        case "bake_constants";      return parse_directive_bake_constants(parser);
+        case "bytes";               return parse_directive_bytes(parser);
+        case "no_reset";            return parse_directive_no_reset(parser);
+        case "insert";              return parse_directive_insert(parser);
+        case "location";            return parse_directive_location(parser);
+        case "module_parameters";   return parse_directive_module_parameters(parser);
+        case "placeholder";         return parse_directive_placeholder(parser);
+        case "procedure_of_call";   return parse_directive_procedure_of_call(parser);
+        case "program_export";      return parse_directive_program_export(parser);
+        case "this";                return parse_directive_this(parser);
+        case "poke_name";           return parse_directive_poke_name(parser);
+        case "dynamic_specialize";  return parse_directive_dynamic_specialize(parser);
+        case "caller_code";         return parse_directive_caller_code(parser);
+        case "caller_location";     return parse_directive_caller_location(parser);
+        case "file";                return parse_directive_file(parser);
+        case "filepath";            return parse_directive_filepath(parser);
+        case "line";                return parse_directive_line(parser);
+        case "through";             return parse_directive_through(parser);
+        case "compile_time";        return parse_directive_compile_time(parser);
 
-        case "library";             return parse_directive_library(tokenizer, false);
-        case "system_library";      return parse_directive_library(tokenizer, true);
+        case "library";             return parse_directive_library(parser, false);
+        case "system_library";      return parse_directive_library(parser, true);
         
-        case "scope_export";        return parse_directive_scope(tokenizer, .EXPORT);
-        case "scope_file";          return parse_directive_scope(tokenizer, .FILE);
-        case "scope_module";        return parse_directive_scope(tokenizer, .MODULE);
+        case "scope_export";        return parse_directive_scope(parser, .EXPORT);
+        case "scope_file";          return parse_directive_scope(parser, .FILE);
+        case "scope_module";        return parse_directive_scope(parser, .MODULE);
 
-        case "asm";                 return parse_inline_assembly(tokenizer);
-        case "if";                  return parse_if(tokenizer, .IF, true);
-        case "ifx";                 return parse_if(tokenizer, .IFX, true);
+        case "asm";                 return parse_inline_assembly(parser);
+        case "if";                  return parse_if(parser, .IF, true);
+        case "ifx";                 return parse_if(parser, .IFX, true);
     }
 
     // @TODO: Unknown directive?
-    eat_token(tokenizer);
+    eat_token(parser.tokenizer);
     log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, directive_token.file, directive_token.l0, directive_token.c0);
 
     return null;
 }
 
-parse_directive_run :: (tokenizer: *Tokenizer) -> *Directive_Run {
+parse_directive_run :: (parser: *Parser) -> *Directive_Run {
     directive_run := New(Directive_Run);
 
-    if maybe_eat_token(tokenizer, #char ",") 
-        && is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
-        eat_token(tokenizer, .IDENTIFIER);
+    if maybe_eat_token(parser.tokenizer, #char ",") 
+        && is_token(parser.tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
+        eat_token(parser.tokenizer, .IDENTIFIER);
 
         directive_run.stallable = true;
     }
 
-    directive_run.expression = parse(tokenizer, directive_run);   
+    directive_run.expression = parse(parser, directive_run);   
 
     return directive_run;
 }
 
-parse_directive_char :: (tokenizer: *Tokenizer) -> *Directive_Char {
+parse_directive_char :: (parser: *Parser) -> *Directive_Char {
     directive_char := New(Directive_Char);
-    directive_char.string_literal = parse(tokenizer, directive_char);
+    directive_char.string_literal = parse(parser, directive_char);
     return directive_char;
 }
 
-parse_directive_code :: (tokenizer: *Tokenizer) -> *Directive_Code {
+parse_directive_code :: (parser: *Parser) -> *Directive_Code {
     directive_code := New(Directive_Code);
 
-    if maybe_eat_token(tokenizer, #char ",") {  
+    if maybe_eat_token(parser.tokenizer, #char ",") {  
 
-        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "typed") {
-            eat_token(tokenizer, .IDENTIFIER);
+        if is_token(parser.tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "typed") {
+            eat_token(parser.tokenizer, .IDENTIFIER);
             directive_code.typed = true;
         }
         
-        if is_token(tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "null") {
-            eat_token(tokenizer, .IDENTIFIER);
+        if is_token(parser.tokenizer, token => token.kind == .IDENTIFIER && token.string_value == "null") {
+            eat_token(parser.tokenizer, .IDENTIFIER);
             directive_code._null = true;
         }
 
     }
 
     if !directive_code._null {
-        directive_code.expression = parse(tokenizer, directive_code);
+        directive_code.expression = parse(parser, directive_code);
     }
 
     return directive_code;
 }
 
-parse_directive_as :: (tokenizer: *Tokenizer) -> *Directive_As {
+parse_directive_as :: (parser: *Parser) -> *Directive_As {
     directive_as := New(Directive_As);
-    directive_as.expression = parse(tokenizer, directive_as);
+    directive_as.expression = parse(parser, directive_as);
     return directive_as;
 }
 
-parse_directive_add_context :: (tokenizer: *Tokenizer) -> *Directive_Add_Context {
+parse_directive_add_context :: (parser: *Parser) -> *Directive_Add_Context {
     directive_add_context := New(Directive_Add_Context);
-    directive_add_context.expression = parse(tokenizer, directive_add_context);
+    directive_add_context.expression = parse(parser, directive_add_context);
     return directive_add_context;
 }
 
-parse_directive_import :: (tokenizer: *Tokenizer) -> *Directive_Import {
+parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     directive_import := New(Directive_Import);
 
-    if maybe_eat_token(tokenizer, #char ",") {
-        ok, modifier_token := maybe_eat_token(tokenizer, t => t.kind == .IDENTIFIER);
+    if maybe_eat_token(parser.tokenizer, #char ",") {
+        ok, modifier_token := maybe_eat_token(parser.tokenizer, t => t.kind == .IDENTIFIER);
         if ok {
 
             if modifier_token.string_value == {
@@ -1797,119 +1843,119 @@ parse_directive_import :: (tokenizer: *Tokenizer) -> *Directive_Import {
 
     }
 
-    directive_import.module = eat_token(tokenizer, .STRING).string_value;
+    directive_import.module = eat_token(parser.tokenizer, .STRING).string_value;
     
     return directive_import;
 }
 
-parse_directive_load :: (tokenizer: *Tokenizer) -> *Directive_Load {
+parse_directive_load :: (parser: *Parser) -> *Directive_Load {
     directive_load := New(Directive_Load);
-    directive_load.file = eat_token(tokenizer, .STRING).string_value;
+    directive_load.file = eat_token(parser.tokenizer, .STRING).string_value;
     return directive_load;
 }
 
-parse_directive_place :: (tokenizer: *Tokenizer) -> *Directive_Place {
+parse_directive_place :: (parser: *Parser) -> *Directive_Place {
     directive_place := New(Directive_Place);
-    directive_place.expression = parse(tokenizer, directive_place);
+    directive_place.expression = parse(parser, directive_place);
     return directive_place;
 }
 
-parse_directive_type :: (tokenizer: *Tokenizer) -> *Directive_Type {
+parse_directive_type :: (parser: *Parser) -> *Directive_Type {
     directive_type := New(Directive_Type);
 
-    if maybe_eat_token(tokenizer, #char ",") {
+    if maybe_eat_token(parser.tokenizer, #char ",") {
 
-        if is_token(tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "isa") {
-            eat_token(tokenizer, .IDENTIFIER);
+        if is_token(parser.tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "isa") {
+            eat_token(parser.tokenizer, .IDENTIFIER);
             directive_type.isa = true;
         }
         
-        if is_token(tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "distinct") {
-            eat_token(tokenizer, .IDENTIFIER);
+        if is_token(parser.tokenizer, char  => char.kind == .IDENTIFIER && char.string_value == "distinct") {
+            eat_token(parser.tokenizer, .IDENTIFIER);
             directive_type.distinct = true;
         }
 
     }
 
-    directive_type.expression = parse(tokenizer, directive_type);
+    directive_type.expression = parse(parser, directive_type);
     return directive_type;
 }
 
-parse_directive_assert :: (tokenizer: *Tokenizer) -> *Directive_Assert {
+parse_directive_assert :: (parser: *Parser) -> *Directive_Assert {
     directive_assert := New(Directive_Assert);
 
-    directive_assert.condition = parse(tokenizer, directive_assert);
+    directive_assert.condition = parse(parser, directive_assert);
 
-    if is_token(tokenizer, .STRING) {
-        message_token := eat_token(tokenizer, .STRING);
+    if is_token(parser.tokenizer, .STRING) {
+        message_token := eat_token(parser.tokenizer, .STRING);
         directive_assert.message = message_token.string_value;
     }
 
     return directive_assert;
 }
 
-parse_directive_bake_arguments :: (tokenizer: *Tokenizer) -> *Directive_Bake_Arguments {
+parse_directive_bake_arguments :: (parser: *Parser) -> *Directive_Bake_Arguments {
     directive_bake_arguments := New(Directive_Bake_Arguments);
-    directive_bake_arguments.expression = parse(tokenizer, directive_bake_arguments);
+    directive_bake_arguments.expression = parse(parser, directive_bake_arguments);
 
     return directive_bake_arguments;
 }
 
-parse_directive_bake_constants :: (tokenizer: *Tokenizer) -> *Directive_Bake_Constants {
+parse_directive_bake_constants :: (parser: *Parser) -> *Directive_Bake_Constants {
     directive_bake_constants := New(Directive_Bake_Constants);
-    directive_bake_constants.expression = parse(tokenizer, directive_bake_constants);
+    directive_bake_constants.expression = parse(parser, directive_bake_constants);
 
     return directive_bake_constants;
 }
 
-parse_directive_bytes :: (tokenizer: *Tokenizer) -> *Directive_Bytes {
+parse_directive_bytes :: (parser: *Parser) -> *Directive_Bytes {
     directive_bytes := New(Directive_Bytes);
-    directive_bytes.expression = parse(tokenizer, directive_bytes);
+    directive_bytes.expression = parse(parser, directive_bytes);
 
     return directive_bytes;
 }
 
-parse_directive_library :: (tokenizer: *Tokenizer, system: bool) -> *Directive_Library {
+parse_directive_library :: (parser: *Parser, system: bool) -> *Directive_Library {
     directive_library := New(Directive_Library);
     directive_library.system = system; 
 
-    if maybe_eat_token(tokenizer, #char ",") && maybe_eat_token(tokenizer, token => token.string_value == "no_static_library") {
+    if maybe_eat_token(parser.tokenizer, #char ",") && maybe_eat_token(parser.tokenizer, token => token.string_value == "no_static_library") {
         directive_library.no_static_library = true;
     }
 
-    if is_token(tokenizer, .STRING) {
-        name_token := eat_token(tokenizer, .STRING);
+    if is_token(parser.tokenizer, .STRING) {
+        name_token := eat_token(parser.tokenizer, .STRING);
         directive_library.name = name_token.string_value;
     }
 
     return directive_library;
 }
 
-parse_directive_no_reset :: (tokenizer: *Tokenizer) -> *Directive_No_Reset {
+parse_directive_no_reset :: (parser: *Parser) -> *Directive_No_Reset {
     directive_no_reset := New(Directive_No_Reset);
-    directive_no_reset.expression = parse(tokenizer, directive_no_reset);
+    directive_no_reset.expression = parse(parser, directive_no_reset);
 
     return directive_no_reset;
 }
 
-parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
+parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
     directive_insert := New(Directive_Insert);
     
-    if maybe_eat_token(tokenizer, #char ",") 
-    && maybe_eat_token(tokenizer, token => token.string_value == "scope") {
+    if maybe_eat_token(parser.tokenizer, #char ",") 
+    && maybe_eat_token(parser.tokenizer, token => token.string_value == "scope") {
         directive_insert.scoped = true;
 
-        maybe_eat_token(tokenizer, #char "(");
+        maybe_eat_token(parser.tokenizer, #char "(");
     
-        if !is_token(tokenizer, #char ")") {
-            directive_insert.scope = parse(tokenizer, directive_insert);
+        if !is_token(parser.tokenizer, #char ")") {
+            directive_insert.scope = parse(parser, directive_insert);
         }
 
-        maybe_eat_token(tokenizer, #char ")");
+        maybe_eat_token(parser.tokenizer, #char ")");
     }
 
-    if maybe_eat_token(tokenizer, .ARROW_RIGHT) {
-        insert_type_ident := eat_token(tokenizer, .IDENTIFIER);
+    if maybe_eat_token(parser.tokenizer, .ARROW_RIGHT) {
+        insert_type_ident := eat_token(parser.tokenizer, .IDENTIFIER);
         
         if insert_type_ident.string_value == {
             case "string"; directive_insert.type   = .STRING;
@@ -1918,130 +1964,130 @@ parse_directive_insert :: (tokenizer: *Tokenizer) -> *Directive_Insert {
 
     }
 
-    directive_insert.expression = parse(tokenizer, directive_insert);
+    directive_insert.expression = parse(parser, directive_insert);
 
     return directive_insert;
 }
 
-parse_directive_location :: (tokenizer: *Tokenizer) -> *Directive_Location {
+parse_directive_location :: (parser: *Parser) -> *Directive_Location {
     directive_location := New(Directive_Location);
 
-    if maybe_eat_token(tokenizer, #char "(") {
+    if maybe_eat_token(parser.tokenizer, #char "(") {
         
-        if !is_token(tokenizer, #char ")") {
-            directive_location.expression = parse(tokenizer, directive_location);
+        if !is_token(parser.tokenizer, #char ")") {
+            directive_location.expression = parse(parser, directive_location);
         }
         
-        eat_token(tokenizer, #char ")");
+        eat_token(parser.tokenizer, #char ")");
     }
 
     return directive_location;
 }
 
-parse_directive_module_parameters :: (tokenizer: *Tokenizer) -> *Directive_Module_Parameters {
+parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Parameters {
     directive_module_parameters := New(Directive_Module_Parameters);
 
-    if is_token(tokenizer, #char "(") {
-        directive_module_parameters.parameters = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_module_parameters);
+    if is_token(parser.tokenizer, #char "(") {
+        directive_module_parameters.parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
-    if is_token(tokenizer, #char "(") {
-        directive_module_parameters.second_parameters = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_module_parameters);
+    if is_token(parser.tokenizer, #char "(") {
+        directive_module_parameters.second_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     return directive_module_parameters;
 }
 
-parse_directive_placeholder :: (tokenizer: *Tokenizer) -> *Directive_Placeholder {
+parse_directive_placeholder :: (parser: *Parser) -> *Directive_Placeholder {
     directive_placeholder := New(Directive_Placeholder);
-    directive_placeholder.expression = parse(tokenizer, directive_placeholder);
+    directive_placeholder.expression = parse(parser, directive_placeholder);
     return directive_placeholder;
 }
 
-parse_directive_procedure_of_call :: (tokenizer: *Tokenizer) -> *Directive_Procedure_Of_Call {
+parse_directive_procedure_of_call :: (parser: *Parser) -> *Directive_Procedure_Of_Call {
     directive_procedure_of_call := New(Directive_Procedure_Of_Call);
-    directive_procedure_of_call.expression = parse(tokenizer, directive_procedure_of_call);
+    directive_procedure_of_call.expression = parse(parser, directive_procedure_of_call);
     return directive_procedure_of_call;
 }
 
-parse_directive_program_export :: (tokenizer: *Tokenizer) -> *Directive_Program_Export {
+parse_directive_program_export :: (parser: *Parser) -> *Directive_Program_Export {
     directive_program_export := New(Directive_Program_Export);
 
-    if is_token(tokenizer, .STRING) {
-        name_token := eat_token(tokenizer, .STRING);
+    if is_token(parser.tokenizer, .STRING) {
+        name_token := eat_token(parser.tokenizer, .STRING);
         directive_program_export.exported_name = name_token.string_value;
     }
 
-    directive_program_export.expression = parse(tokenizer, directive_program_export);
+    directive_program_export.expression = parse(parser, directive_program_export);
 
     return directive_program_export;
 }
 
-parse_directive_this :: (tokenizer: *Tokenizer) -> *Directive_This {
+parse_directive_this :: (parser: *Parser) -> *Directive_This {
     directive_this := New(Directive_This);
 
-    if is_token(tokenizer, #char "(") {
-        directive_this.arguments = delimeted(tokenizer, #char "(", #char ")", #char ",", directive_this);
+    if is_token(parser.tokenizer, #char "(") {
+        directive_this.arguments = delimeted(parser, #char "(", #char ")", #char ",", directive_this);
     }
 
     return directive_this;
 }
 
-parse_directive_poke_name :: (tokenizer: *Tokenizer) -> *Directive_Poke_Name {
+parse_directive_poke_name :: (parser: *Parser) -> *Directive_Poke_Name {
     directive_poke_name := New(Directive_Poke_Name);
 
-    if is_token(tokenizer, .IDENTIFIER) {
-        module_token := eat_token(tokenizer, .IDENTIFIER);
+    if is_token(parser.tokenizer, .IDENTIFIER) {
+        module_token := eat_token(parser.tokenizer, .IDENTIFIER);
         directive_poke_name.module = module_token.string_value;
     }
     
-    if is_token(tokenizer, .IDENTIFIER) {
-        name_token := eat_token(tokenizer, .IDENTIFIER);
+    if is_token(parser.tokenizer, .IDENTIFIER) {
+        name_token := eat_token(parser.tokenizer, .IDENTIFIER);
         directive_poke_name.name = name_token.string_value;
     }
 
     return directive_poke_name;
 }
 
-parse_directive_dynamic_specialize :: (tokenizer: *Tokenizer) -> *Directive_Dynamic_Specialize {
+parse_directive_dynamic_specialize :: (parser: *Parser) -> *Directive_Dynamic_Specialize {
     dynamic_specialize := New(Directive_Dynamic_Specialize);
-    dynamic_specialize.expression = parse(tokenizer, dynamic_specialize);
+    dynamic_specialize.expression = parse(parser, dynamic_specialize);
     return dynamic_specialize;
 }
 
 // @TODO: Those empty directives are kinda dumb... We could probably return then directly in parse_directive...
-parse_directive_caller_code :: (tokenizer: *Tokenizer) -> *Directive_Caller_Code {
+parse_directive_caller_code :: (parser: *Parser) -> *Directive_Caller_Code {
     return New(Directive_Caller_Code);
 }
 
-parse_directive_caller_location :: (tokenizer: *Tokenizer) -> *Directive_Caller_Location {
+parse_directive_caller_location :: (parser: *Parser) -> *Directive_Caller_Location {
     return New(Directive_Caller_Location);
 }
 
-parse_directive_file :: (tokenizer: *Tokenizer) -> *Directive_File {
+parse_directive_file :: (parser: *Parser) -> *Directive_File {
     return New(Directive_File);
 }
 
-parse_directive_filepath :: (tokenizer: *Tokenizer) -> *Directive_Filepath {
+parse_directive_filepath :: (parser: *Parser) -> *Directive_Filepath {
     return New(Directive_Filepath);
 }
 
-parse_directive_line :: (tokenizer: *Tokenizer) -> *Directive_Line {
+parse_directive_line :: (parser: *Parser) -> *Directive_Line {
     return New(Directive_Line);
 }
  
-parse_directive_through :: (tokenizer: *Tokenizer) -> *Directive_Through {
+parse_directive_through :: (parser: *Parser) -> *Directive_Through {
     return New(Directive_Through);
 }
 
-parse_directive_compile_time :: (tokenizer: *Tokenizer) -> *Directive_Compile_Time {
+parse_directive_compile_time :: (parser: *Parser) -> *Directive_Compile_Time {
     return New(Directive_Compile_Time);
 }
 
 // @TODO: Consider this...
 // We currently wrap scoped stuff in another node but we could maybe just flag 
 // Directives that they are exported in some scope instead of wrapping it with new node...
-parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Scope_Kind) -> *Directive_Scope {
+parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kind) -> *Directive_Scope {
     directive_scope := New(Directive_Scope);
     directive_scope.scope_kind = scope_kind;
 
@@ -2060,8 +2106,8 @@ parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Sco
         return false;
     }
 
-    while !end(tokenizer) && !is_token(tokenizer, is_token_end_of_scope_directive) {
-        node := parse(tokenizer, directive_scope);
+    while !end(parser.tokenizer) && !is_token(parser.tokenizer, is_token_end_of_scope_directive) {
+        node := parse(parser, directive_scope);
         if !node continue; // Skip null nodes...
         array_add(*members, node);
     }
@@ -2071,44 +2117,44 @@ parse_directive_scope :: (tokenizer: *Tokenizer, scope_kind: Directive_Scope.Sco
     return directive_scope;
 }
  
-parse_identifier :: (tokenizer: *Tokenizer, ident_token: *Token) -> *Identifier {
+parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
     set_start_location(identifier, ident_token);
     identifier.name = ident_token.string_value;
     identifier.backticked = ident_token.backticked;
-    set_end_location(identifier, peek_token(tokenizer, -1));
+    set_end_location(identifier, peek_token(parser.tokenizer, -1));
     return identifier;
 }
 
-parse_array_or_struct_literal :: (tokenizer: *Tokenizer, type: *Node) -> *Node {
+parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
     literal := New(Literal);
 
-    eat_token(tokenizer, #char ".");
+    eat_token(parser.tokenizer, #char ".");
 
-    if maybe_eat_token(tokenizer, #char "[") {
+    if maybe_eat_token(parser.tokenizer, #char "[") {
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
-        literal.values.array_literal_info.elements = parse_until(tokenizer, token => token.kind == #char "]", #char ",", parent=literal);
-        eat_token(tokenizer, #char "]");
-    } else if maybe_eat_token(tokenizer, #char "{") {
+        literal.values.array_literal_info.elements = parse_until(parser, token => token.kind == #char "]", #char ",", parent=literal);
+        eat_token(parser.tokenizer, #char "]");
+    } else if maybe_eat_token(parser.tokenizer, #char "{") {
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info = .{type=type};
-        literal.values.struct_literal_info.body = parse_until(tokenizer, token => token.kind == #char "}", #char ",", parent=literal);
-        eat_token(tokenizer, #char "}");
+        literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
+        eat_token(parser.tokenizer, #char "}");
     }
 
     // Binary operation   
-    if is_operator(peek_token(tokenizer)) {
-        return parse_binary_operation(tokenizer, literal);
+    if is_operator(peek_token(parser.tokenizer)) {
+        return parse_binary_operation(parser, literal);
     }
 
     return literal;
 }
 
-parse_literal :: (tokenizer: *Tokenizer) -> *Node {
+parse_literal :: (parser: *Parser) -> *Node {
     literal := New(Literal);
 
-    base_literal := eat_token(tokenizer);
+    base_literal := eat_token(parser.tokenizer);
 
     if base_literal.kind == {
         case .STRING;
@@ -2135,95 +2181,95 @@ parse_literal :: (tokenizer: *Tokenizer) -> *Node {
     }
 
     // Binary operation   
-    if is_operator(peek_token(tokenizer)) {
-        return parse_binary_operation(tokenizer, literal);
+    if is_operator(peek_token(parser.tokenizer)) {
+        return parse_binary_operation(parser, literal);
     }
 
     return literal;
 }
 
-parse_array_subscript :: (tokenizer: *Tokenizer, expression: *Node) -> *Node {
+parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
     array_subscript := New(Array_Subscript);
     array_subscript.expression = expression;
     array_subscript.expression.parent = array_subscript;
 
-    eat_token(tokenizer, #char "[");
+    eat_token(parser.tokenizer, #char "[");
 
-    if !is_token(tokenizer, #char "]") {
-        array_subscript.subscript = parse(tokenizer, array_subscript); 
+    if !is_token(parser.tokenizer, #char "]") {
+        array_subscript.subscript = parse(parser, array_subscript); 
     }
    
-    eat_token(tokenizer, #char "]");
+    eat_token(parser.tokenizer, #char "]");
 
     // Binary operation   
-    if is_operator(peek_token(tokenizer)) {
-        return parse_binary_operation(tokenizer, array_subscript);
+    if is_operator(peek_token(parser.tokenizer)) {
+        return parse_binary_operation(parser, array_subscript);
     }
 
     return array_subscript;
 }
 
-parse_array_type :: (tokenizer: *Tokenizer) -> *Array_Type {
+parse_array_type :: (parser: *Parser) -> *Array_Type {
     array_type := New(Array_Type);
 
-    eat_token(tokenizer, #char "[");
+    eat_token(parser.tokenizer, #char "[");
 
-    if !is_token(tokenizer, #char "]") {
+    if !is_token(parser.tokenizer, #char "]") {
 
-        if maybe_eat_token(tokenizer, .DOUBLE_DOT) {
+        if maybe_eat_token(parser.tokenizer, .DOUBLE_DOT) {
             array_type.resizable = true;
         } else {
-            array_type.dimension = parse(tokenizer, array_type);
+            array_type.dimension = parse(parser, array_type);
         }
 
     }
 
-    eat_token(tokenizer, #char "]");
-    array_type.element_type = parse(tokenizer, array_type);
+    eat_token(parser.tokenizer, #char "]");
+    array_type.element_type = parse(parser, array_type);
 
     return array_type;
 }
 
-is_unary_operator :: (tokenizer: *Tokenizer) -> bool {
-    if is_token(tokenizer, #char ".")            return true;
-    if is_token(tokenizer, #char "*")            return true;
-    if is_token(tokenizer, #char "!")            return true;
-    if is_token(tokenizer, #char "$")            return true;
-    if is_token(tokenizer, .DOUBLE_DOLLAR)       return true;
-    if is_token(tokenizer, .LEFT_SHIFT)          return true;
-    if is_token(tokenizer, .DOUBLE_DOT)          return true;
+is_unary_operator :: (parser: *Parser) -> bool {
+    if is_token(parser.tokenizer, #char ".")            return true;
+    if is_token(parser.tokenizer, #char "*")            return true;
+    if is_token(parser.tokenizer, #char "!")            return true;
+    if is_token(parser.tokenizer, #char "$")            return true;
+    if is_token(parser.tokenizer, .DOUBLE_DOLLAR)       return true;
+    if is_token(parser.tokenizer, .LEFT_SHIFT)          return true;
+    if is_token(parser.tokenizer, .DOUBLE_DOT)          return true;
     return false;
 }
 
-parse_polymorphic_constant :: (tokenizer: *Tokenizer, maybe_constant: bool) -> *Polymorphic_Constant {
+parse_polymorphic_constant :: (parser: *Parser, maybe_constant: bool) -> *Polymorphic_Constant {
     polymorphic_constant := New(Polymorphic_Constant);
     polymorphic_constant.maybe_constant = maybe_constant;
 
     if maybe_constant {
-        eat_token(tokenizer, .DOUBLE_DOLLAR);
+        eat_token(parser.tokenizer, .DOUBLE_DOLLAR);
     } else {
-        eat_token(tokenizer, #char "$");
+        eat_token(parser.tokenizer, #char "$");
     }
 
-    polymorphic_constant.type = eat_token(tokenizer, .IDENTIFIER).string_value;
+    polymorphic_constant.type = eat_token(parser.tokenizer, .IDENTIFIER).string_value;
 
-    if maybe_eat_token(tokenizer, #char "/") {
+    if maybe_eat_token(parser.tokenizer, #char "/") {
 
-        if is_token(tokenizer, .KEYWORD_INTERFACE) {
-            eat_token(tokenizer, .KEYWORD_INTERFACE);
+        if is_token(parser.tokenizer, .KEYWORD_INTERFACE) {
+            eat_token(parser.tokenizer, .KEYWORD_INTERFACE);
             polymorphic_constant.restrictions_interface = true;
         }
 
-        polymorphic_constant.restriction = parse(tokenizer, polymorphic_constant);
+        polymorphic_constant.restriction = parse(parser, polymorphic_constant);
     }
 
     return polymorphic_constant;
 }
 
-parse_unary_operation :: (tokenizer: *Tokenizer) -> *Node {
+parse_unary_operation :: (parser: *Parser) -> *Node {
     unary_operation := New(Unary_Operation);
 
-    op := eat_token(tokenizer);
+    op := eat_token(parser.tokenizer);
     
     if op.kind == {
         case #char ".";             unary_operation.operation = .DOT;
@@ -2233,20 +2279,20 @@ parse_unary_operation :: (tokenizer: *Tokenizer) -> *Node {
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
-    unary_operation.expression = parse(tokenizer, unary_operation);
+    unary_operation.expression = parse(parser, unary_operation);
 
     // Binary operation   
-    if is_operator(peek_token(tokenizer)) {
-        return parse_binary_operation(tokenizer, unary_operation);
+    if is_operator(peek_token(parser.tokenizer)) {
+        return parse_binary_operation(parser, unary_operation);
     }
 
     return unary_operation;
 }
 
-parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Node {
+parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     // Array or Struct literal
-    if is_token(tokenizer, #char ".") && is_token(tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-        return parse_array_or_struct_literal(tokenizer, left);
+    if is_token(parser.tokenizer, #char ".") && is_token(parser.tokenizer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+        return parse_array_or_struct_literal(parser, left);
     } 
 
     binary_operation := New(Binary_Operation);
@@ -2254,127 +2300,127 @@ parse_binary_operation :: (tokenizer: *Tokenizer, left: *Node) -> *Node {
 
     set_start_location(binary_operation, left);
 
-    op := eat_token(tokenizer);
+    op := eat_token(parser.tokenizer);
     assert(is_operator(op));
     binary_operation.operation = create_operator_from_token(op.kind);
 
-    binary_operation.right = parse(tokenizer, binary_operation); // @TODO: anything?
+    binary_operation.right = parse(parser, binary_operation); // @TODO: anything?
 
     set_end_location(binary_operation, binary_operation.right);
     
     return binary_operation;
 }
 
-parse_return :: (tokenizer: *Tokenizer) -> *Node {
+parse_return :: (parser: *Parser) -> *Node {
     _return := New(Return);
-    return_token := eat_token(tokenizer, .KEYWORD_RETURN);
+    return_token := eat_token(parser.tokenizer, .KEYWORD_RETURN);
     _return.backticked = return_token.backticked;
 
-    _return.returns = parse_until(tokenizer, token => token.kind == #char ";", #char ",", parent=_return);
+    _return.returns = parse_until(parser, token => token.kind == #char ";", #char ",", parent=_return);
     for _return.returns it.parent = _return;
     
     return _return;
 }
 
-parse_continue :: (tokenizer: *Tokenizer) -> *Node {
+parse_continue :: (parser: *Parser) -> *Node {
     _continue := New(Continue);
-    eat_token(tokenizer, .KEYWORD_CONTINUE);
+    eat_token(parser.tokenizer, .KEYWORD_CONTINUE);
 
-    if !is_token(tokenizer, #char ";") {
-        _continue.expression = parse(tokenizer, _continue);
+    if !is_token(parser.tokenizer, #char ";") {
+        _continue.expression = parse(parser, _continue);
     }
 
     return _continue;
 }
 
-parse_defer :: (tokenizer: *Tokenizer) -> *Node {
+parse_defer :: (parser: *Parser) -> *Node {
     _defer := New(Defer);
-    defer_token := eat_token(tokenizer, .KEYWORD_DEFER);
+    defer_token := eat_token(parser.tokenizer, .KEYWORD_DEFER);
 
     _defer.backticked = defer_token.backticked;
 
-    if !is_token(tokenizer, #char ";") {
-        _defer.expression = parse(tokenizer, _defer);
+    if !is_token(parser.tokenizer, #char ";") {
+        _defer.expression = parse(parser, _defer);
     }
 
     return _defer;
 }
 
-parse_while :: (tokenizer: *Tokenizer) -> *Node {
+parse_while :: (parser: *Parser) -> *Node {
     _while := New(While);
-    eat_token(tokenizer, .KEYWORD_WHILE);
-    _while.expression = parse(tokenizer, _while);
-    _while.body = parse(tokenizer, _while);
+    eat_token(parser.tokenizer, .KEYWORD_WHILE);
+    _while.expression = parse(parser, _while);
+    _while.body = parse(parser, _while);
     return _while;
 }
 
-parse_for :: (tokenizer: *Tokenizer) -> *Node {
+parse_for :: (parser: *Parser) -> *Node {
     _for := New(For);
 
-    eat_token(tokenizer, .KEYWORD_FOR);
+    eat_token(parser.tokenizer, .KEYWORD_FOR);
 
-    if maybe_eat_token(tokenizer, #char "<") {
+    if maybe_eat_token(parser.tokenizer, #char "<") {
         _for.reversed = true;
-        _for.by_pointer = maybe_eat_token(tokenizer, #char "*");
+        _for.by_pointer = maybe_eat_token(parser.tokenizer, #char "*");
     }
     
-    if maybe_eat_token(tokenizer, #char "*") {
+    if maybe_eat_token(parser.tokenizer, #char "*") {
         _for.by_pointer = true;
-        _for.reversed = maybe_eat_token(tokenizer, #char "<");
+        _for.reversed = maybe_eat_token(parser.tokenizer, #char "<");
     }
 
     // Only iterator
-    if !is_token(tokenizer, #char ":", 1) && !is_token(tokenizer, #char ",", 1) {
-        _for.iterator = parse(tokenizer, _for);
+    if !is_token(parser.tokenizer, #char ":", 1) && !is_token(parser.tokenizer, #char ",", 1) {
+        _for.iterator = parse(parser, _for);
     } else {
-        _for.index = parse_identifier(tokenizer, eat_token(tokenizer, .IDENTIFIER));
+        _for.index = parse_identifier(parser, eat_token(parser.tokenizer, .IDENTIFIER));
         _for.index.parent = _for;
 
         // @TODO: Is this correct?
-        if maybe_eat_token(tokenizer, #char ",") {
-            _for.value = parse_identifier(tokenizer, eat_token(tokenizer, .IDENTIFIER));
+        if maybe_eat_token(parser.tokenizer, #char ",") {
+            _for.value = parse_identifier(parser, eat_token(parser.tokenizer, .IDENTIFIER));
             _for.value.parent = _for;
         } else {
             _for.value = _for.index;
             _for.index = null;
         }
 
-        eat_token(tokenizer, #char ":");
-        _for.iterator = parse(tokenizer, _for);
+        eat_token(parser.tokenizer, #char ":");
+        _for.iterator = parse(parser, _for);
     }
 
-    if maybe_eat_token(tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
+    if maybe_eat_token(parser.tokenizer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
         _for.no_abc = true;
     }
 
-    _for.body = parse(tokenizer, _for);
+    _for.body = parse(parser, _for);
     return _for;
 }
 
-parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time := false) -> *Node {
+parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false) -> *Node {
     _if := New(If);
     _if.compile_time = compile_time;
     
     if kind == .UNKNOWN {
         if_token: *Token;
 
-        if is_token(tokenizer, .KEYWORD_IFX) {
-            if_token = eat_token(tokenizer, .KEYWORD_IFX);
+        if is_token(parser.tokenizer, .KEYWORD_IFX) {
+            if_token = eat_token(parser.tokenizer, .KEYWORD_IFX);
             _if.if_kind = .IFX;
         } else {
-            if_token = eat_token(tokenizer, .KEYWORD_IF);
+            if_token = eat_token(parser.tokenizer, .KEYWORD_IF);
             _if.if_kind = .IF;
         }
     } else {
         _if.if_kind = kind;
     }
 
-    has_directive, directive_token := maybe_eat_token(tokenizer, .DIRECTIVE);
+    has_directive, directive_token := maybe_eat_token(parser.tokenizer, .DIRECTIVE);
     if has_directive && directive_token.string_value == "complete" {
         _if.marked_as_complete = true;
     }
 
-    _if.condition = parse(tokenizer, _if);
+    _if.condition = parse(parser, _if);
 
     switch := false;
 
@@ -2393,11 +2439,11 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
     }
 
     if !switch {
-        maybe_eat_token(tokenizer, .KEYWORD_THEN);
-        _if._then = parse(tokenizer, _if);
+        maybe_eat_token(parser.tokenizer, .KEYWORD_THEN);
+        _if._then = parse(parser, _if);
     
-        if maybe_eat_token(tokenizer, .KEYWORD_ELSE) {
-            _if._else = parse(tokenizer, _if);
+        if maybe_eat_token(parser.tokenizer, .KEYWORD_ELSE) {
+            _if._else = parse(parser, _if);
         }
     } else {
         _if.if_kind = .SWITCH;
@@ -2406,37 +2452,37 @@ parse_if :: (tokenizer: *Tokenizer, kind: If.If_Kind = .UNKNOWN, compile_time :=
     return _if;
 }
 
-parse_case :: (tokenizer: *Tokenizer) -> *Node {
+parse_case :: (parser: *Parser) -> *Node {
     _case := New(Case);
-    eat_token(tokenizer, .KEYWORD_CASE);
-    _case.expression = parse(tokenizer, _case);
-    maybe_eat_token(tokenizer, #char ";");
+    eat_token(parser.tokenizer, .KEYWORD_CASE);
+    _case.expression = parse(parser, _case);
+    maybe_eat_token(parser.tokenizer, #char ";");
     
-    _case.members = parse_until(tokenizer, token => token.kind == .KEYWORD_CASE || token.kind == #char "}", parent = _case);
+    _case.members = parse_until(parser, token => token.kind == .KEYWORD_CASE || token.kind == #char "}", parent = _case);
 
     return _case;
 }
 
-parse_break :: (tokenizer: *Tokenizer) -> *Node {
+parse_break :: (parser: *Parser) -> *Node {
     _break := New(Break);
-    eat_token(tokenizer, .KEYWORD_BREAK);
+    eat_token(parser.tokenizer, .KEYWORD_BREAK);
 
-    if !is_token(tokenizer, #char ";") {
-        _break.expression = parse(tokenizer, _break);
+    if !is_token(parser.tokenizer, #char ";") {
+        _break.expression = parse(parser, _break);
     }
 
     return _break;
 }
 
-parse_using :: (tokenizer: *Tokenizer) -> *Node {
+parse_using :: (parser: *Parser) -> *Node {
     _using := New(Using);
-    using_token := eat_token(tokenizer, .KEYWORD_USING);
+    using_token := eat_token(parser.tokenizer, .KEYWORD_USING);
 
     // modifiers
-    if is_token(tokenizer, #char ",") {
-        eat_token(tokenizer, #char ",");
+    if is_token(parser.tokenizer, #char ",") {
+        eat_token(parser.tokenizer, #char ",");
 
-        modifier := eat_token(tokenizer, .IDENTIFIER);
+        modifier := eat_token(parser.tokenizer, .IDENTIFIER);
 
         if modifier.string_value == {
             case "map";
@@ -2448,24 +2494,24 @@ parse_using :: (tokenizer: *Tokenizer) -> *Node {
         }
     }
 
-    if is_token(tokenizer, #char "(") {
-        _using.filters = delimeted(tokenizer, #char "(", #char ")", #char ",", _using);
+    if is_token(parser.tokenizer, #char "(") {
+        _using.filters = delimeted(parser, #char "(", #char ")", #char ",", _using);
     }
 
-    _using.expression = parse(tokenizer, _using);
+    _using.expression = parse(parser, _using);
 
     return _using;
 }
 
-parse_cast :: (tokenizer: *Tokenizer) -> *Cast {
+parse_cast :: (parser: *Parser) -> *Cast {
     _cast := New(Cast);
-    cast_token := eat_token(tokenizer, .KEYWORD_CAST);
+    cast_token := eat_token(parser.tokenizer, .KEYWORD_CAST);
 
     // modifiers
-    if is_token(tokenizer, #char ",") {
-        eat_token(tokenizer, #char ",");
+    if is_token(parser.tokenizer, #char ",") {
+        eat_token(parser.tokenizer, #char ",");
 
-        modifier := eat_token(tokenizer, .IDENTIFIER);
+        modifier := eat_token(parser.tokenizer, .IDENTIFIER);
 
         if modifier.string_value == {
             case "trunc";
@@ -2475,25 +2521,25 @@ parse_cast :: (tokenizer: *Tokenizer) -> *Cast {
         }
     }
 
-    eat_token(tokenizer, #char "(");
-    _cast.cast_expression = parse(tokenizer, _cast);
-    eat_token(tokenizer, #char ")");
+    eat_token(parser.tokenizer, #char "(");
+    _cast.cast_expression = parse(parser, _cast);
+    eat_token(parser.tokenizer, #char ")");
 
-    _cast.expression = parse(tokenizer, _cast);
+    _cast.expression = parse(parser, _cast);
 
     return _cast;
 }
 
-parse_auto_cast :: (tokenizer: *Tokenizer) -> *Auto_Cast {
+parse_auto_cast :: (parser: *Parser) -> *Auto_Cast {
     auto_cast := New(Auto_Cast);
-    eat_token(tokenizer, .KEYWORD_AUTO_CAST);
-    auto_cast.expression = parse(tokenizer, auto_cast);
+    eat_token(parser.tokenizer, .KEYWORD_AUTO_CAST);
+    auto_cast.expression = parse(parser, auto_cast);
     return auto_cast;
 }
 
-parse_inline :: (tokenizer: *Tokenizer) -> *Node {
-    eat_token(tokenizer, .KEYWORD_INLINE);
-    next_node := parse(tokenizer, null);
+parse_inline :: (parser: *Parser) -> *Node {
+    eat_token(parser.tokenizer, .KEYWORD_INLINE);
+    next_node := parse(parser, null);
 
     if next_node.kind == .PROCEDURE {
         (cast(*Procedure) next_node).flags |= .INLINE;
@@ -2506,80 +2552,80 @@ parse_inline :: (tokenizer: *Tokenizer) -> *Node {
     return next_node;
 }
 
-parse_push_context :: (tokenizer: *Tokenizer) -> *Push_Context {
+parse_push_context :: (parser: *Parser) -> *Push_Context {
     _push_context := New(Push_Context);
 
-    push_context_token := eat_token(tokenizer, .KEYWORD_PUSH_CONTEXT);
+    push_context_token := eat_token(parser.tokenizer, .KEYWORD_PUSH_CONTEXT);
     _push_context.backticked = push_context_token.backticked;
 
-    if maybe_eat_token(tokenizer, #char ",") {
-        modifier_token := eat_token(tokenizer, .IDENTIFIER);
+    if maybe_eat_token(parser.tokenizer, #char ",") {
+        modifier_token := eat_token(parser.tokenizer, .IDENTIFIER);
         _push_context.defer_pop = modifier_token.string_value == "defer_pop";
     }
 
-    _push_context.pushed = parse(tokenizer, _push_context);
+    _push_context.pushed = parse(parser, _push_context);
 
     // @TODO: Block only?
-    if is_token(tokenizer, #char "{") {
-        _push_context.block = parse_block(tokenizer);
+    if is_token(parser.tokenizer, #char "{") {
+        _push_context.block = parse_block(parser);
         _push_context.block.parent = _push_context;
     }
 
     return _push_context;
 }
 
-parse_operator_overload :: (tokenizer: *Tokenizer) -> *Operator_Overload {
+parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
     operator_overload := New(Operator_Overload);
 
-    eat_token(tokenizer, .KEYWORD_OPERATOR);
+    eat_token(parser.tokenizer, .KEYWORD_OPERATOR);
 
-    op := eat_token(tokenizer);
+    op := eat_token(parser.tokenizer);
     // assert(is_operator(op));
     operator_overload.operation = create_operator_from_token(op.kind);
 
-    if maybe_eat_token(tokenizer, .CONSTANT_DECLARATION) {
-        operator_overload.procedure = parse(tokenizer, operator_overload);
+    if maybe_eat_token(parser.tokenizer, .CONSTANT_DECLARATION) {
+        operator_overload.procedure = parse(parser, operator_overload);
     }
 
     return operator_overload;
 }
 
 // @TODO: We currently don't parse ASM blocks body.
-// @TODO: We want catch the ASM block probably at tokenizer level not in parser. (useless tokens being created)
-parse_inline_assembly :: (tokenizer: *Tokenizer) -> *Inline_Assembly {
+// @TODO: We want catch the ASM block probably at parser level not in parser. (useless tokens being created)
+parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     inline_assembly := New(Inline_Assembly);
 
-    if !is_token(tokenizer, #char "{") {
-        inline_assembly.expression = parse(tokenizer, inline_assembly);
+    if !is_token(parser.tokenizer, #char "{") {
+        inline_assembly.expression = parse(parser, inline_assembly);
     }
 
-    eat_token(tokenizer, #char "{");
-    while !is_token(tokenizer, #char "}") eat_token(tokenizer);
-    eat_token(tokenizer, #char "}");
+    eat_token(parser.tokenizer, #char "{");
+    while !is_token(parser.tokenizer, #char "}") eat_token(parser.tokenizer);
+    eat_token(parser.tokenizer, #char "}");
 
     return inline_assembly;
 }
 
-parse_notes :: (tokenizer: *Tokenizer, parent: *Node) -> [] *Note {
+parse_notes :: (parser: *Parser, parent: *Node) -> [] *Note {
     notes: [..] *Note;
-    while is_token(tokenizer, .NOTE) array_add(*notes, parse_note(tokenizer, parent));
+    while is_token(parser.tokenizer, .NOTE) array_add(*notes, parse_note(parser, parent));
     return notes;
 }
 
-parse_note :: (tokenizer: *Tokenizer, parent: *Node) -> *Note  {
-    note_token := eat_token(tokenizer, .NOTE);
+parse_note :: (parser: *Parser, parent: *Node) -> *Note  {
+    note_token := eat_token(parser.tokenizer, .NOTE);
     note := New(Note);
     note.name = note_token.string_value;
     note.parent = parent;
 
     set_start_location(note, note_token);
 
-    if maybe_eat_token(tokenizer, #char "(") {
+    if maybe_eat_token(parser.tokenizer, #char "(") {
         builder: String_Builder;
 
         // @TODO: This is ugly
-        while !end(tokenizer) && !is_token(tokenizer, #char ")") {
-            token := eat_token(tokenizer);
+        while !end(parser.tokenizer) && !is_token(parser.tokenizer, #char ")") {
+            token := eat_token(parser.tokenizer);
 
             if token.kind < 256 {
                 append(*builder, cast(u8) token.kind);
@@ -2596,15 +2642,15 @@ parse_note :: (tokenizer: *Tokenizer, parent: *Node) -> *Note  {
         }
 
         note.value = builder_to_string(*builder);
-        maybe_eat_token(tokenizer, #char ")");
+        maybe_eat_token(parser.tokenizer, #char ")");
     }
 
-    set_end_location(note, peek_token(tokenizer, -1));
+    set_end_location(note, peek_token(parser.tokenizer, -1));
 
     return note;
 }
 
-parse_initialize_zero :: (tokenizer: *Tokenizer) -> *Initialize_Zero {
-    eat_token(tokenizer, .TRIPLE_MINUS);
+parse_initialize_zero :: (parser: *Parser) -> *Initialize_Zero {
+    eat_token(parser.tokenizer, .TRIPLE_MINUS);
     return New(Initialize_Zero);
 }
