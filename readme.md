@@ -6,7 +6,7 @@ The current plan for this parser is to provide information about Jai programs fo
 
 ## Try
 
-The `cmd` directory contains an example program that parses the entry file and follows all `#import` and `#load`. The program generates an `out` folder with JSON files each representing each parsed file.
+The `cmd` folder contains an example program that parses the entry file and follows all `#import` and `#load`. The program generates an `out` folder with JSON files each representing each parsed file.
 
 ### Example
 
