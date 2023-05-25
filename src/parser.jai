@@ -1011,7 +1011,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         // if kind == .BINARY_OPERATION return true;
         return false;
     }
-
+ 
     // Comma Separated Expression, Compound Declaration ...
     if (parent == null || can_contain_comma_separated_expression(parent.kind)) && maybe_eat_token(parser.tokenizer, #char ",") {
         unprocessed_tokens: [..]Token;
@@ -1044,7 +1044,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             // @TODO: Anything else?
             if is_token(parser.tokenizer, #char ";") break;
             if is_token(parser.tokenizer, #char ")") break;
-            if is_token(parser.tokenizer, #char "{") break;
+            // if is_token(parser.tokenizer, #char "{") break;
             if is_token(parser.tokenizer, #char ":") break;
             if is_token(parser.tokenizer, .DECLARATION_AND_ASSIGN) break;
             if is_token(parser.tokenizer, #char "=") break;
