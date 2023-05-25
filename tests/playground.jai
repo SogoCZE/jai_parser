@@ -1,3 +1,5 @@
-// #import "Basic";
+some :: () -> b := 10, c := 20 {
+    return c=90, b=20;
+}
 
-_f       : [20-2*size_of(u64)-size_of(u32)] s8;
+c, b := some();
