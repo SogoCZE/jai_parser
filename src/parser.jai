@@ -1008,7 +1008,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         if kind == .ENUM return true;
         if kind == .UNION return true;
         if kind == .COMPOUND_DECLARATION return true;
-        // if kind == .BINARY_OPERATION return false;
+        // if kind == .BINARY_OPERATION return true;
         return false;
     }
 
@@ -1019,21 +1019,24 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         nodes: [..] *Node;
         array_add(*nodes, base_node);
 
+        parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token, left := false) {
+            local_parser: Parser(Node_Visit_Data);
+            local_parser.node_visit = parser.node_visit;
+            local_parser.user_data = parser.user_data;
+            local_parser.tokenizer = New(Tokenizer);
+            local_parser.tokenizer.tokens = from;
+
+            while !end(local_parser.tokenizer) {
+                node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
+                if !node continue;
+                array_add(to, node);
+            }
+        }
+
         while !end(parser.tokenizer) {
 
             if maybe_eat_token(parser.tokenizer, #char ",") {
-                local_parser: Parser(Node_Visit_Data);
-                local_parser.node_visit = parser.node_visit;
-                local_parser.user_data = parser.user_data;
-                local_parser.tokenizer = *Tokenizer.{};
-                local_parser.tokenizer.tokens = unprocessed_tokens;
-                
-                while !end(local_parser.tokenizer) {
-                    node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
-                    if !node continue;
-                    array_add(*nodes, node);
-                }
-
+                parse_token_array(parser, *nodes, unprocessed_tokens);
                 array_reset(*unprocessed_tokens);
                 continue;
             }
@@ -1049,17 +1052,8 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             array_add(*unprocessed_tokens, eat_token(parser.tokenizer));
         }
 
-        local_parser: Parser(Node_Visit_Data);
-        local_parser.node_visit = parser.node_visit;
-        local_parser.user_data = parser.user_data;
-        local_parser.tokenizer = *Tokenizer.{};
-        local_parser.tokenizer.tokens = unprocessed_tokens;
-        
-        while !end(local_parser.tokenizer) {
-            node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
-            if !node continue;
-            array_add(*nodes, node);
-        }
+        // Left overs
+        parse_token_array(parser, *nodes, unprocessed_tokens, true);
 
         // Compound Declaration
         if maybe_eat_token(parser.tokenizer, #char ":") {
