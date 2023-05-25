@@ -1,92 +1,89 @@
-#import "Basic";
-#import "String";
-#import "Reflection";
-
-Token_Kind :: enum {
-    // ASCII Types...
-
-    IDENTIFIER :: 256; // person
-    NUMBER; // 10, 3.14, 2_456_000, .40
-    STRING; // "text"
-    // HERE_STRING; // "text"
-    COMMENT; // */ */ //
-    NULL; // NULL
-
-    PLUS_EQUAL; // +=
-    MINUS_EQUAL; // -=
-    MOD_EQUAL; // %=
-    DIV_EQUAL; // /=
-    TIMES_EQUAL; // *=
-    LESS_EQUAL; // <=
-    GREATER_EQUAL; // >=
-    LOGICAL_AND; // &&
-    LOGICAL_AND_ASSIGNMENT; // &&=
-    PIPE_EQUAL; // |=
-    BITWISE_EQUAL; // &=
-    LOGICAL_OR; // ||
-    LOGICAL_OR_ASSIGNMENT; // ||=
-    IS_EQUAL; // ==
-    IS_NOT_EQUAL; // !=
-
-    DOUBLE_MINUS; // --
-    TRIPLE_MINUS; // ---
-    DOUBLE_DOLLAR; // $$
-    DOUBLE_DOT; // ..
-    ARROW_RIGHT; // ->
-
-    // @TODO: Do these have correct names?
-    LEFT_SHIFT; // <<, POINTER_DEREFERENCE
-    RIGHT_SHIFT; // >>
-    LEFT_SHIFT_ASSIGNMENT; // <<= 
-    RIGHT_SHIFT_ASSIGNMENT; // >>=
-    UNSIGNED_RIGHT_SHIFT; // >>>
-    UNSIGNED_LEFT_SHIFT; // <<<
-    UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
-    UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
-
-    CONSTANT_DECLARATION; // ::
-    DECLARATION_AND_ASSIGN; // :=
-
-    NOTE; // @note
-    DIRECTIVE; // #run
-    QUICK_LAMBDA; // =>
-
-    KEYWORD_STRUCT;
-    KEYWORD_INTERFACE;
-    KEYWORD_ENUM;
-    KEYWORD_ENUM_FLAGS;
-    KEYWORD_UNION;
-    KEYWORD_FOR;
-    KEYWORD_WHILE;
-    KEYWORD_BREAK;
-    KEYWORD_USING;
-    KEYWORD_IF;
-    KEYWORD_IFX;
-    KEYWORD_CASE;
-    KEYWORD_ELSE;
-    KEYWORD_THEN;
-    KEYWORD_DEFER;
-    KEYWORD_RETURN;
-    KEYWORD_INLINE;
-    KEYWORD_NO_INLINE;
-    KEYWORD_CAST;
-    KEYWORD_PUSH_CONTEXT;
-    KEYWORD_OPERATOR;
-    KEYWORD_CONTINUE; 
-    KEYWORD_IMPORT;
-    KEYWORD_LOAD;
-    KEYWORD_FALSE;
-    KEYWORD_TRUE;
-    KEYWORD_AUTO_CAST; // xx
-    // KEYWORD_IS_CONSTANT;
-    // KEYWORD_CONTEXT;
-    // KEYWORD_ADD_CONTEXT;
-
-    UNKNOWN;
-}
-
 Token :: struct {
-    kind: Token_Kind = .UNKNOWN;
+    
+    Kind :: enum {
+        // ASCII Types...
+
+        IDENTIFIER :: 256; // person
+        NUMBER; // 10, 3.14, 2_456_000, .40
+        STRING; // "text"
+        // HERE_STRING; // "text"
+        COMMENT; // */ */ //
+        NULL; // NULL
+
+        PLUS_EQUAL; // +=
+        MINUS_EQUAL; // -=
+        MOD_EQUAL; // %=
+        DIV_EQUAL; // /=
+        TIMES_EQUAL; // *=
+        LESS_EQUAL; // <=
+        GREATER_EQUAL; // >=
+        LOGICAL_AND; // &&
+        LOGICAL_AND_ASSIGNMENT; // &&=
+        PIPE_EQUAL; // |=
+        BITWISE_EQUAL; // &=
+        LOGICAL_OR; // ||
+        LOGICAL_OR_ASSIGNMENT; // ||=
+        IS_EQUAL; // ==
+        IS_NOT_EQUAL; // !=
+
+        DOUBLE_MINUS; // --
+        TRIPLE_MINUS; // ---
+        DOUBLE_DOLLAR; // $$
+        DOUBLE_DOT; // ..
+        ARROW_RIGHT; // ->
+
+        // @TODO: Do these have correct names?
+        LEFT_SHIFT; // <<, POINTER_DEREFERENCE
+        RIGHT_SHIFT; // >>
+        LEFT_SHIFT_ASSIGNMENT; // <<= 
+        RIGHT_SHIFT_ASSIGNMENT; // >>=
+        UNSIGNED_RIGHT_SHIFT; // >>>
+        UNSIGNED_LEFT_SHIFT; // <<<
+        UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
+        UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
+
+        CONSTANT_DECLARATION; // ::
+        DECLARATION_AND_ASSIGN; // :=
+
+        NOTE; // @note
+        DIRECTIVE; // #run
+        QUICK_LAMBDA; // =>
+
+        KEYWORD_STRUCT;
+        KEYWORD_INTERFACE;
+        KEYWORD_ENUM;
+        KEYWORD_ENUM_FLAGS;
+        KEYWORD_UNION;
+        KEYWORD_FOR;
+        KEYWORD_WHILE;
+        KEYWORD_BREAK;
+        KEYWORD_USING;
+        KEYWORD_IF;
+        KEYWORD_IFX;
+        KEYWORD_CASE;
+        KEYWORD_ELSE;
+        KEYWORD_THEN;
+        KEYWORD_DEFER;
+        KEYWORD_RETURN;
+        KEYWORD_INLINE;
+        KEYWORD_NO_INLINE;
+        KEYWORD_CAST;
+        KEYWORD_PUSH_CONTEXT;
+        KEYWORD_OPERATOR;
+        KEYWORD_CONTINUE; 
+        KEYWORD_IMPORT;
+        KEYWORD_LOAD;
+        KEYWORD_FALSE;
+        KEYWORD_TRUE;
+        KEYWORD_AUTO_CAST; // xx
+        // KEYWORD_IS_CONSTANT;
+        // KEYWORD_CONTEXT;
+        // KEYWORD_ADD_CONTEXT;
+
+        UNKNOWN;
+    }
+    
+    kind: Kind = .UNKNOWN;
 
     file: string;
 
@@ -106,28 +103,32 @@ Token :: struct {
     backticked: bool;
 }
 
-Tokenizer :: struct {
+Lexer :: struct {
     tokens: [..]Token;
     cursor := 0;
     next_backticked: bool;
 }
 
-create_tokenizer :: (iterator: *Iterator) -> Tokenizer {
-    tokenizer: Tokenizer;
+create_lexer :: (source: string, file: string) -> Lexer {
+    iterator: Iterator;
+    iterator.file = file;
+    iterator.buffer = source;
+
+    lexer: Lexer;
     
-    while !end(iterator) {
-        token := parse_next_token(iterator, *tokenizer);
+    while !end(*iterator) {
+        token := parse_next_token(*iterator, *lexer);
         if token.kind == .UNKNOWN continue;
 
-        if tokenizer.next_backticked {
-            tokenizer.next_backticked = false;
+        if lexer.next_backticked {
+            lexer.next_backticked = false;
             token.backticked = true;
         }
 
-        array_add(*tokenizer.tokens, token);
+        array_add(*lexer.tokens, token);
     }
 
-    return tokenizer;
+    return lexer;
 }
 
 print_token :: (token: *Token) {
@@ -151,7 +152,7 @@ print_token :: (token: *Token) {
     }
 
     if value.count == 0 {
-        if token.kind < 256 {
+        if token.kind < 255 {
             print("% -> %\n", token, to_string(*cast(u8) token.kind, 1));
         } else {
             print("% -> %\n", token, token.kind);
@@ -161,7 +162,7 @@ print_token :: (token: *Token) {
     }
 }
 
-token_kind_to_string :: (kind: Token_Kind) -> string {
+token_kind_to_string :: (kind: Token.Kind) -> string {
     if kind > 255 {
         return tprint("%", kind);
     } else {
@@ -214,6 +215,104 @@ is_operator :: (token: *Token) -> bool {
     return false;
 }
 
+eat_token :: (using lexer: *Lexer) -> *Token {
+    if end(lexer) return null;
+    cursor += 1;
+    return *tokens[cursor-1];
+}
+
+eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
+    token := eat_token(lexer);
+    assert(token != null, "Token is null!");
+
+    if token.kind != kind {
+        log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?
+    }
+
+    return token;
+}
+
+is_token :: (lexer: *Lexer, kind: Token.Kind, $peek := 0) -> bool {
+    token := peek_token(lexer, peek);
+    if !token || token.kind != kind return false;
+    return true;
+}
+
+is_token :: (lexer: *Lexer, predicate: (token: *Token) -> bool, $peek := 0) -> bool {
+    token := peek_token(lexer, peek);
+    if !token || !predicate(token) return false;
+    return true;
+}
+
+meaybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool {
+    next_token := peek_token(lexer);
+    if !next_token || next_token.kind != kind return false;
+    eat_token(lexer, kind);
+    return true;
+}
+
+end :: (using lexer: *Lexer) -> bool {
+    return cursor + 1 > tokens.count;
+}
+
+peek_token :: (using lexer: *Lexer, $count := 0) -> *Token {
+    if cursor + count >= tokens.count return null;
+    return *tokens[cursor+count];
+}
+
+is_identifier :: inline (lexer: *Lexer) -> bool {
+    return is_token(lexer, .IDENTIFIER);
+}
+
+maybe_eat_token :: (lexer: *Lexer, predicate: (token: *Token) -> bool) -> bool, *Token {
+    token := peek_token(lexer);
+    if !token return false, null;
+    if !predicate(token) return false, null;
+    return true, eat_token(lexer);
+}
+
+maybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool, *Token {
+    token := peek_token(lexer);
+    if !token || token.kind != kind return false, null;
+    return true, eat_token(lexer);
+}
+
+#scope_module
+
+Iterator :: struct {
+    line := 1;
+    column := 1;
+    buffer: string;
+    file: string;
+}
+
+next :: (using iterator: *Iterator) -> u8 {
+    if buffer.count == 0 return 0;
+    // assert(buffer.count != 0);
+
+    char := buffer[0];
+    advance(*buffer);
+
+    if char == #char "\n" {
+        line += 1;
+        column = 0;
+    } else {
+        column += 1;
+    }
+
+    return char;
+}
+
+peek :: (using iterator: *Iterator, to := 1) -> u8 {
+    if buffer.count <= to-1 return 0;
+    // assert(buffer.count > to-1);
+    return buffer[to-1];
+}
+
+end :: (using iterator: *Iterator) -> bool {
+    return buffer.count == 0;
+}
+
 next_while :: (iterator: *Iterator, predicate: (char: u8) -> bool) -> string {
     builder: String_Builder;
     init_string_builder(*builder);
@@ -235,69 +334,7 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
-eat_token :: (using tokenizer: *Tokenizer) -> *Token {
-    if end(tokenizer) return null;
-    cursor += 1;
-    return *tokens[cursor-1];
-}
-
-eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> *Token {
-    token := eat_token(tokenizer);
-    assert(token != null, "Token is null!");
-
-    if token.kind != kind {
-        log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?
-    }
-
-    return token;
-}
-
-is_token :: (tokenizer: *Tokenizer, kind: Token_Kind, $peek := 0) -> bool {
-    token := peek_token(tokenizer, peek);
-    if !token || token.kind != kind return false;
-    return true;
-}
-
-is_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool, $peek := 0) -> bool {
-    token := peek_token(tokenizer, peek);
-    if !token || !predicate(token) return false;
-    return true;
-}
-
-meaybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool {
-    next_token := peek_token(tokenizer);
-    if !next_token || next_token.kind != kind return false;
-    eat_token(tokenizer, kind);
-    return true;
-}
-
-end :: (using tokenizer: *Tokenizer) -> bool {
-    return cursor + 1 > tokens.count;
-}
-
-peek_token :: (using tokenizer: *Tokenizer, $count := 0) -> *Token {
-    if cursor + count >= tokens.count return null;
-    return *tokens[cursor+count];
-}
-
-is_identifier :: inline (tokenizer: *Tokenizer) -> bool {
-    return is_token(tokenizer, .IDENTIFIER);
-}
-
-maybe_eat_token :: (tokenizer: *Tokenizer, predicate: (token: *Token) -> bool) -> bool, *Token {
-    token := peek_token(tokenizer);
-    if !token return false, null;
-    if !predicate(token) return false, null;
-    return true, eat_token(tokenizer);
-}
-
-maybe_eat_token :: (tokenizer: *Tokenizer, kind: Token_Kind) -> bool, *Token {
-    token := peek_token(tokenizer);
-    if !token || token.kind != kind return false, null;
-    return true, eat_token(tokenizer);
-}
-
-parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
+parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
 
     if is_comment(iterator) {
@@ -345,8 +382,8 @@ parse_next_token :: (iterator: *Iterator, tokenizer: *Tokenizer) -> Token {
     // Backtick 
     if char == #char "`" {
         next(iterator); // eat `
-        tokenizer.next_backticked = true;
-        return .{}; // empty token (skipped by tokenizer)
+        lexer.next_backticked = true;
+        return .{}; // empty token (skipped by lexer)
     }
 
     // Special chars or compound chars
@@ -409,7 +446,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     token.l0 = iterator.line;
     token.c0 = iterator.column;
 
-    token.kind = ifx directive then Token_Kind.DIRECTIVE else .NOTE;
+    token.kind = ifx directive then Token.Kind.DIRECTIVE else .NOTE;
     token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
 
     token.l1 = iterator.line;
@@ -458,7 +495,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     identifier := builder_to_string(*builder); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
     keyword: string;
 
-    for token_kind: enum_names(Token_Kind) {
+    for token_kind: enum_names(Token.Kind) {
         if !starts_with(token_kind, "KEYWORD") continue;
 
         KEYWORD_COUNT :: #run "KEYWORD_".count;
@@ -479,7 +516,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     }
 
     if keyword {
-        enum_value, ok := enum_name_to_value(Token_Kind, keyword); // This works with KEYWORD_lower because of :lowering_in_type_info:
+        enum_value, ok := enum_name_to_value(Token.Kind, keyword); // This works with KEYWORD_lower because of :lowering_in_type_info:
         assert(ok, "invalid keyword %", keyword);
         token.kind = enum_value;
     } else {

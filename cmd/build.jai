@@ -34,7 +34,7 @@ TRACY_PROFILE :: false;
 
 	make_directory_if_it_does_not_exist("./bin/");
 
-     flags: Intercept_Flags;
+    flags: Intercept_Flags;
     if tracy && tracy.before_intercept tracy.before_intercept(tracy, *flags);
 
     compiler_begin_intercept(w);
