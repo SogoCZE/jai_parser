@@ -2055,6 +2055,7 @@ parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
     identifier.name = ident_token.string_value;
     identifier.backticked = ident_token.backticked;
     set_end_location(identifier, peek_token(parser.lexer, -1));
+    parser.node_visit(identifier, parser.user_data);
     return identifier;
 }
 
