@@ -280,8 +280,8 @@ maybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool, *Token {
 #scope_module
 
 Iterator :: struct {
-    line := 1;
-    column := 1;
+    line := 0;
+    column := 0;
     buffer: string;
     file: string;
 }
