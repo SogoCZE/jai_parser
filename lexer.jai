@@ -244,7 +244,7 @@ is_token :: (lexer: *Lexer, predicate: (token: *Token) -> bool, $peek := 0) -> b
     return true;
 }
 
-meaybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool {
+maybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool {
     next_token := peek_token(lexer);
     if !next_token || next_token.kind != kind return false;
     eat_token(lexer, kind);

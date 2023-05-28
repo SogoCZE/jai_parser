@@ -1279,7 +1279,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
     }
 
     // decl: type_inst = exp;
-    if meaybe_eat_token(parser.lexer, #char "=") {
+    if maybe_eat_token(parser.lexer, #char "=") {
         decl.expression = parse(parser, decl);
     }
 
@@ -1373,8 +1373,8 @@ parse_procedure :: (parser: *Parser) -> *Node {
     for proc.arguments it.parent = proc;
 
     // returns
-    if meaybe_eat_token(parser.lexer, .ARROW_RIGHT) {
-        meaybe_eat_token(parser.lexer, #char "(");
+    if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
+        maybe_eat_token(parser.lexer, #char "(");
         returns: [..]*Return_Value;
 
         is_returns_end_token :: (token: *Token) -> bool {
@@ -1404,7 +1404,7 @@ parse_procedure :: (parser: *Parser) -> *Node {
         }
 
         proc.returns = returns;
-        meaybe_eat_token(parser.lexer, #char ")");
+        maybe_eat_token(parser.lexer, #char ")");
     }
 
     parse_proc_directive :: (parser: *Parser, proc: *Procedure) {
@@ -2061,6 +2061,7 @@ parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
 
 parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
     literal := New(Literal);
+    type.parent = literal;
 
     eat_token(parser.lexer, #char ".");
 
@@ -2230,6 +2231,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
 
     binary_operation := New(Binary_Operation);
     binary_operation.left = left;
+    binary_operation.left.parent = binary_operation;
 
     set_start_location(binary_operation, left);
 
