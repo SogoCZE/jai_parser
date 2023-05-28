@@ -244,13 +244,6 @@ is_token :: (lexer: *Lexer, predicate: (token: *Token) -> bool, $peek := 0) -> b
     return true;
 }
 
-maybe_eat_token :: (lexer: *Lexer, kind: Token.Kind) -> bool {
-    next_token := peek_token(lexer);
-    if !next_token || next_token.kind != kind return false;
-    eat_token(lexer, kind);
-    return true;
-}
-
 end :: (using lexer: *Lexer) -> bool {
     return cursor + 1 > tokens.count;
 }
