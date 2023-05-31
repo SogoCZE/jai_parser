@@ -528,6 +528,7 @@ Directive_Run :: struct {
     kind = .DIRECTIVE_RUN;
 
     stallable: bool;
+    host: bool;
     expression: *Node;
 }
 
@@ -1704,12 +1705,22 @@ parse_directive :: (parser: *Parser) -> *Node {
 parse_directive_run :: (parser: *Parser) -> *Directive_Run {
     directive_run := New(Directive_Run);
 
-    if maybe_eat_token(parser.lexer, #char ",") 
-        && is_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
-        eat_token(parser.lexer, .IDENTIFIER);
+    while maybe_eat_token(parser.lexer, #char ",") {
+        if maybe_eat_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
+            directive_run.stallable = true;
+        }
 
-        directive_run.stallable = true;
-    }
+        if maybe_eat_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "host") {
+            directive_run.host = true;
+        }
+    } 
+
+    // if maybe_eat_token(parser.lexer, #char ",") 
+    //     && is_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
+    //     eat_token(parser.lexer, .IDENTIFIER);
+
+    //     directive_run.stallable = true;
+    // }
 
     directive_run.expression = parse(parser, directive_run);   
 
