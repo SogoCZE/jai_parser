@@ -133,7 +133,7 @@ create_lexer :: (source: string, file: string) -> Lexer {
 
 print_token :: (token: *Token) {
     if !token {
-        print("<null token>\n");
+        log("<null token>\n");
         return;
     }
 
@@ -153,12 +153,12 @@ print_token :: (token: *Token) {
 
     if value.count == 0 {
         if token.kind < 255 {
-            print("% -> %\n", token, to_string(*cast(u8) token.kind, 1));
+            log("% -> %\n", token, to_string(*cast(u8) token.kind, 1));
         } else {
-            print("% -> %\n", token, token.kind);
+            log("% -> %\n", token, token.kind);
         }
     } else {
-        print("% -> %\n", token, value);
+        log("% -> %\n", token, value);
     }
 }
 

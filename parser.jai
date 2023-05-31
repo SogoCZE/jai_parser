@@ -1538,7 +1538,7 @@ parse_struct :: (parser: *Parser) -> *Struct {
         _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
     } else {
-        print("Exprected struct body! Got:");
+        log_error("Exprected struct body! Got:");
         print_token(peek_token(parser.lexer));
     }
 
