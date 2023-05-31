@@ -2072,7 +2072,7 @@ parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
 
 parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
     literal := New(Literal);
-    type.parent = literal;
+    if type type.parent = literal;
 
     eat_token(parser.lexer, #char ".");
 
