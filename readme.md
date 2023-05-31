@@ -414,8 +414,10 @@ cd cmd
 jai build.jai && ./bin/jai_parser ../tests/example.jai
 ```
 
-## Dependecies
-- [Jason](https://github.com/rluba/jason)
+## Dependencies
+The parser itself depends only on the modules included with the Jai compiler, but the CMD example has the following dependencies:
+
+- [Jason](https://github.com/rluba/jason) (for JSON export)
 - [Tracy](https://github.com/rluba/jai-tracy) (when profiling)
 
 ## TODO:
