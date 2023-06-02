@@ -1622,6 +1622,7 @@ parse_block :: (parser: *Parser) -> *Block {
 parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     proc_call := New(Procedure_Call);
     proc_call.procedure = procedure;
+    procedure.parent = proc_call;
 
     if procedure.kind == .IDENTIFIER {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
