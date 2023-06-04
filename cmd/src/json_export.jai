@@ -1,6 +1,51 @@
 
 #import "Jason";
 
+is_array_of_nodes :: (info: *Type_Info) -> bool {
+    if info.type != .ARRAY return false;
+    array_info := cast(*Type_Info_Array) info;
+    if !array_info.element_type return false;
+
+    return is_node(array_info.element_type);
+}
+
+is_node_struct :: (info: *Type_Info) -> bool {
+    if info.type != .STRUCT return false;
+    _struct_info := cast(*Type_Info_Struct) info;
+
+    return _struct_info.name == "Node" || _struct_info.name == "Return_Value" || _struct_info.name == "Note";
+}
+
+is_pointer_to_struct :: (info: *Type_Info) -> bool {
+    if info.type != .POINTER return false;
+    pointer_info := cast(*Type_Info_Pointer) info;
+    if !pointer_info.pointer_to return false;
+
+    return pointer_info.pointer_to.type == .STRUCT;
+}
+
+
+is_pointer_to_node :: (info: *Type_Info) -> bool {
+    if info.type != .POINTER return false;
+    pointer_info := cast(*Type_Info_Pointer) info;
+    if !pointer_info.pointer_to return false;
+
+    return is_node(pointer_info.pointer_to);
+}
+
+is_node :: (info: *Type_Info) -> bool {
+    if info.type == {
+        case .POINTER;
+            return is_pointer_to_node(info);
+        case .STRUCT;
+            return is_node_struct(info);
+        case .ARRAY;
+            return is_array_of_nodes(info);
+    }
+
+    return false;
+}
+
 struct_with_nodes_to_json :: (node: *$T/Node) -> string {
     if !node return "null";
 
@@ -10,50 +55,6 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
 
     print_to_builder(*json_builder, "\"kind\": %,", json_write_string(node.kind));
     print_to_builder(*json_builder, "\"location\": %", json_write_string(node.location, indent_char=""));
-
-    is_node :: (info: *Type_Info) -> bool {
-        if info.type == {
-            case .POINTER;
-                return is_pointer_to_node(info);
-            case .STRUCT;
-                return is_node_struct(info);
-            case .ARRAY;
-                return is_array_of_nodes(info);
-        }
-
-        return false;
-    }
-
-    is_array_of_nodes :: (info: *Type_Info) -> bool {
-        if info.type != .ARRAY return false;
-        array_info := cast(*Type_Info_Array) info;
-        if !array_info.element_type return false;
-
-        return is_node(array_info.element_type);
-    }
-
-    is_node_struct :: (info: *Type_Info) -> bool {
-        if info.type != .STRUCT return false;
-        _struct_info := cast(*Type_Info_Struct) info;
-
-        return _struct_info.name == "Node" || _struct_info.name == "Return_Value" || _struct_info.name == "Note";
-    }
-
-    is_pointer_to_node :: (info: *Type_Info) -> bool {
-        if info.type != .POINTER return false;
-        pointer_info := cast(*Type_Info_Pointer) info;
-        if !pointer_info.pointer_to return false;
-
-        return is_node(pointer_info.pointer_to);
-    }
-
-    is_pointer_to_struct :: (info: *Type_Info) -> bool {
-        if info.type != .POINTER return false;
-        pointer_info := cast(*Type_Info_Pointer) info;
-        if !pointer_info.pointer_to return false;
-
-        return pointer_info.pointer_to.type == .STRUCT;
-    }
 
     #insert -> string {
         info := type_info(T);

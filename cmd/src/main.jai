@@ -1,4 +1,11 @@
 find_current_jai_path :: () -> string {
+
+    remove_trailing_slash :: (path: string) -> string {
+        result := path;
+        if path[path.count - 1] == #char "/" result.count -= 1;
+        return result;
+    }
+
     Compiler :: #import "Compiler";
     options := Compiler.get_build_options();
     for options.import_path {
@@ -11,12 +18,6 @@ find_current_jai_path :: () -> string {
     }
 
     return "";
-
-    remove_trailing_slash :: (path: string) -> string {
-        result := path;
-        if path[path.count - 1] == #char "/" result.count -= 1;
-        return result;
-    }
 }
 
 JAI_PATH :: #run find_current_jai_path();

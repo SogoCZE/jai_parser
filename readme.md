@@ -422,6 +422,7 @@ The parser itself depends only on the modules included with the Jai compiler, bu
 
 ## TODO:
 - Create automatic tests
+- Switch to Lexer from Jai Modules? 
 - Remove unnecessary heap allocations
 - Measure performance with Tracy and improve it (it's probably quite slow now)
 - Refactor data structures (maybe use linked list etc)

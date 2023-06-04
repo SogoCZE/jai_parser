@@ -2251,6 +2251,24 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     assert(is_operator(op));
     binary_operation.operation = create_operator_from_token(op.kind);
 
+    // pointer.*
+    if maybe_eat_token(parser.lexer, #char "*") {
+        unary_operation := New(Unary_Operation);
+        unary_operation.operation = .POINTER_DEREFERENCE;
+
+        unary_operation.expression = left;
+        binary_operation.left.parent = unary_operation;
+
+        free(binary_operation);
+
+        // Binary operation   
+        if is_operator(peek_token(parser.lexer)) {
+            return parse_binary_operation(parser, unary_operation);
+        }
+
+        return unary_operation;
+    }
+
     binary_operation.right = parse(parser, binary_operation); // @TODO: anything?
 
     set_end_location(binary_operation, binary_operation.right);
