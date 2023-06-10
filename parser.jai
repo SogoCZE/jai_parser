@@ -1429,7 +1429,10 @@ parse_procedure :: (parser: *Parser) -> *Node {
                 proc.flags |= .C_CALL;
             case "intrinsic";
                 proc.flags |= .INTRINSIC;
-                proc.intrinsic = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                if is_token(parser.lexer, .IDENTIFIER) {
+                    proc.intrinsic = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                }
+
             case "compiler";
                 proc.flags |= .COMPILER;
             case "elsewhere";
