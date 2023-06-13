@@ -33,7 +33,6 @@ Node :: struct {
         DEFER;
         USING;
         CAST;
-        AUTO_CAST;
         COMMA_SEPERATED_EXPRESSION;
         IF; 
         CASE;
@@ -175,19 +174,15 @@ Cast :: struct {
     using #as node: Node;
     kind = .CAST;
 
+    auto: bool;
+
     expression: *Node;
     cast_expression: *Node;
 
     truncate: bool;
     no_check: bool;
+    force: bool;
 }  
-
-Auto_Cast :: struct {
-    using #as node: Node;
-    kind = .AUTO_CAST;
-
-    expression: *Node;
-}
 
 Break :: struct {
     using #as node: Node;
@@ -1205,7 +1200,7 @@ parse_node :: (parser: *Parser) -> *Node {
     
     // Auto Cast (xx)
     if is_token(parser.lexer, .KEYWORD_AUTO_CAST) {
-        return parse_auto_cast(parser);
+        return parse_cast(parser, true);
     }
 
     // Directive
@@ -2471,9 +2466,11 @@ parse_using :: (parser: *Parser) -> *Node {
     return _using;
 }
 
-parse_cast :: (parser: *Parser) -> *Cast {
+parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
     _cast := New(Cast);
-    cast_token := eat_token(parser.lexer, .KEYWORD_CAST);
+    _cast.auto = auto;
+
+    eat_token(parser.lexer, ifx auto then Token.Kind.KEYWORD_AUTO_CAST else Token.Kind.KEYWORD_CAST);
 
     // modifiers
     if is_token(parser.lexer, #char ",") {
@@ -2486,23 +2483,19 @@ parse_cast :: (parser: *Parser) -> *Cast {
              _cast.truncate = true;
             case "no_check";
              _cast.no_check = true;
+            case "force";
+             _cast.force = true;
         }
     }
 
-    eat_token(parser.lexer, #char "(");
-    _cast.cast_expression = parse(parser, _cast);
-    eat_token(parser.lexer, #char ")");
+    if maybe_eat_token(parser.lexer, #char "(") {
+        _cast.cast_expression = parse(parser, _cast);
+        eat_token(parser.lexer, #char ")");
+    }
 
     _cast.expression = parse(parser, _cast);
 
     return _cast;
-}
-
-parse_auto_cast :: (parser: *Parser) -> *Auto_Cast {
-    auto_cast := New(Auto_Cast);
-    eat_token(parser.lexer, .KEYWORD_AUTO_CAST);
-    auto_cast.expression = parse(parser, auto_cast);
-    return auto_cast;
 }
 
 parse_inline :: (parser: *Parser) -> *Node {

@@ -1,1 +1,1 @@
-pointer.*
+xx,force b;
