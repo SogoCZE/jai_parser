@@ -1265,7 +1265,13 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
     eat_token(parser.lexer, #char ":");
     decl := New(Declaration);
     decl.name = ident_token.string_value;
-    decl.type_inst = parse(parser, decl);
+
+    if is_token(parser.lexer, #char "(") { 
+        decl.type_inst = parse_procedure(parser, true);
+    } else {
+        decl.type_inst = parse(parser, decl);
+    }
+
     decl.backticked = ident_token.backticked;
 
     // decl: u8 #align 32
@@ -1333,7 +1339,7 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Decla
     return decl;
 }
 
-parse_procedure :: (parser: *Parser) -> *Node {
+parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
     members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
 
     // Probably @InComplete
@@ -1347,18 +1353,23 @@ parse_procedure :: (parser: *Parser) -> *Node {
     }
 
     // @TODO: this is kinda messy? We probably want to do this in some other way...
-    if members.count > 0 && !is_procedure_args(members[0].kind) {
+    if !force_procedure && members.count > 0 && !is_procedure_args(members[0].kind) {
 
         // Quick Lambda
         if is_token(parser.lexer, .QUICK_LAMBDA) {
             return parse_quick_lambda(parser, members);
         }
 
-        // Comma Seperated Expression
+        // Comma Seperated Expression @TODO: maybe move this somewhere else?
         comma_seperated_expression := New(Comma_Seperated_Expression);
 
         comma_seperated_expression.members = members;
         for comma_seperated_expression.members it.parent = comma_seperated_expression;
+
+        // Binary operation eg: ((10+10) - (20+5))
+        if is_operator(peek_token(parser.lexer)) {
+            return parse_binary_operation(parser, comma_seperated_expression);
+        }
 
         return comma_seperated_expression;
     }
@@ -1819,7 +1830,12 @@ parse_directive_type :: (parser: *Parser) -> *Directive_Type {
 
     }
 
-    directive_type.expression = parse(parser, directive_type);
+    if is_token(parser.lexer, #char "(") { 
+        directive_type.expression = parse_procedure(parser, true);
+    } else {
+        directive_type.expression = parse(parser, directive_type);
+    }
+
     return directive_type;
 }
 
@@ -2488,7 +2504,7 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
         }
     }
 
-    if maybe_eat_token(parser.lexer, #char "(") {
+    if !auto && maybe_eat_token(parser.lexer, #char "(") {
         _cast.cast_expression = parse(parser, _cast);
         eat_token(parser.lexer, #char ")");
     }
