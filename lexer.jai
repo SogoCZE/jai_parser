@@ -495,11 +495,10 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
 
         token_kind_lower_without_prefix := token_kind;
         token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
-        to_lower_in_place(token_kind_lower_without_prefix); // @TODO: this is dangerous because we lowering values in the enum type info!!! :lowering_in_type_info:
+        token_kind_lower_without_prefix = to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
 
         if identifier == "xx" {
-
-            keyword = "KEYWORD_AUTO_CAST"; // This has to be lower because of :lowering_in_type_info:
+            keyword = "KEYWORD_AUTO_CAST";
             break;
         }
 
@@ -510,8 +509,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     }
 
     if keyword {
-        
-        enum_value, ok := enum_name_to_value(Token.Kind, keyword); // This works with KEYWORD_lower because of :lowering_in_type_info:
+        enum_value, ok := enum_name_to_value(Token.Kind, keyword); 
         assert(ok, "invalid keyword %", keyword);
         token.kind = enum_value;
     } else {
