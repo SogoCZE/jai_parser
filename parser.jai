@@ -10,6 +10,7 @@ Node :: struct {
         UNINITIALIZATED;
         DECLARATION;
         COMPOUND_DECLARATION;
+        COMPOUND_DECLARATION_ITEM;
         BLOCK;
         STRUCT;
         UNION;
@@ -119,6 +120,19 @@ Compound_Declaration :: struct {
     members: [] *Node;
 
     type_inst: *Node;
+    expression: *Node;
+}
+
+Compound_Declaration_Item :: struct {
+    using #as node: Node;
+    kind = .COMPOUND_DECLARATION_ITEM;
+
+    Item_Kind :: enum {
+        DECLARATION;
+        ASSING;
+    }
+
+    item_kind: Item_Kind;
     expression: *Node;
 }
 
@@ -795,12 +809,31 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         // if kind == .BINARY_OPERATION return true;
         return false;
     }
- 
-    // Comma Separated Expression, Compound Declaration ...
-    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && maybe_eat_token(parser.lexer, #char ",") {
 
+    is_start_of_comma_separated :: (lexer: *Lexer) -> bool {
+        if is_token(lexer, #char ",") return true;
+
+        if !is_token(lexer, #char "=") && !is_token(lexer, #char ":") return false; 
+        if is_token(lexer, #char ",", 1) return true;
+
+        return false;
+    }
+
+    // Comma Separated Expression, Compound Declaration ...
+    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && is_start_of_comma_separated(parser.lexer) {
         unprocessed_tokens: [..]Token;
-        nodes: [..] *Node;
+        nodes: [..] *Node; 
+
+        nodes_types: Table(int, Compound_Declaration_Item.Item_Kind); // @TODO: free!
+        init(*nodes_types);
+
+        if maybe_eat_token(parser.lexer, #char "=") { 
+            table_add(*nodes_types, 0, .ASSING);
+        } else if maybe_eat_token(parser.lexer, #char ":") {
+            table_add(*nodes_types, 0, .DECLARATION);
+        }
+
+        eat_token(parser.lexer, #char ",");
         array_add(*nodes, base_node);
 
         parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token, left := false) {
@@ -824,21 +857,50 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             }
         }
 
+        item_index := 1;
         while !end(parser.lexer) {
+
+            is_end :: (lexer: *Lexer, $peek := 0) -> bool {
+                // @TODO: Anything else?
+                if is_token(lexer, #char "=", peek) return true;
+                if is_token(lexer, #char ":", peek) return true;
+                if is_token(lexer, #char ";", peek) return true;
+                if is_token(lexer, #char ")", peek) return true;
+                if is_token(lexer, .DECLARATION_AND_ASSIGN, peek) return true;
+
+                return false;                
+            }
+
+            if is_token(parser.lexer, #char ":") {
+
+                if is_token(parser.lexer, #char ",", 1) || is_end(parser.lexer, 1) {
+                    eat_token(parser.lexer, #char ":");
+                    table_add(*nodes_types, item_index, .DECLARATION);
+                } else {
+                    break;
+                }
+
+            }
+
+            if is_token(parser.lexer, #char "=") {
+
+                if is_token(parser.lexer, #char ",", 1) || is_end(parser.lexer, 1) {
+                    eat_token(parser.lexer, #char "=");
+                    table_add(*nodes_types, item_index, .ASSING);
+                } else {
+                    break;
+                }
+
+            }
 
             if maybe_eat_token(parser.lexer, #char ",") {
                 parse_token_array(parser, *nodes, unprocessed_tokens);
                 array_reset(*unprocessed_tokens);
+                item_index += 1;
                 continue;
             }
 
-            // @TODO: Anything else?
-            if is_token(parser.lexer, #char ";") break;
-            if is_token(parser.lexer, #char ")") break;
-            // if is_token(parser.lexer, #char "{") break;
-            if is_token(parser.lexer, #char ":") break;
-            if is_token(parser.lexer, .DECLARATION_AND_ASSIGN) break;
-            if is_token(parser.lexer, #char "=") break;
+            if is_end(parser.lexer) break;
 
             array_add(*unprocessed_tokens, eat_token(parser.lexer));
         }
@@ -846,13 +908,35 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         // Left overs
         parse_token_array(parser, *nodes, unprocessed_tokens, true);
 
+        transform_nodes_into_items :: (parent: *Node, nodes_types: Table(int, Compound_Declaration_Item.Item_Kind), nodes: []*Node, default: Compound_Declaration_Item.Item_Kind) {
+            for node: nodes {
+                item := New(Compound_Declaration_Item);
+                item.parent = parent;
+
+                item_kind, ok := table_find(*nodes_types, it_index);
+                if ok {
+                    item.item_kind = item_kind;
+                } else {
+                    item.item_kind = default;
+                }
+
+                set_start_location(item, node);
+                set_end_location(item, node);
+
+                node.parent = item;
+                item.expression = node;
+
+                nodes[it_index] = item;
+            }
+        }
+
         // Compound Declaration
         if maybe_eat_token(parser.lexer, #char ":") {
             compound_declaration := New(Compound_Declaration);
 
-            compound_declaration.members = nodes;
-            for compound_declaration.members it.parent = compound_declaration;
+            transform_nodes_into_items(compound_declaration, nodes_types, nodes, .DECLARATION);
 
+            compound_declaration.members = nodes;
             compound_declaration.parent = parent;
             compound_declaration.type_inst = parse(parser, compound_declaration);
 
@@ -863,13 +947,13 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             return compound_declaration;
         }   
 
-        // Compound Declaration
+        // Compound Declaration & Assing
         if maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) {
             compound_declaration := New(Compound_Declaration);
 
-            compound_declaration.members = nodes;
-            for compound_declaration.members it.parent = compound_declaration;
+            transform_nodes_into_items(compound_declaration, nodes_types, nodes, .DECLARATION);
 
+            compound_declaration.members = nodes;
             compound_declaration.parent = parent;
             compound_declaration.expression = parse(parser, compound_declaration);
 
@@ -881,8 +965,14 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         }
 
         comma_seperated_expression := New(Comma_Seperated_Expression);
+
+        if is_token(parser.lexer, #char "=") {
+            transform_nodes_into_items(comma_seperated_expression, nodes_types, nodes, .ASSING);
+        } else {
+            for nodes it.parent = comma_seperated_expression;
+        }
+        
         comma_seperated_expression.members = nodes;
-        for comma_seperated_expression.members it.parent = comma_seperated_expression;
 
         if maybe_eat_token(parser.lexer, #char "=") {
             binary_operation := New(Binary_Operation);
@@ -1048,7 +1138,7 @@ parse_node :: (parser: *Parser) -> *Node {
         ident := eat_token(parser.lexer, .IDENTIFIER);
 
         // Binary operation   
-        if is_operator(peek_token(parser.lexer)) {
+        if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
 
@@ -1076,7 +1166,7 @@ parse_node :: (parser: *Parser) -> *Node {
             return parse_declaration_and_assign(parser, ident);
         }
         
-        if is_token(parser.lexer, #char ":") {
+        if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) {
             return parse_type_instantiation(parser, ident);
         }
 
@@ -2276,7 +2366,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         free(binary_operation);
 
         // Binary operation   
-        if is_operator(peek_token(parser.lexer)) {
+        if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, unary_operation);
         }
 
