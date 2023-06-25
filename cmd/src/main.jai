@@ -9,7 +9,9 @@ find_current_jai_path :: () -> string {
     Compiler :: #import "Compiler";
     options := Compiler.get_build_options();
     for options.import_path {
-        if find_index_from_left(it, "jai/modules") != -1 {
+        print("Module: %\n", it);
+
+        if find_index_from_left(to_lower_copy(it), "jai/modules") != -1 {
             modules_path := remove_trailing_slash(it);
             base_path := remove_trailing_slash(path_strip_filename(modules_path));
             log("% -> %", modules_path, base_path);
@@ -129,6 +131,8 @@ parse_file :: (files: *Files, path: string) {
 }
 
 main :: () {
+    print("Jai path: %\n", JAI_PATH);
+
     start := current_time_consensus();
 
     files: Table(string, []*Node);
@@ -162,7 +166,7 @@ main :: () {
 
 #load "json_export.jai";
 
-#import,dir "../../";
+#import,dir "../../../jai_parser";
 
 File_Module :: #import "File";
 #import "File_Utilities";
