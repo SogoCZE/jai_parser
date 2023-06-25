@@ -186,13 +186,14 @@ is_operator :: (token: *Token) -> bool {
         case #char "=";                          return true;
         case #char "&";                          return true;
         case #char "|";                          return true;
-        case .PLUS_EQUAL;                       return true;
-        case .MINUS_EQUAL;                      return true;
-        case .MOD_EQUAL;                        return true;
-        case .DIV_EQUAL;                        return true;
-        case .TIMES_EQUAL;                      return true;
-        case .LESS_EQUAL;                       return true;
-        case .GREATER_EQUAL;                    return true;
+        case #char "~";                          return true;
+        case .PLUS_EQUAL;                        return true;
+        case .MINUS_EQUAL;                       return true;
+        case .MOD_EQUAL;                         return true;
+        case .DIV_EQUAL;                         return true;
+        case .TIMES_EQUAL;                       return true;
+        case .LESS_EQUAL;                        return true;
+        case .GREATER_EQUAL;                     return true;
         case .BITWISE_EQUAL;                     return true;
         case .LOGICAL_AND;                       return true;
         case .LOGICAL_AND_ASSIGNMENT;            return true;
@@ -327,8 +328,14 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
+// @TODO: remove this
+total_tokens: int;
+
 parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
+
+    // @TODO: remove this
+    total_tokens += 1;
 
     if is_comment(iterator) {
         return parse_comment(iterator);

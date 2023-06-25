@@ -8,10 +8,13 @@ TRACY_PROFILE :: false;
         return;
     }
 
+
     options := get_build_options(w);
     options.output_executable_name = "jai_parser";
     options.output_path = "./bin";   
     options.use_natvis_compatible_types = true;   
+
+    set_optimization(*options, .OPTIMIZED);
 
     tracy: *Metaprogram_Plugin;
     #if TRACY_PROFILE {

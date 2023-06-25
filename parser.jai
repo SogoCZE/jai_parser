@@ -461,6 +461,7 @@ _Operator :: enum u8 {
     ASSING; // =
     BITWISE; // &
     PIPE; // |
+    COMPLEMENT; // ~
 
     BITWISE_EQUAL; // &=
     PIPE_EQUAL; // |=
@@ -485,6 +486,9 @@ _Operator :: enum u8 {
     UNSIGNED_LEFT_SHIFT; // <<<
     UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
     UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
+
+    ARRAY_SUBSCRIPT; // []
+    ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
 } 
 
 Binary_Operation :: struct {
@@ -519,6 +523,7 @@ Unary_Operation :: struct {
         POINTER_DEREFERENCE;
         EXPAND;
         ELLIPSIS;
+        COMPLEMENT;
     }
 
     operation: Operation = .INVALID;
@@ -1098,6 +1103,7 @@ create_operator_from_token :: (kind: Token.Kind) -> _Operator {
         case #char ".";                           return .DOT;
         case #char "&";                           return .BITWISE;
         case #char "|";                           return .PIPE;
+        case #char "~";                           return .COMPLEMENT;
 
         case .BITWISE_EQUAL;                      return .BITWISE_EQUAL;
         case .PIPE_EQUAL;                         return .PIPE_EQUAL;
@@ -1126,7 +1132,7 @@ create_operator_from_token :: (kind: Token.Kind) -> _Operator {
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;     return .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
     }
 
-    log_error(tprint("Invalid operator '%'.", kind));
+    log_error(tprint("Invalid operator '%'.", token_kind_to_string(kind)));
     
     return .INVALID;
 }
@@ -2285,6 +2291,7 @@ is_unary_operator :: (parser: *Parser) -> bool {
     if is_token(parser.lexer, #char "*")            return true;
     if is_token(parser.lexer, #char "!")            return true;
     if is_token(parser.lexer, #char "$")            return true;
+    if is_token(parser.lexer, #char "~")            return true;
     if is_token(parser.lexer, .DOUBLE_DOLLAR)       return true;
     if is_token(parser.lexer, .LEFT_SHIFT)          return true;
     if is_token(parser.lexer, .DOUBLE_DOT)          return true;
@@ -2325,6 +2332,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
+        case #char "~";             unary_operation.operation = .COMPLEMENT;
         case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
@@ -2648,7 +2656,21 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
 
     op := eat_token(parser.lexer);
     // assert(is_operator(op));
-    operator_overload.operation = create_operator_from_token(op.kind);
+
+    // operator [] :: and operator []= ::
+    if op.kind == #char "[" {
+        eat_token(parser.lexer, #char "]");
+
+        if maybe_eat_token(parser.lexer, #char "=") {
+            operator_overload.operation = .ARRAY_SUBSCRIPT;
+        } else {
+            operator_overload.operation = .ARRAY_SUBSCRIPT_ASSIGNMENT;
+        }
+
+    } else {
+        operator_overload.operation = create_operator_from_token(op.kind);
+    }
+
 
     if maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
         operator_overload.procedure = parse(parser, operator_overload);

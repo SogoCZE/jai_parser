@@ -63,7 +63,13 @@ Node_Visit_Data :: struct {
     files: *Files;
 }
 
+// @TODO: remove this
+total_nodes: int;
+
 node_visit :: (node: *Node, data: Node_Visit_Data) {
+
+    // @TODO: remove this
+    total_nodes += 1;
 
     if node.kind == .DIRECTIVE_IMPORT {
         _import := cast(*Directive_Import) node;
@@ -123,6 +129,8 @@ parse_file :: (files: *Files, path: string) {
 }
 
 main :: () {
+    start := current_time_consensus();
+
     files: Table(string, []*Node);
     cmd_arguments := get_command_line_arguments();
 
@@ -130,19 +138,26 @@ main :: () {
         print("You dont provide any file to parse.\n");
         return;
     }
-    
+
     set_allocators(*pool);
     push_allocator(pool_allocator_proc, *pool);
 
     parse_file(*files, cmd_arguments[1]);
 
+
+    end := current_time_consensus();
+    duration_ms := to_milliseconds(end - start);
+
+    print("Parsed % files (total nodes: %, total tokens: %) in %ms\n", files.count, total_nodes, total_tokens, duration_ms);
+
 	File_Module.make_directory_if_it_does_not_exist("./out");
 
     for nodes, file: files output_file_to_json(file, nodes);
 
-    release(*pool);
-
     print("All done!\n");
+
+    release(*pool);
+ 
 }
 
 #load "json_export.jai";
