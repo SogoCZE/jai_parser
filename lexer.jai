@@ -1,3 +1,6 @@
+// @TODO: remove this
+total_tokens: int;
+
 Token :: struct {
     
     Kind :: enum {
@@ -327,9 +330,6 @@ is_comment :: (iterator: *Iterator) -> bool {
     next_char := peek(iterator, 2);
     return next_char == #char "/" || next_char == #char "*";
 }
-
-// @TODO: remove this
-total_tokens: int;
 
 parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
