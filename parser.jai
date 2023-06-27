@@ -862,7 +862,9 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             }
         }
 
+        skip_brackets: int;
         item_index := 1;
+
         while !end(parser.lexer) {
 
             is_end :: (lexer: *Lexer, $peek := 0) -> bool {
@@ -870,10 +872,18 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
                 if is_token(lexer, #char "=", peek) return true;
                 if is_token(lexer, #char ":", peek) return true;
                 if is_token(lexer, #char ";", peek) return true;
-                if is_token(lexer, #char ")", peek) return true;
+                if is_token(lexer, #char ")", peek) return true; // @TODO: maybe check for this only if we open the comma_seperated_expression with the ( ...
                 if is_token(lexer, .DECLARATION_AND_ASSIGN, peek) return true;
 
                 return false;                
+            }
+
+            // For stuff like cast(float)x, cast(float)y inside comma separated expression.
+            if is_token(parser.lexer, #char "(") skip_brackets += 1;
+            if is_token(parser.lexer, #char ")") && skip_brackets > 0 {
+                skip_brackets -= 1;
+                array_add(*unprocessed_tokens, eat_token(parser.lexer));
+                continue;
             }
 
             if is_token(parser.lexer, #char ":") {
