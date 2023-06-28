@@ -380,6 +380,7 @@ Directive_Import :: struct {
         STRING;
     }
 
+    arguments: []*Node;
     import_kind: Import_Kind;
     module: string;
 }
@@ -1903,6 +1904,10 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     }
 
     directive_import.module = eat_token(parser.lexer, .STRING).string_value;
+
+    if is_token(parser.lexer, #char "(") {
+        directive_import.arguments = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
+    }
     
     return directive_import;
 }
