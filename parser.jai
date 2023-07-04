@@ -262,6 +262,7 @@ Procedure :: struct {
         RUNTIME_SUPPORT;      
         SYMMETRIC;      
         NO_ABC;
+        NO_AOC;
     }
 
     foreign_lib: string;
@@ -1580,6 +1581,8 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.modify_block.parent = proc;
             case "no_abc";
                 proc.flags |= .NO_ABC;
+            case "no_aoc";
+                proc.flags |= .NO_AOC;
         }
 
         if is_token(parser.lexer, .DIRECTIVE) {
