@@ -1338,7 +1338,7 @@ parse_node :: (parser: *Parser) -> *Node {
 
     // Block
     if is_token(parser.lexer, #char "{") {
-        return parse_block(parser);
+        return parse_block(parser, false);
     }
 
     // Array_Type
@@ -1729,11 +1729,14 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
 }
 
 // {}
-parse_block :: (parser: *Parser) -> *Block {
+parse_block :: (parser: *Parser, call_node_visit := true) -> *Block {
     block := New(Block);
     set_start_location(block, peek_token(parser.lexer));
     block.members = delimeted(parser, #char "{", #char "}", parent=block);
     set_end_location(block, peek_token(parser.lexer, -1));
+    
+    if call_node_visit parser.node_visit(block, parser.user_data);
+    
     return block;
 }
 
