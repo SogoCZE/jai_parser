@@ -265,6 +265,8 @@ Procedure :: struct {
         NO_AOC;
     }
 
+    header_location: Node.Location;
+
     foreign_lib: string;
     foreign_alias: string;
     elsewhere: string;
@@ -1032,6 +1034,13 @@ set_start_location :: (using node: *Node, token: *Token) {
     location.c0 = token.c0;
 }
 
+set_start_location :: (location: *Node.Location, token: *Token) {
+    if !token return;
+    location.file = token.file;
+    location.l0 = token.l0;
+    location.c0 = token.c0;
+}
+
 set_start_location :: (using node: *Node, from_node: *Node) {
     if !from_node return;
     location.file = from_node.location.file;
@@ -1040,6 +1049,13 @@ set_start_location :: (using node: *Node, from_node: *Node) {
 }
 
 set_end_location :: (using node: *Node, token: *Token) {
+    if !token return;
+    location.file = token.file;
+    location.l1 = token.l1;
+    location.c1 = token.c1;
+}
+
+set_end_location :: (location: *Node.Location, token: *Token) {
     if !token return;
     location.file = token.file;
     location.l1 = token.l1;
@@ -1448,6 +1464,9 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Decla
 }
 
 parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
+    header_location: Node.Location;
+    set_start_location(*header_location, peek_token(parser.lexer));
+
     members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
 
     // Probably @InComplete
@@ -1519,8 +1538,12 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         }
 
         proc.returns = returns;
+
         maybe_eat_token(parser.lexer, #char ")");
     }
+
+    set_end_location(*header_location, peek_token(parser.lexer, -1));
+    proc.header_location = header_location;
 
     parse_proc_directive :: (parser: *Parser, proc: *Procedure) {
         directive := eat_token(parser.lexer, .DIRECTIVE);
