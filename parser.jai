@@ -170,7 +170,8 @@ Using :: struct {
     kind = .USING;
 
     expression: *Node;
-    filters: []*Node;
+    filters: []*Node; 
+    filter_expression: *Node; // for cases like: using,except #run get_conflicting_names() Person;
 
     Filter_Type :: enum u8 {
         NONE   :: 0;
@@ -504,14 +505,19 @@ Binary_Operation :: struct {
     right: *Node;
 }
 
+// @TODO: Maybe rename this? Because it can be also a baked argument:
+// proc :: ($baked: i32)
+// or Polymorphic_Constant
+// proc :: (poly_arg: $T)
 Polymorphic_Constant :: struct {
     using #as node: Node;
     kind = .POLYMORPHIC_CONSTANT;
 
     maybe_constant: bool;
-    type: string;
     restrictions_interface: bool;
     restriction: *Node;
+
+    expression: *Node;
 }
 
 Unary_Operation :: struct {
@@ -2352,7 +2358,7 @@ parse_polymorphic_constant :: (parser: *Parser, maybe_constant: bool) -> *Polymo
         eat_token(parser.lexer, #char "$");
     }
 
-    polymorphic_constant.type = eat_token(parser.lexer, .IDENTIFIER).string_value;
+    polymorphic_constant.expression = parse(parser, polymorphic_constant);
 
     if maybe_eat_token(parser.lexer, #char "/") {
 
@@ -2615,8 +2621,14 @@ parse_using :: (parser: *Parser) -> *Node {
         }
     }
 
-    if is_token(parser.lexer, #char "(") {
-        _using.filters = delimeted(parser, #char "(", #char ")", #char ",", _using);
+    if _using.filter_type != .NONE {
+
+        if is_token(parser.lexer, #char "(") {
+            _using.filters = delimeted(parser, #char "(", #char ")", #char ",", _using);
+        } else {
+            _using.filter_expression = parse(parser, _using);
+        }
+
     }
 
     _using.expression = parse(parser, _using);
