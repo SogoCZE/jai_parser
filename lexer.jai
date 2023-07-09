@@ -227,7 +227,10 @@ eat_token :: (using lexer: *Lexer) -> *Token {
 
 eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
     token := eat_token(lexer);
-    assert(token != null, "Token is null!");
+    if !token {
+        log_error("Null token!"); // @TODO: add caller_location or something?
+        return *Token.{};
+    }
 
     if token.kind != kind {
         log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?

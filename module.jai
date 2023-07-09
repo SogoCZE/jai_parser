@@ -6,3 +6,4 @@
 
 #load "lexer.jai";
 #load "parser.jai";
+#load "ast_print.jai";
