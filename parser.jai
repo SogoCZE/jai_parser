@@ -1210,7 +1210,7 @@ parse_node :: (parser: *Parser) -> *Node {
             return parse_type_instantiation(parser, ident);
         }
 
-        return parse_identifier(parser, ident);
+        return parse_identifier(parser, ident, false);
     }
 
     // Procedure
@@ -2221,13 +2221,13 @@ parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kin
     return directive_scope;
 }
  
-parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
+parse_identifier :: (parser: *Parser, ident_token: *Token, node_visit := true) -> *Identifier {
     identifier := New(Identifier);
     set_start_location(identifier, ident_token);
     identifier.name = ident_token.string_value;
     identifier.backticked = ident_token.backticked;
     set_end_location(identifier, peek_token(parser.lexer, -1));
-    parser.node_visit(identifier, parser.user_data);
+    if node_visit parser.node_visit(identifier, parser.user_data);
     return identifier;
 }
 

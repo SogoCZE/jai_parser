@@ -109,11 +109,36 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
 }
 
 ast_print_declaration :: (builder: *String_Builder, decl: *Declaration) {
+    if decl.backticked {
+        append(builder, #char "`");
+    }
+
     append(builder, decl.name);
 
     if decl.type_inst {
         append(builder, ": ");
         ast_print(builder, decl.type_inst);
+    }
+
+    if decl.expression {
+
+        if decl.const {
+            append(builder, " :: ");
+        } else {
+            append(builder, " = ");
+        }
+
+        ast_print(builder, decl.expression);
+    }
+
+    if decl.has_elsewhere {
+        append(builder, "#elsewhere");
+
+        if decl.elsewhere.count > 0 {
+            append(builder, #char "\"");
+            append(builder, decl.elsewhere);
+            append(builder, #char "\"");
+        }
     }
 
 }
