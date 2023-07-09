@@ -248,11 +248,16 @@ ast_print_procedure_header :: (builder: *String_Builder, proc: *Procedure) {
     if proc.returns.count > 0 {
         append(builder, " -> ");
 
+        multiple := proc.returns.count > 1;
+        if multiple append(builder, #char "(");
+
         for _return: proc.returns {
             ast_print(builder, _return);
             if it_index != proc.returns.count-1 {
                 append(builder, ", ");
             }
         }
+
+        if multiple append(builder, #char ")");
     }
 }
