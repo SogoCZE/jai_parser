@@ -1514,7 +1514,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
     // returns
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
-        maybe_eat_token(parser.lexer, #char "(");
+        starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
         returns: [..]*Return_Value;
 
         is_returns_end_token :: (token: *Token) -> bool {
@@ -1545,7 +1545,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
         proc.returns = returns;
 
-        maybe_eat_token(parser.lexer, #char ")");
+        if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
     }
 
     set_end_location(*header_location, peek_token(parser.lexer, -1));

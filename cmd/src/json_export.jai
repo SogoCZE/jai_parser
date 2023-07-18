@@ -164,6 +164,14 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
             }
 
             if member.type.type == .STRUCT || is_pointer_to_struct(member.type) {
+                // Hardcoded skip!!
+                if member.name == "header_location" {
+                    print_to_builder(*builder, #string STR 
+                        append(*json_builder, "\"\"");
+                    STR, member.name);
+                    continue;
+                }
+
                 print_to_builder(*builder, #string STR 
                     append(*json_builder, struct_with_nodes_to_json(node.%));
                 STR, member.name);
