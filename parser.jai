@@ -232,6 +232,7 @@ For :: struct {
     by_pointer: bool;
     reversed: bool;
     no_abc: bool; // #no_abc
+    no_aoc: bool; // #no_aoc
 
     value: *Node;
     index: *Node;
@@ -2518,6 +2519,10 @@ parse_for :: (parser: *Parser) -> *Node {
 
     if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
         _for.no_abc = true;
+    }
+
+    if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_aoc") {
+        _for.no_aoc = true;
     }
 
     _for.body = parse(parser, _for);
