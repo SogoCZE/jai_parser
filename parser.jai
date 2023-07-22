@@ -61,6 +61,7 @@ Node :: struct {
         DIRECTIVE_MODULE_PARAMETERS;
         DIRECTIVE_PLACEHOLDER;
         DIRECTIVE_PROCEDURE_OF_CALL;
+        DIRECTIVE_PROCEDURE_NAME;
         DIRECTIVE_PROGRAM_EXPORT;
         DIRECTIVE_THIS;
         DIRECTIVE_POKE_NAME;
@@ -331,6 +332,7 @@ Struct :: struct {
 Union :: struct {
     using #as node: Node; 
     kind = .UNION;
+    polymorphic_arguments: [] *Node;
 
     block: *Block;
     notes: [] *Note;
@@ -358,6 +360,7 @@ If :: struct {
         SWITCH;
     }
 
+    no_aoc: bool; // #no_aoc
     compile_time: bool;
     condition: *Node;
     if_kind: If_Kind;
@@ -694,6 +697,13 @@ Directive_Placeholder :: struct {
 Directive_Procedure_Of_Call :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_PROCEDURE_OF_CALL;
+
+    expression: *Node;
+}
+
+Directive_Procedure_Name :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_PROCEDURE_NAME;
 
     expression: *Node;
 }
@@ -1481,6 +1491,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         if kind == .DECLARATION return true;
         if kind == .USING return true;
         if kind == .POLYMORPHIC_CONSTANT return true;
+        if kind == .COMMENT return true;
         // ...
 
         return false;
@@ -1687,8 +1698,12 @@ parse_struct :: (parser: *Parser) -> *Struct {
         _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
     } else {
-        log_error("Exprected struct body! Got:");
-        print_token(peek_token(parser.lexer));
+        token := peek_token(parser.lexer);
+        if token {
+            log_error("Exprected struct body! %:%:%", token.file, token.l0, token.c0);
+        } else {
+            log_error("Exprected struct body! (token is null)");
+        }
     }
 
     if is_token(parser.lexer, token => token.kind == .DIRECTIVE && token.string_value == "no_padding") {
@@ -1709,12 +1724,20 @@ parse_union :: (parser: *Parser) -> *Union {
 
     eat_token(parser.lexer, .KEYWORD_UNION);
 
+    if is_token(parser.lexer, #char "(") {
+        _union.polymorphic_arguments = delimeted(parser, #char "(", #char ")", #char ",", _union);
+    }
+
     if is_token(parser.lexer, #char "{") {
         _union.block = parse_block(parser);
         _union.block.parent = _union;
     } else {
-        print("Exprected union body! Got:");
-        print_token(peek_token(parser.lexer));
+        token := peek_token(parser.lexer);
+        if token {
+            log_error("Exprected union body! %:%:%", token.file, token.l0, token.c0);
+        } else {
+            log_error("Exprected union body! (token is null)");
+        }
     }
 
     if is_token(parser.lexer, .NOTE) {
@@ -1747,8 +1770,12 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
         _enum.block = parse_block(parser);
         _enum.block.parent = _enum;
     } else {
-        print("Exprected enum body! Got:");
-        print_token(peek_token(parser.lexer));
+        token := peek_token(parser.lexer);
+        if token {
+            log_error("Exprected enum body! %:%:%", token.file, token.l0, token.c0);
+        } else {
+            log_error("Exprected enum body! (token is null)");
+        }
     }
 
     if is_token(parser.lexer, .NOTE) {
@@ -1824,6 +1851,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "module_parameters";   return parse_directive_module_parameters(parser);
         case "placeholder";         return parse_directive_placeholder(parser);
         case "procedure_of_call";   return parse_directive_procedure_of_call(parser);
+        case "procedure_name";      return parse_directive_procedure_name(parser);
         case "program_export";      return parse_directive_program_export(parser);
         case "this";                return parse_directive_this(parser);
         case "poke_name";           return parse_directive_poke_name(parser);
@@ -2113,6 +2141,17 @@ parse_directive_procedure_of_call :: (parser: *Parser) -> *Directive_Procedure_O
     directive_procedure_of_call := New(Directive_Procedure_Of_Call);
     directive_procedure_of_call.expression = parse(parser, directive_procedure_of_call);
     return directive_procedure_of_call;
+}
+
+parse_directive_procedure_name :: (parser: *Parser) -> *Directive_Procedure_Name {
+    directive_procedure_name := New(Directive_Procedure_Name);
+
+    if maybe_eat_token(parser.lexer, #char "(") {
+        directive_procedure_name.expression = parse(parser, directive_procedure_name);
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
+    return directive_procedure_name;
 }
 
 parse_directive_program_export :: (parser: *Parser) -> *Directive_Program_Export {
@@ -2415,7 +2454,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     binary_operation.operation = create_operator_from_token(op.kind);
 
     // pointer.*
-    if maybe_eat_token(parser.lexer, #char "*") {
+    if binary_operation.operation == .DOT && maybe_eat_token(parser.lexer, #char "*") {
         unary_operation := New(Unary_Operation);
         unary_operation.operation = .POINTER_DEREFERENCE;
 
@@ -2571,6 +2610,12 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
     }
 
     if !switch {
+
+        // #no_aoc if true #no_aoc {}
+        if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_aoc") {
+            _if.no_aoc = true;
+        }
+
         maybe_eat_token(parser.lexer, .KEYWORD_THEN);
         _if._then = parse(parser, _if);
     
