@@ -1018,8 +1018,13 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             binary_operation.operation = .ASSING;
             binary_operation.right = parse(parser, null);
 
-            binary_operation.left.parent  = binary_operation;
-            binary_operation.right.parent = binary_operation;
+            if binary_operation.left {
+                binary_operation.left.parent  = binary_operation;
+            }
+
+            if binary_operation.right {
+                binary_operation.right.parent = binary_operation;
+            }
 
             set_start_location(binary_operation, base_node);
             set_end_location(binary_operation, peek_token(parser.lexer, -1));
