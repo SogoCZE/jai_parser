@@ -3,6 +3,7 @@
 // Also we could probably use this for formatter?
 
 ast_print :: (builder: *String_Builder, node: *Node) {
+    if !node return;
     if node.kind == {
         case .IDENTIFIER;                   ast_print_identifier(builder, xx node);
         case .DECLARATION;                  ast_print_declaration(builder, xx node);
@@ -181,7 +182,10 @@ ast_print_array_type :: (builder: *String_Builder, array_type: *Array_Type) {
 
 ast_print_return_value :: (builder: *String_Builder, return_val: *Return_Value) {
     if return_val.must append(builder, "#must ");
-    ast_print(builder, return_val.expression);
+
+    if return_val.expression {
+        ast_print(builder, return_val.expression);
+    }
 }
 
 ast_print_literal :: (builder: *String_Builder, literal: *Literal) {
@@ -260,4 +264,8 @@ ast_print_procedure_header :: (builder: *String_Builder, proc: *Procedure) {
 
         if multiple append(builder, #char ")");
     }
+}
+
+ast_print_struct :: (builder: *String_Builder, _struct: *Struct) {
+
 }
