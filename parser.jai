@@ -2,6 +2,7 @@ Parser :: struct(User_Data_Type: Type) {
     lexer: *Lexer;
     node_visit: (node: *Node, user_data: User_Data_Type);
     user_data: User_Data_Type;
+    inside_proc_args: bool; 
 }
 
 Node :: struct {
@@ -1389,9 +1390,6 @@ parse_node :: (parser: *Parser) -> *Node {
         return parse_comment(parser);
     }
 
-    // print("Eaten non match:\n");
-    // print_token(eat_token(parser.lexer));
-
     // Skip other
     eat_token(parser.lexer);
 
@@ -1489,7 +1487,17 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
     header_location: Node.Location;
     set_start_location(*header_location, peek_token(parser.lexer));
 
+    // @TODO: This is kinda hack... Maybe do this in some other better way!
+    inside_proc_args_was_already_set := parser.inside_proc_args;
+    if !inside_proc_args_was_already_set {
+        parser.inside_proc_args = true;
+    }
+
     members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
+
+    if !inside_proc_args_was_already_set {
+        parser.inside_proc_args = false;
+    }
 
     // Probably @InComplete
     is_procedure_args :: (kind: Node.Kind) -> bool {
@@ -1535,6 +1543,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         returns: [..]*Return_Value;
 
         is_returns_end_token :: (token: *Token) -> bool {
+            if token.kind == #char ";" return true;
             if token.kind == #char ")" return true;
             if token.kind == #char "{" return true;
             if token.kind == .DIRECTIVE return true;
@@ -1553,6 +1562,11 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
             }
 
             array_add(*returns, return_value);
+
+            // If we are inside procedure args we take only one return if we are not in parentheses.
+            if !starts_with_bracket && parser.inside_proc_args {
+                break;
+            }
         }
 
         // If the last return value is must all the returns must be consumed.
