@@ -646,6 +646,7 @@ Directive_Library :: struct {
 
     system: bool;
     no_static_library: bool;
+    no_dll: bool;
     name: string;    
 }
 
@@ -2073,6 +2074,10 @@ parse_directive_library :: (parser: *Parser, system: bool) -> *Directive_Library
 
     if maybe_eat_token(parser.lexer, #char ",") && maybe_eat_token(parser.lexer, token => token.string_value == "no_static_library") {
         directive_library.no_static_library = true;
+    }
+
+    if maybe_eat_token(parser.lexer, #char ",") && maybe_eat_token(parser.lexer, token => token.string_value == "no_dll") {
+        directive_library.no_dll = true;
     }
 
     if is_token(parser.lexer, .STRING) {
