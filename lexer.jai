@@ -239,6 +239,10 @@ eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
     return token;
 }
 
+eat_all_upcoming_comments :: inline (lexer: *Lexer) {
+    while is_token(lexer, .COMMENT) eat_token(lexer);
+}
+
 is_token :: (lexer: *Lexer, kind: Token.Kind, $peek := 0) -> bool {
     token := peek_token(lexer, peek);
     if !token || token.kind != kind return false;
@@ -341,7 +345,8 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     total_tokens += 1;
 
     if is_comment(iterator) {
-        return parse_comment(iterator);
+        parse_comment(iterator); // Skip comments...
+        return .{};
     }
 
     char := peek(iterator);

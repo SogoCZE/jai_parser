@@ -147,6 +147,7 @@ Comment :: struct {
 Block :: struct {
     using #as node: Node;
     kind = .BLOCK;
+    no_aoc: bool; // #no_aoc
 
     members: []*Node;
 }
@@ -472,6 +473,7 @@ _Operator :: enum u8 {
     BITWISE; // &
     PIPE; // |
     COMPLEMENT; // ~
+    NEGATE; // !
 
     BITWISE_EQUAL; // &=
     PIPE_EQUAL; // |=
@@ -1156,6 +1158,7 @@ create_operator_from_token :: (kind: Token.Kind) -> _Operator {
         case #char "&";                           return .BITWISE;
         case #char "|";                           return .PIPE;
         case #char "~";                           return .COMPLEMENT;
+        case #char "!";                           return .NEGATE;
 
         case .BITWISE_EQUAL;                      return .BITWISE_EQUAL;
         case .PIPE_EQUAL;                         return .PIPE_EQUAL;
@@ -1184,7 +1187,7 @@ create_operator_from_token :: (kind: Token.Kind) -> _Operator {
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;     return .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
     }
 
-    log_error(tprint("Invalid operator '%'.", token_kind_to_string(kind)));
+    log_error(tprint("Invalid operator '%' %:%:%.", token_kind_to_string(kind), ));
     
     return .INVALID;
 }
@@ -1772,10 +1775,10 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
     _enum := New(Enum);
     _enum.is_enum_flags = is_enum_flags;
 
-    eat_token(parser.lexer, ifx is_enum_flags then Token.Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM );
+    eat_token(parser.lexer, ifx is_enum_flags then Token.Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM);
 
     // Type specifier
-    if !is_token(parser.lexer, #char "{") {
+    if is_token(parser.lexer, .IDENTIFIER) {
         _enum.type = parse(parser, _enum);
     }
 
@@ -1806,8 +1809,9 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
 }
 
 // {}
-parse_block :: (parser: *Parser, call_node_visit := true) -> *Block {
+parse_block :: (parser: *Parser, call_node_visit := true, no_aoc := false) -> *Block {
     block := New(Block);
+    block.no_aoc = no_aoc;
     set_start_location(block, peek_token(parser.lexer));
     block.members = delimeted(parser, #char "{", #char "}", parent=block);
     set_end_location(block, peek_token(parser.lexer, -1));
@@ -1894,6 +1898,8 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "asm";                 return parse_inline_assembly(parser);
         case "if";                  return parse_if(parser, .IF, true);
         case "ifx";                 return parse_if(parser, .IFX, true);
+
+        case "no_aoc";              if is_token(parser.lexer, #char "{") return parse_block(parser, no_aoc=true);
     }
 
     // @TODO: Unknown directive?

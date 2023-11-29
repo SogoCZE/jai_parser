@@ -14,7 +14,7 @@ TRACY_PROFILE :: false;
     options.output_path = "./bin";   
     options.use_natvis_compatible_types = true;   
 
-    set_optimization(*options, .OPTIMIZED);
+    // set_optimization(*options, .OPTIMIZED);
 
     tracy: *Metaprogram_Plugin;
     #if TRACY_PROFILE {
