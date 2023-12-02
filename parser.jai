@@ -1533,6 +1533,11 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
             return parse_binary_operation(parser, comma_seperated_expression);
         }
 
+        // Array Subscript after Comma Seperated Expression eg: *(<<arr)[it]
+        if is_token(parser.lexer, #char "[") {
+            return parse_array_subscript(parser, comma_seperated_expression);
+        }
+
         return comma_seperated_expression;
     }
 
