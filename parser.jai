@@ -2387,6 +2387,11 @@ parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
         return parse_binary_operation(parser, array_subscript);
     }
 
+    // Another Array Subscript
+    if is_token(parser.lexer, #char "[") {
+        return parse_array_subscript(parser, array_subscript);
+    }
+
     return array_subscript;
 }
 
