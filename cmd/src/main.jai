@@ -11,7 +11,7 @@ find_current_jai_path :: () -> string {
     for options.import_path {
         print("Module: %\n", it);
 
-        if find_index_from_left(to_lower_copy(it), "jai/modules") != -1 {
+        if find_index_from_left(to_lower_copy_new(it), "jai/modules") != -1 {
             modules_path := remove_trailing_slash(it);
             base_path := remove_trailing_slash(path_strip_filename(modules_path));
             log("% -> %", modules_path, base_path);

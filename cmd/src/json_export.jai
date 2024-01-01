@@ -196,7 +196,7 @@ to_json :: (node: *Node) -> string {
 
     // TYPE_INSTANTIATION => Type_Instantiation
     enum_to_struct_name :: (enum_name: string) -> string {
-        lower_enum_name := to_lower_copy(enum_name);
+        lower_enum_name := to_lower_copy_new(enum_name);
         upper_next := true;
         for cast([]u8) lower_enum_name {
             if upper_next {

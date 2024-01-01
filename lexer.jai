@@ -510,7 +510,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
 
         token_kind_lower_without_prefix := token_kind;
         token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
-        token_kind_lower_without_prefix = to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
+        token_kind_lower_without_prefix = to_lower_copy_new(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
 
         if identifier == "xx" {
             keyword = "KEYWORD_AUTO_CAST";
