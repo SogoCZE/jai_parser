@@ -294,6 +294,7 @@ Procedure_Call :: struct {
     backticked: bool;
     procedure: *Node;
     arguments: [] *Node;
+    context_changes: []*Node;
 }
 
 Quick_Lambda :: struct {
@@ -1120,7 +1121,6 @@ delimeted :: (parser: *Parser, open: Token.Kind, close: Token.Kind, seperator: T
     return nodes;
 }
 
-// @TODO: Rename this to parse_until?
 parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, seperator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
@@ -1836,7 +1836,17 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
     }
 
-    proc_call.arguments = delimeted(parser, #char "(", #char ")", #char ",", proc_call);
+    eat_token(parser.lexer, #char "(");
+
+    proc_call.arguments = parse_until(parser, token => token.kind == #char ")" || token.kind == .DOUBLE_COMMA, #char ",", proc_call);
+
+    end_token := peek_token(parser.lexer);
+    if end_token && end_token.kind == .DOUBLE_COMMA {
+        eat_token(parser.lexer, .DOUBLE_COMMA);
+        proc_call.context_changes = parse_until(parser, token => token.kind == #char ")", #char ",", proc_call);
+    }
+
+    eat_token(parser.lexer, #char ")");
 
     // Array Subscript generate_array()[0]
     if is_token(parser.lexer, #char "[") {
@@ -2826,7 +2836,7 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
 }
 
 // @TODO: We currently don't parse ASM blocks body.
-// @TODO: We want catch the ASM block probably at parser level not in parser. (useless tokens being created)
+// @TODO: We want catch the ASM block probably at lexer level not in parser. (useless tokens being created)
 parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     inline_assembly := New(Inline_Assembly);
 

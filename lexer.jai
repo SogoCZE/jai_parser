@@ -34,6 +34,8 @@ Token :: struct {
         DOUBLE_DOLLAR; // $$
         DOUBLE_DOT; // ..
         ARROW_RIGHT; // ->
+        
+        DOUBLE_COMMA; // ,,
 
         // @TODO: Do these have correct names?
         LEFT_SHIFT; // <<, POINTER_DEREFERENCE
@@ -877,6 +879,11 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     if char == #char "." && next_char == #char "." {
         next(iterator);    
         token.kind = .DOUBLE_DOT;
+    }
+
+    if char == #char "," && next_char == #char "," {
+        next(iterator);
+        token.kind = .DOUBLE_COMMA;
     }
     
     if char == #char ":" {
