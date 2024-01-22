@@ -231,7 +231,7 @@ eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
     token := eat_token(lexer);
     if !token {
         log_error("Null token!"); // @TODO: add caller_location or something?
-        return *Token.{};
+        return *(Token.{});
     }
 
     if token.kind != kind {

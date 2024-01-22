@@ -882,7 +882,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             local_parser.lexer.tokens = from;
 
             while !end(local_parser.lexer) {
-                node := parse(*local_parser, *Node.{}); // @TODO: Parent hack!
+                node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
                 if !node continue;
                 array_add(to, node);
             }
@@ -1497,7 +1497,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         parser.inside_proc_args = true;
     }
 
-    members := delimeted(parser, #char "(", #char ")", #char ",", *Node.{}); // @TODO: Parent hack!?
+    members := delimeted(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
 
     if !inside_proc_args_was_already_set {
         parser.inside_proc_args = false;
