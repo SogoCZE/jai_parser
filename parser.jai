@@ -77,6 +77,7 @@ Node :: struct {
         DIRECTIVE_THROUGH;
         DIRECTIVE_SCOPE;
         DIRECTIVE_COMPILE_TIME;
+        DIRECTIVE_DISCARD;
 
         NOTE;
     }
@@ -647,6 +648,7 @@ Directive_Library :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_LIBRARY;
 
+    link_always: bool;
     system: bool;
     no_static_library: bool;
     no_dll: bool;
@@ -766,6 +768,12 @@ Directive_Filepath :: struct {
 Directive_Compile_Time :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_COMPILE_TIME;
+}
+
+Directive_Discard :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_DISCARD;
+    expression: *Node; 
 }
 
 Directive_Line :: struct {
@@ -1509,6 +1517,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         if kind == .USING return true;
         if kind == .POLYMORPHIC_CONSTANT return true;
         if kind == .COMMENT return true;
+        if kind == .DIRECTIVE_DISCARD return true;
         // ...
 
         return false;
@@ -1902,6 +1911,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "line";                return parse_directive_line(parser);
         case "through";             return parse_directive_through(parser);
         case "compile_time";        return parse_directive_compile_time(parser);
+        case "discard";             return parse_directive_discard(parser);
 
         case "library";             return parse_directive_library(parser, false);
         case "system_library";      return parse_directive_library(parser, true);
@@ -2093,13 +2103,23 @@ parse_directive_library :: (parser: *Parser, system: bool) -> *Directive_Library
     directive_library := New(Directive_Library);
     directive_library.system = system; 
 
-    if maybe_eat_token(parser.lexer, #char ",") && maybe_eat_token(parser.lexer, token => token.string_value == "no_static_library") {
-        directive_library.no_static_library = true;
-    }
+    while maybe_eat_token(parser.lexer, #char ",") {
+        if maybe_eat_token(parser.lexer, token => token.string_value == "no_static_library") {
+            directive_library.no_static_library = true;
+        }
 
-    if maybe_eat_token(parser.lexer, #char ",") && maybe_eat_token(parser.lexer, token => token.string_value == "no_dll") {
-        directive_library.no_dll = true;
-    }
+        if maybe_eat_token(parser.lexer, token => token.string_value == "link_always") {
+            directive_library.link_always = true;
+        }
+
+        if maybe_eat_token(parser.lexer, token => token.string_value == "system") {
+            directive_library.system = true;
+        }
+
+        if maybe_eat_token(parser.lexer, token => token.string_value == "no_dll") {
+            directive_library.no_dll = true;
+        }
+    } 
 
     if is_token(parser.lexer, .STRING) {
         name_token := eat_token(parser.lexer, .STRING);
@@ -2271,6 +2291,12 @@ parse_directive_through :: (parser: *Parser) -> *Directive_Through {
 
 parse_directive_compile_time :: (parser: *Parser) -> *Directive_Compile_Time {
     return New(Directive_Compile_Time);
+}
+
+parse_directive_discard :: (parser: *Parser) -> *Directive_Discard {
+    discard := New(Directive_Discard);
+    discard.expression = parse(parser, discard);
+    return discard;
 }
 
 // @TODO: Consider this...
