@@ -1150,7 +1150,8 @@ parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, seperator: Token
     return nodes;
 }
 
-create_operator_from_token :: (kind: Token.Kind) -> _Operator {
+create_operator_from_token :: (using token: Token) -> _Operator {
+
     // @InComplete
     // @TODO: this is totally silly we could use some sort of metaprogramming to make this automaticly...
     if kind == {
@@ -1195,8 +1196,8 @@ create_operator_from_token :: (kind: Token.Kind) -> _Operator {
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;     return .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
     }
 
-    log_error(tprint("Invalid operator '%' %:%:%.", token_kind_to_string(kind), ));
-    
+    log_error(tprint("Invalid operator '%' %:%:%.", token_kind_to_string(kind), file, l0, c0));
+
     return .INVALID;
 }
 
@@ -2527,7 +2528,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
 
     op := eat_token(parser.lexer);
     assert(is_operator(op));
-    binary_operation.operation = create_operator_from_token(op.kind);
+    binary_operation.operation = create_operator_from_token(op);
 
     // pointer.*
     if binary_operation.operation == .DOT && maybe_eat_token(parser.lexer, #char "*") {
@@ -2850,7 +2851,7 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
         }
 
     } else {
-        operator_overload.operation = create_operator_from_token(op.kind);
+        operator_overload.operation = create_operator_from_token(op);
     }
 
 
