@@ -1453,7 +1453,9 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
-        decl.notes = parse_notes(parser, decl);
+        notes: [..]*Note;
+        parse_notes(parser, decl, *notes);
+        decl.notes = notes;
     }
 
     return decl;
@@ -1472,7 +1474,9 @@ parse_constant_declaration :: (parser: *Parser, ident_token: *Token) -> *Declara
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
-        decl.notes = parse_notes(parser, decl);
+        notes: [..]*Note;
+        parse_notes(parser, decl, *notes);
+        decl.notes = notes;
     }
 
     return decl;
@@ -1490,7 +1494,9 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Decla
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
-        decl.notes = parse_notes(parser, decl);
+        notes: [..]*Note;
+        parse_notes(parser, decl, *notes);
+        decl.notes = notes;
     }
 
     return decl;
@@ -1682,7 +1688,9 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
-        proc.notes = parse_notes(parser, proc);
+        notes: [..] * Note;
+        parse_notes(parser, proc, *notes);
+        proc.notes = notes;
     }
 
     return proc;
@@ -1732,6 +1740,12 @@ parse_struct :: (parser: *Parser) -> *Struct {
         parse_struct_directive(parser, _struct);
     }
 
+    notes: [..]*Note;
+
+    if is_token(parser.lexer, .NOTE) {
+        parse_notes(parser, _struct, *notes);
+    }
+
     if is_token(parser.lexer, #char "{") {
         _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
@@ -1750,8 +1764,10 @@ parse_struct :: (parser: *Parser) -> *Struct {
     }
 
     if is_token(parser.lexer, .NOTE) {
-        _struct.notes = parse_notes(parser, _struct);
+        parse_notes(parser, _struct, *notes);
     }
+
+    _struct.notes = notes;
 
     return _struct;
 }
@@ -1779,7 +1795,9 @@ parse_union :: (parser: *Parser) -> *Union {
     }
 
     if is_token(parser.lexer, .NOTE) {
-        _union.notes = parse_notes(parser, _union);
+        notes: [..] *Note;
+        parse_notes(parser, _union, *notes);
+        _union.notes = notes;
     }
 
     return _union;
@@ -1817,7 +1835,9 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
     }
 
     if is_token(parser.lexer, .NOTE) {
-        _enum.notes = parse_notes(parser, _enum);
+        notes: [..] *Note;
+        parse_notes(parser, _enum, *notes);
+        _enum.notes = notes;
     }
 
     return _enum;
@@ -2878,10 +2898,8 @@ parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     return inline_assembly;
 }
 
-parse_notes :: (parser: *Parser, parent: *Node) -> [] *Note {
-    notes: [..] *Note;
-    while is_token(parser.lexer, .NOTE) array_add(*notes, parse_note(parser, parent));
-    return notes;
+parse_notes :: (parser: *Parser, parent: *Node, notes: *[..]*Note) {
+    while is_token(parser.lexer, .NOTE) array_add(notes, parse_note(parser, parent));
 }
 
 parse_note :: (parser: *Parser, parent: *Node) -> *Note  {
