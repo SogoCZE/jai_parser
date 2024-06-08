@@ -667,7 +667,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
         if is_digit(char) return true;
         if char == #char "_" return true;
-        if !<<is_float && char == #char "." && is_digit(peek(iterator, 2)) {
+        if !<<is_float && char == #char "." {
             <<is_float = true;
             return true;
         }
