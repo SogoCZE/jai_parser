@@ -1,37 +1,33 @@
-find_current_jai_path :: () -> string {
-
-    remove_trailing_slash :: (path: string) -> string {
-        result := path;
-        if path[path.count - 1] == #char "/" result.count -= 1;
-        return result;
-    }
-
+get_import_paths :: () -> []string {
     Compiler :: #import "Compiler";
     options := Compiler.get_build_options();
-    for options.import_path {
-        print("Module: %\n", it);
 
-        if find_index_from_left(to_lower_copy_new(it), "jai/modules") != -1 {
-            modules_path := remove_trailing_slash(it);
-            base_path := remove_trailing_slash(path_strip_filename(modules_path));
-            log("% -> %", modules_path, base_path);
-            return base_path;
-        }
-    }
+    paths: [..]string;
 
-    return "";
+    for options.import_path
+        array_add(*paths, trim_right(it, "/"));
+
+    print("Import path is: %", paths);
+
+    return paths;
 }
 
-JAI_PATH :: #run find_current_jai_path();
-JAI_MODULES_PATH :: #run tprint("%/modules", JAI_PATH);
+IMPORT_PATHS :: #run get_import_paths();
 
 get_module_entry :: (root: string) -> string {
-    uri := tprint("%/module.jai", root);
-    if !file_exists(uri) {
-        uri = tprint("%.jai", root);
+    for IMPORT_PATHS{
+        uri := tprint("%/%/module.jai", it, root);
+        
+        if file_exists(uri)
+            return uri;
+
+        uri = tprint("%/%.jai", it, root);
+        
+        if file_exists (uri)
+            return uri;
     }
 
-    return uri;
+    return root;
 }
 
 pool: Pool;
@@ -80,8 +76,7 @@ node_visit :: (node: *Node, data: Node_Visit_Data) {
 
         if _import.import_kind == {
             case .MODULE;
-                module_path := tprint("%/%", JAI_MODULES_PATH, _import.module);
-                path = get_module_entry(module_path);
+                path = get_module_entry(_import.module);
             case .FILE;
                 path = tprint("%/%", data.path_without_filename, _import.module); 
             case .DIR;
@@ -107,7 +102,6 @@ parse_file :: (files: *Files, path: string) {
     }
 
     path_without_filename := trim_right(path_strip_filename(path), "/");
-    print("Parsing file %...\n", path);
 
     parser: Parser(Node_Visit_Data);
     parser.user_data = .{
@@ -131,8 +125,6 @@ parse_file :: (files: *Files, path: string) {
 }
 
 main :: () {
-    print("Jai path: %\n", JAI_PATH);
-
     start := current_time_consensus();
 
     files: Table(string, []*Node);
