@@ -78,6 +78,7 @@ Node :: struct {
         DIRECTIVE_SCOPE;
         DIRECTIVE_COMPILE_TIME;
         DIRECTIVE_DISCARD;
+        DIRECTIVE_EXISTS;
 
         NOTE;
     }
@@ -784,6 +785,14 @@ Directive_Line :: struct {
 Directive_Through :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_THROUGH;
+}
+
+Directive_Exists :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_EXISTS;
+
+    wait_for: *Node;
+    expression: *Node;
 }
 
 Array_Type :: struct {
@@ -1931,6 +1940,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "filepath";            return parse_directive_filepath(parser);
         case "line";                return parse_directive_line(parser);
         case "through";             return parse_directive_through(parser);
+        case "exists";              return parse_directive_exists(parser);
         case "compile_time";        return parse_directive_compile_time(parser);
         case "discard";             return parse_directive_discard(parser);
 
@@ -2308,6 +2318,22 @@ parse_directive_line :: (parser: *Parser) -> *Directive_Line {
  
 parse_directive_through :: (parser: *Parser) -> *Directive_Through {
     return New(Directive_Through);
+}
+
+parse_directive_exists :: (parser: *Parser) -> *Directive_Exists {
+    exists := New(Directive_Exists);
+
+    if maybe_eat_token(parser.lexer, #char "(") {
+        exists.expression = parse(parser, exists);
+
+        if maybe_eat_token(parser.lexer, #char ",") {
+            exists.wait_for = parse(parser, exists);
+        }
+
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
+    return exists;
 }
 
 parse_directive_compile_time :: (parser: *Parser) -> *Directive_Compile_Time {
