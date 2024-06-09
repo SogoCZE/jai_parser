@@ -2591,6 +2591,11 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
             return parse_binary_operation(parser, unary_operation);
         }
 
+        // Array Subscript
+        if is_token(parser.lexer, #char "[") {
+            return parse_array_subscript(parser, unary_operation);
+        }
+
         return unary_operation;
     }
 
@@ -2734,7 +2739,7 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
 
     if !switch {
 
-        // #no_aoc if true #no_aoc {}
+        // #no_aoc -> if true #no_aoc {}
         if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_aoc") {
             _if.no_aoc = true;
         }
