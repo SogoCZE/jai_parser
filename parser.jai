@@ -539,6 +539,8 @@ Unary_Operation :: struct {
     Operation :: enum {
         INVALID;
 
+        PLUS;
+        MINUS;
         NEGATE;
         DOT;
         POINTER;
@@ -2508,6 +2510,8 @@ parse_array_type :: (parser: *Parser) -> *Array_Type {
 }
 
 is_unary_operator :: (parser: *Parser) -> bool {
+    if is_token(parser.lexer, #char "+")            return true;
+    if is_token(parser.lexer, #char "-")            return true;
     if is_token(parser.lexer, #char ".")            return true;
     if is_token(parser.lexer, #char "*")            return true;
     if is_token(parser.lexer, #char "!")            return true;
@@ -2550,6 +2554,8 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
     op := eat_token(parser.lexer);
 
     if op.kind == {
+        case #char "+";             unary_operation.operation = .PLUS;
+        case #char "-";             unary_operation.operation = .MINUS;
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
