@@ -473,12 +473,14 @@ _Operator :: enum u8 {
     LESS; // >
     GREATER; // <
     ASSING; // =
-    BITWISE; // &
+    BITWISE_AND; // &
     PIPE; // |
-    COMPLEMENT; // ~
+    BITWISE_NOT; // ~
+    BITWISE_XOR; // ^
     NEGATE; // !
 
-    BITWISE_EQUAL; // &=
+    BITWISE_AND_ASSIGNMENT; // &=
+    BITWISE_XOR_ASSIGNMENT; // ^=
     PIPE_EQUAL; // |=
     GREATER_EQUAL; // >=
     LESS_EQUAL; // <=
@@ -543,7 +545,7 @@ Unary_Operation :: struct {
         POINTER_DEREFERENCE;
         EXPAND;
         ELLIPSIS;
-        COMPLEMENT;
+        BITWISE_NOT;
     }
 
     operation: Operation = .INVALID;
@@ -1173,12 +1175,14 @@ create_operator_from_token :: (using token: Token) -> _Operator {
         case #char "%";                           return .MODULO;
         case #char "=";                           return .ASSING;
         case #char ".";                           return .DOT;
-        case #char "&";                           return .BITWISE;
+        case #char "&";                           return .BITWISE_AND;
         case #char "|";                           return .PIPE;
-        case #char "~";                           return .COMPLEMENT;
+        case #char "~";                           return .BITWISE_NOT;
         case #char "!";                           return .NEGATE;
+        case #char "^";                           return .BITWISE_XOR;
 
-        case .BITWISE_EQUAL;                      return .BITWISE_EQUAL;
+        case .BITWISE_AND_ASSIGNMENT;             return .BITWISE_AND_ASSIGNMENT;
+        case .BITWISE_XOR_ASSIGNMENT;             return .BITWISE_XOR_ASSIGNMENT;
         case .PIPE_EQUAL;                         return .PIPE_EQUAL;
         case .GREATER_EQUAL;                      return .GREATER_EQUAL;
         case .LESS_EQUAL;                         return .LESS_EQUAL;
@@ -2549,7 +2553,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
-        case #char "~";             unary_operation.operation = .COMPLEMENT;
+        case #char "~";             unary_operation.operation = .BITWISE_NOT;
         case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
