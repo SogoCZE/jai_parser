@@ -20,14 +20,14 @@ ast_print :: (builder: *String_Builder, node: *Node) {
 }
 
 ast_print_identifier :: (builder: *String_Builder, ident: *Identifier) {
-    if ident.backticked append(builder, #char "`"); 
-    append(builder, ident.name); 
+    if ident.backticked append(builder, #char "`");
+    append(builder, ident.name);
 }
 
 ast_print_polymorphic_constant :: (builder: *String_Builder, poly_const: *Polymorphic_Constant) {
-    append(builder, #char "$"); 
-    if poly_const.maybe_constant append(builder, #char "$"); 
-    
+    append(builder, #char "$");
+    if poly_const.maybe_constant append(builder, #char "$");
+
     if poly_const.expression {
         ast_print(builder, poly_const.expression);
     }
@@ -42,11 +42,13 @@ ast_print_polymorphic_constant :: (builder: *String_Builder, poly_const: *Polymo
 
 ast_print_unary_operation :: (builder: *String_Builder, unary_op: *Unary_Operation) {
     if unary_op.operation == {
+        case .PLUS; append(builder, #char "+");
+        case .MINUS; append(builder, #char "-");
         case .POINTER; append(builder, #char "*");
         case .ELLIPSIS; append(builder, "..");
         case .NEGATE; append(builder, #char "!");
         case .POINTER_DEREFERENCE; append(builder, "<<");
-        case .COMPLEMENT; append(builder, #char "~");
+        case .BITWISE_NOT; append(builder, #char "~");
         case .DOT; append(builder, #char ".");
     }
 
@@ -59,7 +61,7 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
     if binary_op.left {
         ast_print(builder, binary_op.left);
     }
-    
+
     if binary_op.operation == {
         case .DOT;                                      append(builder, #char ".");
         case .RANGE;                                    append(builder, "..");
@@ -72,11 +74,13 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
         case .LESS;                                     append(builder, #char ">");
         case .GREATER;                                  append(builder, #char "<");
         case .ASSING;                                   append(builder, #char "=");
-        case .BITWISE;                                  append(builder, #char "%");
+        case .BITWISE_AND;                              append(builder, #char "%");
         case .PIPE;                                     append(builder, #char "|");
-        case .COMPLEMENT;                               append(builder, #char "~");
-        
-        case .BITWISE_EQUAL;                            append(builder, "&=");
+        case .BITWISE_NOT;                              append(builder, #char "~");
+        case .BITWISE_XOR;                              append(builder, #char "^");
+
+        case .BITWISE_AND_ASSIGNMENT;                   append(builder, "&=");
+        case .BITWISE_XOR_ASSIGNMENT;                   append(builder, "^=");
         case .PIPE_EQUAL;                               append(builder, "|=");
         case .GREATER_EQUAL;                            append(builder, ">=");
         case .LESS_EQUAL;                               append(builder, "<=");
@@ -99,7 +103,7 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
         case .UNSIGNED_LEFT_SHIFT;                      append(builder, "<<<");
         case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;          append(builder, ">>>=");
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;           append(builder, "<<<=");
-        
+
         case .ARRAY_SUBSCRIPT;                          append(builder, "[]");
         case .ARRAY_SUBSCRIPT_ASSIGNMENT;               append(builder, "[]=");
     }
@@ -158,7 +162,7 @@ ast_print_using :: (builder: *String_Builder, _using: *Using) {
             for filter: _using.filters ast_print(builder, filter);
             append(builder, #char ")");
         }
-        
+
     }
 
     append(builder, #char " ");
@@ -170,11 +174,11 @@ ast_print_array_type :: (builder: *String_Builder, array_type: *Array_Type) {
 
     if array_type.resizable {
         append(builder, "..");
-    } 
-    
+    }
+
     if array_type.dimension {
         ast_print(builder, array_type.dimension);
-    } 
+    }
 
     append(builder, #char "]");
     ast_print(builder, array_type.element_type);
@@ -195,13 +199,13 @@ ast_print_literal :: (builder: *String_Builder, literal: *Literal) {
         case .INT; append(builder, literal._string);
         case .FLOAT; append(builder, literal._string);
         case .STRING; append(builder, literal._string);
-        
-        case .ARRAY; 
+
+        case .ARRAY;
             array_info := literal.array_literal_info;
 
             if array_info.element_type {
                 ast_print(builder, array_info.element_type);
-            } 
+            }
 
             append(builder, #char ".");
             append(builder, #char "[");
