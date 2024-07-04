@@ -228,6 +228,7 @@ While :: struct {
     kind = .WHILE;
     expression: *Node;
     body: *Node;
+    no_abc: bool; // #no_abc
 }
 
 For :: struct {
@@ -854,10 +855,10 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
-        if kind == .STRUCT return true;
-        if kind == .ENUM return true;
-        if kind == .UNION return true;
         if kind == .COMPOUND_DECLARATION return true;
+        // if kind == .STRUCT return true;
+        // if kind == .ENUM return true;
+        // if kind == .UNION return true;
         // if kind == .BINARY_OPERATION return true;
         return false;
     }
@@ -876,7 +877,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         unprocessed_tokens: [..]Token;
         nodes: [..] *Node;
 
-        nodes_types: Table(int, Compound_Declaration_Item.Item_Kind); // @TODO: free!
+        nodes_types: Table(int, Compound_Declaration_Item.Item_Kind);
         init(*nodes_types);
 
         if maybe_eat_token(parser.lexer, #char "=") {
@@ -1750,12 +1751,16 @@ parse_struct :: (parser: *Parser) -> *Struct {
         }
     }
 
+    notes: [..]*Note;
+
+    if is_token(parser.lexer, .NOTE) {
+        parse_notes(parser, _struct, *notes);
+    }
+
     // Directives
     if is_token(parser.lexer, .DIRECTIVE) {
         parse_struct_directive(parser, _struct);
     }
-
-    notes: [..]*Note;
 
     if is_token(parser.lexer, .NOTE) {
         parse_notes(parser, _struct, *notes);
@@ -1825,9 +1830,19 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
 
     eat_token(parser.lexer, ifx is_enum_flags then Token.Kind.KEYWORD_ENUM_FLAGS else .KEYWORD_ENUM);
 
+    notes: [..] *Note;
+
+    if is_token(parser.lexer, .NOTE) {
+        parse_notes(parser, _enum, *notes);
+    }
+
     // Type specifier
     if is_token(parser.lexer, .IDENTIFIER) {
         _enum.type = parse(parser, _enum);
+    }
+
+    if is_token(parser.lexer, .NOTE) {
+        parse_notes(parser, _enum, *notes);
     }
 
     // Specified directive
@@ -1850,10 +1865,10 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
     }
 
     if is_token(parser.lexer, .NOTE) {
-        notes: [..] *Note;
         parse_notes(parser, _enum, *notes);
-        _enum.notes = notes;
     }
+
+    _enum.notes = notes;
 
     return _enum;
 }
@@ -2659,6 +2674,11 @@ parse_while :: (parser: *Parser) -> *Node {
     _while := New(While);
     eat_token(parser.lexer, .KEYWORD_WHILE);
     _while.expression = parse(parser, _while);
+
+    if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_abc") {
+        _while.no_abc = true;
+    }
+
     _while.body = parse(parser, _while);
     return _while;
 }
