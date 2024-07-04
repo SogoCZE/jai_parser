@@ -1,0 +1,1 @@
+PUSH_AND_POP_D3D11_MESSAGE_CONTEXT(#procedure_name(main));

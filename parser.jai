@@ -2,7 +2,7 @@ Parser :: struct(User_Data_Type: Type) {
     lexer: *Lexer;
     node_visit: (node: *Node, user_data: User_Data_Type);
     user_data: User_Data_Type;
-    inside_proc_args: bool; 
+    inside_proc_args: bool;
 }
 
 Node :: struct {
@@ -36,7 +36,7 @@ Node :: struct {
         USING;
         CAST;
         COMMA_SEPERATED_EXPRESSION;
-        IF; 
+        IF;
         CASE;
         BREAK;
         FOR;
@@ -175,7 +175,7 @@ Using :: struct {
     kind = .USING;
 
     expression: *Node;
-    filters: []*Node; 
+    filters: []*Node;
     filter_expression: *Node; // for cases like: using,except #run get_conflicting_names() Person;
 
     Filter_Type :: enum u8 {
@@ -202,32 +202,32 @@ Cast :: struct {
     truncate: bool;
     no_check: bool;
     force: bool;
-}  
+}
 
 Break :: struct {
     using #as node: Node;
     kind = .BREAK;
     expression: *Node;
-}  
+}
 
 Continue :: struct {
     using #as node: Node;
     kind = .CONTINUE;
     expression: *Node;
-}  
+}
 
 Defer :: struct {
     using #as node: Node;
     kind = .DEFER;
     expression: *Node;
     backticked: bool;
-}  
+}
 
 While :: struct {
     using #as node: Node;
     kind = .WHILE;
     expression: *Node;
-    body: *Node;    
+    body: *Node;
 }
 
 For :: struct {
@@ -242,7 +242,7 @@ For :: struct {
     value: *Node;
     index: *Node;
     iterator: *Node;
-    body: *Node;    
+    body: *Node;
 }
 
 Procedure :: struct {
@@ -250,24 +250,24 @@ Procedure :: struct {
     kind = .PROCEDURE;
 
     Flags :: enum_flags {
-        INLINE;                    
+        INLINE;
         MACRO;
         NO_CONTEXT;
-        DEBUG_DUMP;                    
-        CPP_RETURN_TYPE_IS_NON_POD;       
+        DEBUG_DUMP;
+        CPP_RETURN_TYPE_IS_NON_POD;
         CPP_METHOD;
         NO_DEBUG;
-        C_CALL;                        
-        INTRINSIC;                     
-        COMPILER;     
-        ELSEWHERE;                     
-        FOREIGN;               
+        C_CALL;
+        INTRINSIC;
+        COMPILER;
+        ELSEWHERE;
+        FOREIGN;
         NO_CALL;
-        DEPRECATED;       
-        MUST_CONSUME_ALL_RETURNS;       
-        NO_ALIAS;      
-        RUNTIME_SUPPORT;      
-        SYMMETRIC;      
+        DEPRECATED;
+        MUST_CONSUME_ALL_RETURNS;
+        NO_ALIAS;
+        RUNTIME_SUPPORT;
+        SYMMETRIC;
         NO_ABC;
         NO_AOC;
     }
@@ -284,7 +284,7 @@ Procedure :: struct {
     arguments: []*Node;
     returns: []*Return_Value;
     modify_block: *Block;
-    body: *Block; 
+    body: *Block;
     notes: [] *Note;
 }
 
@@ -304,7 +304,7 @@ Quick_Lambda :: struct {
     kind = .QUICK_LAMBDA;
 
     arguments: [] *Node;
-    _return: *Node; 
+    _return: *Node;
 }
 
 Return_Value :: struct {
@@ -316,7 +316,7 @@ Return_Value :: struct {
 }
 
 Struct :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .STRUCT;
 
     Flags :: enum_flags {
@@ -335,7 +335,7 @@ Struct :: struct {
 }
 
 Union :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .UNION;
     polymorphic_arguments: [] *Node;
 
@@ -344,7 +344,7 @@ Union :: struct {
 }
 
 Enum :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .ENUM;
 
     specified: bool;
@@ -383,7 +383,7 @@ Case :: struct {
 }
 
 Directive_Import :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .DIRECTIVE_IMPORT;
 
     Import_Kind :: enum u8 {
@@ -399,7 +399,7 @@ Directive_Import :: struct {
 }
 
 Directive_Load :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .DIRECTIVE_LOAD;
 
     file: string;
@@ -420,7 +420,7 @@ Directive_Scope :: struct {
 }
 
 Literal :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .LITERAL;
 
     Value_Type :: enum u8 {
@@ -441,7 +441,7 @@ Literal :: struct {
         _float:   float;
         _int:     int;
         _bool:    bool;
-        
+
         struct_literal_info: Struct_Literal_Info;
         array_literal_info: Array_Literal_Info;
     };
@@ -495,7 +495,7 @@ _Operator :: enum u8 {
     IS_NOT_EQUAL; // !=
     LEFT_SHIFT; // <<, POINTER_DEREFERENCE
     RIGHT_SHIFT; // >>
-    LEFT_SHIFT_ASSIGNMENT; // <<= 
+    LEFT_SHIFT_ASSIGNMENT; // <<=
     RIGHT_SHIFT_ASSIGNMENT; // >>=
     UNSIGNED_RIGHT_SHIFT; // >>>
     UNSIGNED_LEFT_SHIFT; // <<<
@@ -504,10 +504,10 @@ _Operator :: enum u8 {
 
     ARRAY_SUBSCRIPT; // []
     ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
-} 
+}
 
 Binary_Operation :: struct {
-    using #as node: Node; 
+    using #as node: Node;
     kind = .BINARY_OPERATION;
 
     left: *Node;
@@ -653,7 +653,7 @@ Directive_Library :: struct {
     system: bool;
     no_static_library: bool;
     no_dll: bool;
-    name: string;    
+    name: string;
 }
 
 Directive_No_Reset :: struct {
@@ -736,7 +736,7 @@ Directive_Poke_Name :: struct {
     kind = .DIRECTIVE_POKE_NAME;
 
     module: string;
-    name: string; 
+    name: string;
 }
 
 Directive_Dynamic_Specialize :: struct {
@@ -774,7 +774,7 @@ Directive_Compile_Time :: struct {
 Directive_Discard :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_DISCARD;
-    expression: *Node; 
+    expression: *Node;
 }
 
 Directive_Line :: struct {
@@ -801,7 +801,7 @@ Array_Type :: struct {
 
     dimension: *Node;
     element_type: *Node;
-    resizable: bool;   
+    resizable: bool;
 }
 
 Array_Subscript :: struct {
@@ -819,7 +819,7 @@ Push_Context :: struct {
     backticked: bool;
     defer_pop: bool;
     pushed: *Node;
-    block: *Block; 
+    block: *Block;
 }
 
 Operator_Overload :: struct {
@@ -835,7 +835,7 @@ Inline_Assembly :: struct {
     kind = .INLINE_ASSEMBLY;
 
     expression: *Node;
-    body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks. 
+    body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks.
 }
 
 parse :: (parser: *Parser, parent: *Node) -> *Node {
@@ -861,7 +861,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
     is_start_of_comma_separated :: (lexer: *Lexer) -> bool {
         if is_token(lexer, #char ",") return true;
 
-        if !is_token(lexer, #char "=") && !is_token(lexer, #char ":") return false; 
+        if !is_token(lexer, #char "=") && !is_token(lexer, #char ":") return false;
         if is_token(lexer, #char ",", 1) return true;
 
         return false;
@@ -870,12 +870,12 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
     // Comma Separated Expression, Compound Declaration ...
     if (parent == null || can_contain_comma_separated_expression(parent.kind)) && is_start_of_comma_separated(parser.lexer) {
         unprocessed_tokens: [..]Token;
-        nodes: [..] *Node; 
+        nodes: [..] *Node;
 
         nodes_types: Table(int, Compound_Declaration_Item.Item_Kind); // @TODO: free!
         init(*nodes_types);
 
-        if maybe_eat_token(parser.lexer, #char "=") { 
+        if maybe_eat_token(parser.lexer, #char "=") {
             table_add(*nodes_types, 0, .ASSING);
         } else if maybe_eat_token(parser.lexer, #char ":") {
             table_add(*nodes_types, 0, .DECLARATION);
@@ -885,7 +885,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         array_add(*nodes, base_node);
 
         parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token, left := false) {
-            
+
             // @TODO: Is there any buildin compiler util for this?
             get_type_from_pointer_type :: (info: Type) -> Type {
                 p := cast(*Type_Info_Pointer) info;
@@ -918,7 +918,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
                 if is_token(lexer, #char ")", peek) return true; // @TODO: maybe check for this only if we open the comma_seperated_expression with the ( ...
                 if is_token(lexer, .DECLARATION_AND_ASSIGN, peek) return true;
 
-                return false;                
+                return false;
             }
 
             // For stuff like cast(float)x, cast(float)y inside comma separated expression.
@@ -1003,7 +1003,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             parser.node_visit(compound_declaration, parser.user_data);
 
             return compound_declaration;
-        }   
+        }
 
         // Compound Declaration & Assing
         if maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) {
@@ -1029,7 +1029,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         } else {
             for nodes it.parent = comma_seperated_expression;
         }
-        
+
         comma_seperated_expression.members = nodes;
 
         if maybe_eat_token(parser.lexer, #char "=") {
@@ -1053,7 +1053,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             parser.node_visit(binary_operation, parser.user_data);
 
             return binary_operation;
-        }     
+        }
 
         comma_seperated_expression.parent = parent;
 
@@ -1115,8 +1115,8 @@ set_end_location :: (using node: *Node, from_node: *Node) {
 
 delimeted :: (parser: *Parser, open: Token.Kind, close: Token.Kind, seperator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
-    
-    eat_token(parser.lexer, open); 
+
+    eat_token(parser.lexer, open);
 
     while !end(parser.lexer) {
         if is_token(parser.lexer, close) break;
@@ -1216,7 +1216,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_identifier(parser.lexer) {
         ident := eat_token(parser.lexer, .IDENTIFIER);
 
-        // Binary operation   
+        // Binary operation
         if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
@@ -1240,11 +1240,11 @@ parse_node :: (parser: *Parser) -> *Node {
         if is_token(parser.lexer, .CONSTANT_DECLARATION) {
             return parse_constant_declaration(parser, ident);
         }
-        
+
         if is_token(parser.lexer, .DECLARATION_AND_ASSIGN) {
             return parse_declaration_and_assign(parser, ident);
         }
-        
+
         if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) {
             return parse_type_instantiation(parser, ident);
         }
@@ -1253,7 +1253,7 @@ parse_node :: (parser: *Parser) -> *Node {
     }
 
     // Procedure
-    if is_token(parser.lexer, #char "(") { 
+    if is_token(parser.lexer, #char "(") {
         return parse_procedure(parser);
     }
 
@@ -1280,7 +1280,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .TRIPLE_MINUS) {
         return parse_initialize_zero(parser);
     }
-    
+
     // Polymorphic_Constant
     if is_token(parser.lexer, .DOUBLE_DOLLAR) {
         return parse_polymorphic_constant(parser, true);
@@ -1292,7 +1292,7 @@ parse_node :: (parser: *Parser) -> *Node {
         // Array or Struct literal
         if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
             return parse_array_or_struct_literal(parser, null);
-        } 
+        }
 
         return parse_unary_operation(parser);
     }
@@ -1311,7 +1311,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_WHILE) {
         return parse_while(parser);
     }
-    
+
     // For
     if is_token(parser.lexer, .KEYWORD_FOR) {
         return parse_for(parser);
@@ -1326,7 +1326,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_UNION) {
         return parse_union(parser);
     }
-    
+
     // Enum
     if is_token(parser.lexer, .KEYWORD_ENUM) {
         return parse_enum(parser, false);
@@ -1336,7 +1336,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_ENUM_FLAGS) {
         return parse_enum(parser, true);
     }
-    
+
     // Return
     if is_token(parser.lexer, .KEYWORD_RETURN) {
         return parse_return(parser);
@@ -1346,7 +1346,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_USING) {
         return parse_using(parser);
     }
-    
+
     // Break
     if is_token(parser.lexer, .KEYWORD_BREAK) {
         return parse_break(parser);
@@ -1356,7 +1356,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_CONTINUE) {
         return parse_continue(parser);
     }
-    
+
     // Defer
     if is_token(parser.lexer, .KEYWORD_DEFER) {
         return parse_defer(parser);
@@ -1366,7 +1366,7 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_token(parser.lexer, .KEYWORD_CAST) {
         return parse_cast(parser);
     }
-    
+
     // Auto Cast (xx)
     if is_token(parser.lexer, .KEYWORD_AUTO_CAST) {
         return parse_cast(parser, true);
@@ -1380,8 +1380,8 @@ parse_node :: (parser: *Parser) -> *Node {
     // String literal
     if is_token(parser.lexer, .STRING) {
         return parse_literal(parser);
-    }    
-    
+    }
+
     // Numeric literal
     if is_token(parser.lexer, .NUMBER) {
         return parse_literal(parser);
@@ -1390,8 +1390,8 @@ parse_node :: (parser: *Parser) -> *Node {
     // True literal
     if is_token(parser.lexer, .KEYWORD_TRUE) {
         return parse_literal(parser);
-    }    
-    
+    }
+
     // False literal
     if is_token(parser.lexer, .KEYWORD_FALSE) {
         return parse_literal(parser);
@@ -1432,7 +1432,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
     decl := New(Declaration);
     decl.name = ident_token.string_value;
 
-    if is_token(parser.lexer, #char "(") { 
+    if is_token(parser.lexer, #char "(") {
         decl.type_inst = parse_procedure(parser, true);
     } else {
         decl.type_inst = parse(parser, decl);
@@ -1585,7 +1585,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         }
 
         while !end(parser.lexer) && !is_token(parser.lexer, is_returns_end_token) {
-            if maybe_eat_token(parser.lexer, #char ",") continue; 
+            if maybe_eat_token(parser.lexer, #char ",") continue;
 
             return_value := New(Return_Value);
             return_value.expression = parse(parser, proc);
@@ -1648,7 +1648,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
             case "foreign";
                 proc.flags |= .FOREIGN;
-    
+
                 if is_token(parser.lexer, .IDENTIFIER) {
                     proc.foreign_lib = eat_token(parser.lexer, .IDENTIFIER).string_value;
 
@@ -1656,7 +1656,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                         proc.foreign_alias = eat_token(parser.lexer, .STRING).string_value;
                     }
                 }
-              
+
             case "no_call";
                 proc.flags |= .NO_CALL;
             case "deprecated";
@@ -1682,7 +1682,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         if is_token(parser.lexer, .DIRECTIVE) {
             parse_proc_directive(parser, proc);
         }
-    }   
+    }
 
     // Directives
     if is_token(parser.lexer, .DIRECTIVE) {
@@ -1693,7 +1693,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
     if is_token(parser.lexer, #char "{") {
         proc.body = parse_block(parser);
         proc.body.parent = proc;
-    } 
+    }
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
@@ -1859,9 +1859,9 @@ parse_block :: (parser: *Parser, call_node_visit := true, no_aoc := false) -> *B
     set_start_location(block, peek_token(parser.lexer));
     block.members = delimeted(parser, #char "{", #char "}", parent=block);
     set_end_location(block, peek_token(parser.lexer, -1));
-    
+
     if call_node_visit parser.node_visit(block, parser.user_data);
-    
+
     return block;
 }
 
@@ -1897,7 +1897,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
         return parse_procedure_call(parser, proc_call);
     }
 
-    // Binary operation   
+    // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         return parse_binary_operation(parser, proc_call);
     }
@@ -1905,7 +1905,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     return proc_call;
 }
 
-// #run 
+// #run
 parse_directive :: (parser: *Parser) -> *Node {
     directive_token := eat_token(parser.lexer, .DIRECTIVE);
 
@@ -1946,7 +1946,7 @@ parse_directive :: (parser: *Parser) -> *Node {
 
         case "library";             return parse_directive_library(parser, false);
         case "system_library";      return parse_directive_library(parser, true);
-        
+
         case "scope_export";        return parse_directive_scope(parser, .EXPORT);
         case "scope_file";          return parse_directive_scope(parser, .FILE);
         case "scope_module";        return parse_directive_scope(parser, .MODULE);
@@ -1976,16 +1976,16 @@ parse_directive_run :: (parser: *Parser) -> *Directive_Run {
         if maybe_eat_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "host") {
             directive_run.host = true;
         }
-    } 
+    }
 
-    // if maybe_eat_token(parser.lexer, #char ",") 
+    // if maybe_eat_token(parser.lexer, #char ",")
     //     && is_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "stallable") {
     //     eat_token(parser.lexer, .IDENTIFIER);
 
     //     directive_run.stallable = true;
     // }
 
-    directive_run.expression = parse(parser, directive_run);   
+    directive_run.expression = parse(parser, directive_run);
 
     return directive_run;
 }
@@ -1999,13 +1999,13 @@ parse_directive_char :: (parser: *Parser) -> *Directive_Char {
 parse_directive_code :: (parser: *Parser) -> *Directive_Code {
     directive_code := New(Directive_Code);
 
-    if maybe_eat_token(parser.lexer, #char ",") {  
+    if maybe_eat_token(parser.lexer, #char ",") {
 
         if is_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "typed") {
             eat_token(parser.lexer, .IDENTIFIER);
             directive_code.typed = true;
         }
-        
+
         if is_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "null") {
             eat_token(parser.lexer, .IDENTIFIER);
             directive_code._null = true;
@@ -2054,7 +2054,7 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     if is_token(parser.lexer, #char "(") {
         directive_import.arguments = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
     }
-    
+
     return directive_import;
 }
 
@@ -2079,7 +2079,7 @@ parse_directive_type :: (parser: *Parser) -> *Directive_Type {
             eat_token(parser.lexer, .IDENTIFIER);
             directive_type.isa = true;
         }
-        
+
         if is_token(parser.lexer, char  => char.kind == .IDENTIFIER && char.string_value == "distinct") {
             eat_token(parser.lexer, .IDENTIFIER);
             directive_type.distinct = true;
@@ -2087,7 +2087,7 @@ parse_directive_type :: (parser: *Parser) -> *Directive_Type {
 
     }
 
-    if is_token(parser.lexer, #char "(") { 
+    if is_token(parser.lexer, #char "(") {
         directive_type.expression = parse_procedure(parser, true);
     } else {
         directive_type.expression = parse(parser, directive_type);
@@ -2132,7 +2132,7 @@ parse_directive_bytes :: (parser: *Parser) -> *Directive_Bytes {
 
 parse_directive_library :: (parser: *Parser, system: bool) -> *Directive_Library {
     directive_library := New(Directive_Library);
-    directive_library.system = system; 
+    directive_library.system = system;
 
     while maybe_eat_token(parser.lexer, #char ",") {
         if maybe_eat_token(parser.lexer, token => token.string_value == "no_static_library") {
@@ -2150,7 +2150,7 @@ parse_directive_library :: (parser: *Parser, system: bool) -> *Directive_Library
         if maybe_eat_token(parser.lexer, token => token.string_value == "no_dll") {
             directive_library.no_dll = true;
         }
-    } 
+    }
 
     if is_token(parser.lexer, .STRING) {
         name_token := eat_token(parser.lexer, .STRING);
@@ -2169,13 +2169,13 @@ parse_directive_no_reset :: (parser: *Parser) -> *Directive_No_Reset {
 
 parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
     directive_insert := New(Directive_Insert);
-    
-    if maybe_eat_token(parser.lexer, #char ",") 
+
+    if maybe_eat_token(parser.lexer, #char ",")
     && maybe_eat_token(parser.lexer, token => token.string_value == "scope") {
         directive_insert.scoped = true;
 
         maybe_eat_token(parser.lexer, #char "(");
-    
+
         if !is_token(parser.lexer, #char ")") {
             directive_insert.scope = parse(parser, directive_insert);
         }
@@ -2185,7 +2185,7 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
 
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
         insert_type_ident := eat_token(parser.lexer, .IDENTIFIER);
-        
+
         if insert_type_ident.string_value == {
             case "string"; directive_insert.type   = .STRING;
             case "Code"; directive_insert.type     = .CODE;
@@ -2202,11 +2202,11 @@ parse_directive_location :: (parser: *Parser) -> *Directive_Location {
     directive_location := New(Directive_Location);
 
     if maybe_eat_token(parser.lexer, #char "(") {
-        
+
         if !is_token(parser.lexer, #char ")") {
             directive_location.expression = parse(parser, directive_location);
         }
-        
+
         eat_token(parser.lexer, #char ")");
     }
 
@@ -2243,8 +2243,12 @@ parse_directive_procedure_name :: (parser: *Parser) -> *Directive_Procedure_Name
     directive_procedure_name := New(Directive_Procedure_Name);
 
     if maybe_eat_token(parser.lexer, #char "(") {
-        directive_procedure_name.expression = parse(parser, directive_procedure_name);
-        maybe_eat_token(parser.lexer, #char ")");
+        if !is_token(parser.lexer,  #char ")") {
+            directive_procedure_name.expression = parse(parser, directive_procedure_name);
+            maybe_eat_token(parser.lexer, #char ")");
+        } else {
+            eat_token(parser.lexer, #char ")");
+        }
     }
 
     return directive_procedure_name;
@@ -2280,7 +2284,7 @@ parse_directive_poke_name :: (parser: *Parser) -> *Directive_Poke_Name {
         module_token := eat_token(parser.lexer, .IDENTIFIER);
         directive_poke_name.module = module_token.string_value;
     }
-    
+
     if is_token(parser.lexer, .IDENTIFIER) {
         name_token := eat_token(parser.lexer, .IDENTIFIER);
         directive_poke_name.name = name_token.string_value;
@@ -2315,7 +2319,7 @@ parse_directive_filepath :: (parser: *Parser) -> *Directive_Filepath {
 parse_directive_line :: (parser: *Parser) -> *Directive_Line {
     return New(Directive_Line);
 }
- 
+
 parse_directive_through :: (parser: *Parser) -> *Directive_Through {
     return New(Directive_Through);
 }
@@ -2347,7 +2351,7 @@ parse_directive_discard :: (parser: *Parser) -> *Directive_Discard {
 }
 
 // @TODO: Consider this...
-// We currently wrap scoped stuff in another node but we could maybe just flag 
+// We currently wrap scoped stuff in another node but we could maybe just flag
 // Directives that they are exported in some scope instead of wrapping it with new node...
 parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kind) -> *Directive_Scope {
     directive_scope := New(Directive_Scope);
@@ -2378,7 +2382,7 @@ parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kin
 
     return directive_scope;
 }
- 
+
 parse_identifier :: (parser: *Parser, ident_token: *Token, node_visit := true) -> *Identifier {
     identifier := New(Identifier);
     set_start_location(identifier, ident_token);
@@ -2407,7 +2411,7 @@ parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
         eat_token(parser.lexer, #char "}");
     }
 
-    // Binary operation   
+    // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         return parse_binary_operation(parser, literal);
     }
@@ -2433,7 +2437,7 @@ parse_literal :: (parser: *Parser) -> *Node {
             literal._bool = false;
         case .NUMBER;
             // @TODO: This is temporary solution!! Fix this :number_types:
-            literal._string = base_literal.string_value; 
+            literal._string = base_literal.string_value;
 
             if base_literal.integer_value == 0 {
                 literal.value_type = .FLOAT;
@@ -2444,7 +2448,7 @@ parse_literal :: (parser: *Parser) -> *Node {
             }
     }
 
-    // Binary operation   
+    // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         return parse_binary_operation(parser, literal);
     }
@@ -2460,12 +2464,12 @@ parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
     eat_token(parser.lexer, #char "[");
 
     if !is_token(parser.lexer, #char "]") {
-        array_subscript.subscript = parse(parser, array_subscript); 
+        array_subscript.subscript = parse(parser, array_subscript);
     }
-   
+
     eat_token(parser.lexer, #char "]");
 
-    // Binary operation   
+    // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         return parse_binary_operation(parser, array_subscript);
     }
@@ -2540,7 +2544,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
     unary_operation := New(Unary_Operation);
 
     op := eat_token(parser.lexer);
-    
+
     if op.kind == {
         case #char ".";             unary_operation.operation = .DOT;
         case #char "*";             unary_operation.operation = .POINTER;
@@ -2552,7 +2556,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
 
     unary_operation.expression = parse(parser, unary_operation);
 
-    // Binary operation   
+    // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         return parse_binary_operation(parser, unary_operation);
     }
@@ -2564,7 +2568,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     // Array or Struct literal
     if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
         return parse_array_or_struct_literal(parser, left);
-    } 
+    }
 
     binary_operation := New(Binary_Operation);
     binary_operation.left = left;
@@ -2586,7 +2590,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
 
         free(binary_operation);
 
-        // Binary operation   
+        // Binary operation
         if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, unary_operation);
         }
@@ -2602,7 +2606,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     binary_operation.right = parse(parser, binary_operation); // @TODO: anything?
 
     set_end_location(binary_operation, binary_operation.right);
-    
+
     return binary_operation;
 }
 
@@ -2613,7 +2617,7 @@ parse_return :: (parser: *Parser) -> *Node {
 
     _return.returns = parse_until(parser, token => token.kind == #char ";", #char ",", parent=_return);
     for _return.returns it.parent = _return;
-    
+
     return _return;
 }
 
@@ -2658,7 +2662,7 @@ parse_for :: (parser: *Parser) -> *Node {
         _for.reversed = true;
         _for.by_pointer = maybe_eat_token(parser.lexer, #char "*");
     }
-    
+
     if maybe_eat_token(parser.lexer, #char "*") {
         _for.by_pointer = true;
         _for.reversed = maybe_eat_token(parser.lexer, #char "<");
@@ -2699,7 +2703,7 @@ parse_for :: (parser: *Parser) -> *Node {
 parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false) -> *Node {
     _if := New(If);
     _if.compile_time = compile_time;
-    
+
     if kind == .UNKNOWN {
         if_token: *Token;
 
@@ -2746,7 +2750,7 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
 
         maybe_eat_token(parser.lexer, .KEYWORD_THEN);
         _if._then = parse(parser, _if);
-    
+
         if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
             _if._else = parse(parser, _if);
         }
@@ -2762,7 +2766,7 @@ parse_case :: (parser: *Parser) -> *Node {
     eat_token(parser.lexer, .KEYWORD_CASE);
     _case.expression = parse(parser, _case);
     maybe_eat_token(parser.lexer, #char ";");
-    
+
     _case.members = parse_until(parser, token => token.kind == .KEYWORD_CASE || token.kind == #char "}", parent = _case);
 
     return _case;
@@ -2856,7 +2860,7 @@ parse_inline :: (parser: *Parser) -> *Node {
 
     if next_node.kind == .PROCEDURE_CALL {
         (cast(*Procedure_Call) next_node).inlined = true;
-    } 
+    }
 
     return next_node;
 }
@@ -2951,7 +2955,7 @@ parse_note :: (parser: *Parser, parent: *Node) -> *Note  {
             if token.kind < 256 {
                 append(*builder, cast(u8) token.kind);
                 continue;
-            } 
+            }
 
             if token.kind == .STRING || token.kind == .NUMBER || token.kind == .DIRECTIVE || token.kind == .NOTE || token.kind == .IDENTIFIER {
                 append(*builder, token.string_value);
