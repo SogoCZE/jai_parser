@@ -1458,7 +1458,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
         decl.expression = parse(parser, decl);
     }
 
-    maybe_eat_token(parser.lexer, #char ";");
+    // maybe_eat_token(parser.lexer, #char ";");
 
     if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "elsewhere") {
         decl.has_elsewhere = true;
@@ -1594,8 +1594,11 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         while !end(parser.lexer) && !is_token(parser.lexer, is_returns_end_token) {
             if maybe_eat_token(parser.lexer, #char ",") continue;
 
+            expression := parse(parser, proc);
+            if !expression continue;
+
             return_value := New(Return_Value);
-            return_value.expression = parse(parser, proc);
+            return_value.expression = expression;
 
             if is_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
                 eat_token(parser.lexer, .DIRECTIVE);
