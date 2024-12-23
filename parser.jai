@@ -917,7 +917,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
             is_end :: (lexer: *Lexer, $peek := 0) -> bool {
                 // @TODO: Anything else?
-                if is_token(lexer, #char "=", peek) return true;
+                if is_operator_assignment(peek_token(lexer, peek)) return true;
                 if is_token(lexer, #char ":", peek) return true;
                 if is_token(lexer, #char ";", peek) return true;
                 if is_token(lexer, #char ")", peek) return true; // @TODO: maybe check for this only if we open the comma_seperated_expression with the ( ...
@@ -1037,12 +1037,12 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
         comma_seperated_expression.members = nodes;
 
-        if maybe_eat_token(parser.lexer, #char "=") {
+        if is_operator_assignment(peek_token(parser.lexer)) {
             binary_operation := New(Binary_Operation);
 
             binary_operation.parent = parent;
             binary_operation.left = comma_seperated_expression;
-            binary_operation.operation = .ASSING;
+            binary_operation.operation = create_operator_from_token(eat_token(parser.lexer));
             binary_operation.right = parse(parser, null);
 
             if binary_operation.left {

@@ -224,6 +224,28 @@ is_operator :: (token: *Token) -> bool {
     return false;
 }
 
+is_operator_assignment :: (token: *Token) -> bool {
+    if token.kind == {
+        case .IS_EQUAL;                          return true;
+        case .PIPE_EQUAL;                        return true;
+        case .PLUS_EQUAL;                        return true;
+        case .MINUS_EQUAL;                       return true;
+        case .MOD_EQUAL;                         return true;
+        case .DIV_EQUAL;                         return true;
+        case .TIMES_EQUAL;                       return true;
+        case .BITWISE_AND_ASSIGNMENT;            return true;
+        case .LOGICAL_AND_ASSIGNMENT;            return true;
+        case .BITWISE_XOR_ASSIGNMENT;            return true;
+        case .LOGICAL_OR_ASSIGNMENT;             return true;
+        case .LEFT_SHIFT_ASSIGNMENT;             return true;
+        case .RIGHT_SHIFT_ASSIGNMENT;            return true;
+        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;   return true;
+        case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;    return true;
+    }
+
+    return false;
+}
+
 eat_token :: (using lexer: *Lexer) -> *Token {
     if end(lexer) return null;
     cursor += 1;
