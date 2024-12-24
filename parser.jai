@@ -2702,6 +2702,12 @@ parse_for :: (parser: *Parser) -> *Node {
 
     eat_token(parser.lexer, .KEYWORD_FOR);
 
+    // This is temporary and will go away with future compiler betas (for #v2 ..)
+    token := peek_token(parser.lexer);
+    if token.kind == .DIRECTIVE && token.string_value == "v2" {
+        eat_token(parser.lexer, .DIRECTIVE);
+    }
+
     if maybe_eat_token(parser.lexer, #char "<") {
         _for.reversed = true;
         _for.by_pointer = maybe_eat_token(parser.lexer, #char "*");
