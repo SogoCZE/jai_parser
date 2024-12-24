@@ -79,6 +79,7 @@ Node :: struct {
         DIRECTIVE_COMPILE_TIME;
         DIRECTIVE_DISCARD;
         DIRECTIVE_EXISTS;
+        DIRECTIVE_CONTEXT;
 
         NOTE;
     }
@@ -418,6 +419,11 @@ Directive_Scope :: struct {
 
     scope_kind: Scope_Kind;
     members: [] *Node;
+}
+
+Directive_Context :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_CONTEXT;
 }
 
 Literal :: struct {
@@ -1965,6 +1971,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "line";                return parse_directive_line(parser);
         case "through";             return parse_directive_through(parser);
         case "exists";              return parse_directive_exists(parser);
+        case "Context";             return parse_directive_context(parser);
         case "compile_time";        return parse_directive_compile_time(parser);
         case "discard";             return parse_directive_discard(parser);
 
@@ -2362,6 +2369,10 @@ parse_directive_exists :: (parser: *Parser) -> *Directive_Exists {
     }
 
     return exists;
+}
+
+parse_directive_context :: (parser: *Parser) -> *Directive_Context {
+    return New(Directive_Context);
 }
 
 parse_directive_compile_time :: (parser: *Parser) -> *Directive_Compile_Time {
