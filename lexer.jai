@@ -692,7 +692,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
         if is_digit(char) return true;
         if char == #char "_" return true;
-        if !<<is_float && char == #char "." {
+        if !<<is_float && char == #char "." && peek(iterator, 2) != #char "." {
             <<is_float = true;
             return true;
         }
@@ -713,21 +713,6 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
 
     number_value := builder_to_string(*builder);
     number_value = replace(number_value, "_", ""); // Remove all _ in number
-
-    // if hex {
-    //
-    // } else {
-    //     ok: bool;
-    //     if contains(number_value, ".") {
-    //         token.float_value, ok = parse_float(*number_value);
-    //     } else {
-    //         token.integer_value, ok = parse_int(*number_value);
-    //     }
-
-    //     if !ok {
-    //         log_error("Invalid number!"); // @InComplete: What now?
-    //     }
-    // }
 
     token.string_value = number_value;
 
