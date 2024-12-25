@@ -17,12 +17,12 @@ IMPORT_PATHS :: #run get_import_paths();
 get_module_entry :: (root: string) -> string {
     for IMPORT_PATHS{
         uri := tprint("%/%/module.jai", it, root);
-        
+
         if file_exists(uri)
             return uri;
 
         uri = tprint("%/%.jai", it, root);
-        
+
         if file_exists (uri)
             return uri;
     }
@@ -78,9 +78,9 @@ node_visit :: (node: *Node, data: Node_Visit_Data) {
             case .MODULE;
                 path = get_module_entry(_import.module);
             case .FILE;
-                path = tprint("%/%", data.path_without_filename, _import.module); 
+                path = tprint("%/%", data.path_without_filename, _import.module);
             case .DIR;
-                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module)); 
+                path = tprint("%/%", data.path_without_filename, get_module_entry(_import.module));
             case .STRING;
                 // @TODO: Do we wanna parse the string here?
         }
@@ -124,6 +124,8 @@ parse_file :: (files: *Files, path: string) {
     table_set(files, path, nodes);
 }
 
+AST_PRINT_TEST :: false;
+
 main :: () {
     start := current_time_consensus();
 
@@ -148,12 +150,24 @@ main :: () {
 
 	File_Module.make_directory_if_it_does_not_exist("./out");
 
-    for nodes, file: files output_file_to_json(file, nodes);
+    #if !AST_PRINT_TEST {
+        for nodes, file: files output_file_to_json(file, nodes);
+    } else {
+        for nodes, file: files {
+            builder: String_Builder;
+            for node: nodes {
+                ast_print(*builder, node);
+            }
+            print("%:\n=======\n", file);
+            print("%\n", builder_to_string(*builder));
+            print("=======\n", file);
+        }
+    }
 
     print("All done!\n");
 
     release(*pool);
- 
+
 }
 
 #load "json_export.jai";

@@ -12,6 +12,7 @@ ast_print :: (builder: *String_Builder, node: *Node) {
         case .RETURN_VALUE;                 ast_print_return_value(builder, xx node);
         case .POLYMORPHIC_CONSTANT;         ast_print_polymorphic_constant(builder, xx node);
         case .PROCEDURE;                    ast_print_procedure_header(builder, xx node);
+        case .PROCEDURE_CALL;               ast_print_procedure_call(builder, xx node);
         case .USING;                        ast_print_using(builder, xx node);
         case .ARRAY_TYPE;                   ast_print_array_type(builder, xx node);
         case .LITERAL;                      ast_print_literal(builder, xx node);
@@ -268,6 +269,43 @@ ast_print_procedure_header :: (builder: *String_Builder, proc: *Procedure) {
 
         if multiple append(builder, #char ")");
     }
+}
+
+ast_print_procedure_call :: (builder: *String_Builder, proc_call: *Procedure_Call) {
+    if proc_call.inlined {
+        append(builder, "inline ");
+    }
+
+    if proc_call.backticked {
+        append(builder, "`");
+    }
+
+    if proc_call.procedure && proc_call.procedure.kind == .IDENTIFIER {
+        ident := cast(*Identifier) proc_call.procedure;
+        append(builder, ident.name);
+    }
+
+    append(builder, #char "(");
+
+    for arg: proc_call.arguments {
+        ast_print(builder, arg);
+        if it_index != proc_call.arguments.count-1 {
+            append(builder, ", ");
+        }
+    }
+
+    if proc_call.context_changes.count > 0 {
+        append(builder, ",, ");
+
+        for arg: proc_call.context_changes {
+            ast_print(builder, arg);
+            if it_index != proc_call.context_changes.count-1 {
+                append(builder, ", ");
+            }
+        }
+    }
+
+    append(builder, #char ")");
 }
 
 ast_print_struct :: (builder: *String_Builder, _struct: *Struct) {

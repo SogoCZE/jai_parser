@@ -1,0 +1,1 @@
+Table(u64, bool);
