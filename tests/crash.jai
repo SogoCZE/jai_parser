@@ -1,0 +1,5 @@
+
+main :: () {
+    patrik: Programmer;
+    patrik,
+}

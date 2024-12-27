@@ -225,6 +225,8 @@ is_operator :: (token: *Token) -> bool {
 }
 
 is_operator_assignment :: (token: *Token) -> bool {
+    if !token return false;
+
     if token.kind == {
         case .IS_EQUAL;                          return true;
         case .PIPE_EQUAL;                        return true;

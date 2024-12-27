@@ -8,9 +8,9 @@
             "type": "lldb",
             "request": "launch",
             "name": "Debug",
-            "program": "${workspaceFolder}/bin/jai_parser",
+            "program": "${workspaceFolder}/cmd/bin/jai_parser",
             "args": [
-                "tests/playground.jai"
+                "tests/crash.jai"
             ],
             "cwd": "${workspaceFolder}"
         }
