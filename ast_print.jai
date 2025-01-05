@@ -16,6 +16,8 @@ ast_print :: (builder: *String_Builder, node: *Node) {
         case .USING;                        ast_print_using(builder, xx node);
         case .ARRAY_TYPE;                   ast_print_array_type(builder, xx node);
         case .LITERAL;                      ast_print_literal(builder, xx node);
+        case .DIRECTIVE_IMPORT;             ast_print_directive_import(builder, xx node);
+        case .DIRECTIVE_LOAD;               ast_print_directive_load(builder, xx node);
         case;                               append(builder, sprint("%", node.kind));
     }
 }
@@ -306,6 +308,32 @@ ast_print_procedure_call :: (builder: *String_Builder, proc_call: *Procedure_Cal
     }
 
     append(builder, #char ")");
+}
+
+ast_print_directive_import :: (builder: *String_Builder, import: *Directive_Import) {
+    append(builder, "#import");
+
+    if import.import_kind == {
+        case .FILE; append(builder, ",file");
+        case .DIR; append(builder, ",dir");
+        case .STRING; append(builder, ",string");
+    }
+
+    append(builder, #char " ");
+
+    append(builder, #char "\"");
+    append(builder, import.module);
+    append(builder, #char "\"");
+}
+
+ast_print_directive_load :: (builder: *String_Builder, load: *Directive_Load) {
+    append(builder, "#load");
+
+    append(builder, #char " ");
+
+    append(builder, #char "\"");
+    append(builder, load.file);
+    append(builder, #char "\"");
 }
 
 ast_print_struct :: (builder: *String_Builder, _struct: *Struct) {
