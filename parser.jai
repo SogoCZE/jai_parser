@@ -1448,6 +1448,12 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
     if is_token(parser.lexer, #char "(") {
         decl.type_inst = parse_procedure(parser, true);
     } else {
+
+        // Guard?
+        if is_token(parser.lexer, #char "}") || is_token(parser.lexer, #char ";") {
+            return decl;
+        }
+
         decl.type_inst = parse(parser, decl);
     }
 
