@@ -55,6 +55,9 @@ Token :: struct {
         DIRECTIVE; // #run
         QUICK_LAMBDA; // =>
 
+        BEGIN_STRUCT_LITERAL; // .{
+        BEGIN_ARRAY_LITERAL; // .[
+
         KEYWORD_STRUCT;
         KEYWORD_INTERFACE;
         KEYWORD_ENUM;
@@ -893,9 +896,23 @@ parse_char_token :: (iterator: *Iterator) -> Token {
         token.kind = .DOUBLE_DOLLAR;
     }
 
-    if char == #char "." && next_char == #char "." {
-        next(iterator);
-        token.kind = .DOUBLE_DOT;
+    if char == #char "." {
+
+        if next_char == #char "." {
+            next(iterator);
+            token.kind = .DOUBLE_DOT;
+        }
+
+        if next_char == #char "{" {
+            next(iterator);
+            token.kind = .BEGIN_STRUCT_LITERAL;
+        }
+
+        if next_char == #char "[" {
+            next(iterator);
+            token.kind = .BEGIN_ARRAY_LITERAL;
+        }
+
     }
 
     if char == #char "," && next_char == #char "," {

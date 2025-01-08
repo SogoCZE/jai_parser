@@ -2648,6 +2648,11 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         return unary_operation;
     }
 
+    // Guard?
+    if is_token(parser.lexer, #char "{") || is_token(parser.lexer, #char "}") {
+        return binary_operation;
+    }
+
     binary_operation.right = parse(parser, binary_operation); // @TODO: anything?
 
     set_end_location(binary_operation, binary_operation.right);
