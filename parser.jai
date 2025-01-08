@@ -1229,6 +1229,11 @@ parse_node :: (parser: *Parser) -> *Node {
     if is_identifier(parser.lexer) {
         ident := eat_token(parser.lexer, .IDENTIFIER);
 
+        // struct or array literal
+        if is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) || is_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
+            return parse_array_or_struct_literal(parser, parse_identifier(parser, ident));
+        }
+
         // Binary operation
         if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
@@ -1299,13 +1304,17 @@ parse_node :: (parser: *Parser) -> *Node {
         return parse_polymorphic_constant(parser, true);
     }
 
+    // Struct or Array literal
+    if is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) || is_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
+        return parse_array_or_struct_literal(parser, null);
+    }
+
     // Unary Operation
     if is_unary_operator(parser) {
-
-        // Array or Struct literal
-        if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-            return parse_array_or_struct_literal(parser, null);
-        }
+        // // Array or Struct literal
+        // if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+        //     return parse_array_or_struct_literal(parser, null);
+        // }
 
         return parse_unary_operation(parser);
     }
@@ -2438,14 +2447,12 @@ parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
     literal := New(Literal);
     if type type.parent = literal;
 
-    eat_token(parser.lexer, #char ".");
-
-    if maybe_eat_token(parser.lexer, #char "[") {
+    if maybe_eat_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
         literal.values.array_literal_info.elements = parse_until(parser, token => token.kind == #char "]", #char ",", parent=literal);
         eat_token(parser.lexer, #char "]");
-    } else if maybe_eat_token(parser.lexer, #char "{") {
+    } else if maybe_eat_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info = .{type=type};
         literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
@@ -2611,9 +2618,9 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
 
 parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     // Array or Struct literal
-    if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-        return parse_array_or_struct_literal(parser, left);
-    }
+    // if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
+    //     return parse_array_or_struct_literal(parser, left);
+    // }
 
     binary_operation := New(Binary_Operation);
     binary_operation.left = left;

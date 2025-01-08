@@ -142,7 +142,6 @@ main :: () {
 
     parse_file(*files, cmd_arguments[1]);
 
-
     end := current_time_consensus();
     duration_ms := to_milliseconds(end - start);
 
@@ -167,7 +166,6 @@ main :: () {
     print("All done!\n");
 
     release(*pool);
-
 }
 
 #load "json_export.jai";
