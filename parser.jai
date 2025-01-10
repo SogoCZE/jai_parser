@@ -2740,16 +2740,13 @@ parse_for :: (parser: *Parser) -> *Node {
     if !is_token(parser.lexer, #char ":", 1) && !is_token(parser.lexer, #char ",", 1) {
         _for.iterator = parse(parser, _for);
     } else {
-        _for.index = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
-        _for.index.parent = _for;
+        _for.value = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
+        _for.value.parent = _for;
 
         // @TODO: Is this correct?
         if maybe_eat_token(parser.lexer, #char ",") {
-            _for.value = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
-            _for.value.parent = _for;
-        } else {
-            _for.value = _for.index;
-            _for.index = null;
+            _for.index = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
+            _for.index.parent = _for;
         }
 
         eat_token(parser.lexer, #char ":");
