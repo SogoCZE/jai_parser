@@ -2905,12 +2905,25 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
         }
     }
 
+    new_cast: bool; // New cast is function like `cast(type, expression)`. The old cast is prefix like `cast(type) expression`. We need to support both of them now.
+
     if !auto && maybe_eat_token(parser.lexer, #char "(") {
         _cast.cast_expression = parse(parser, _cast);
+
+        if maybe_eat_token(parser.lexer, #char ",") {
+            new_cast = true;
+
+            if !is_token(parser.lexer, #char ")") {
+                _cast.expression = parse(parser, _cast);
+            }
+        }
+
         eat_token(parser.lexer, #char ")");
     }
 
-    _cast.expression = parse(parser, _cast);
+    if !new_cast {
+        _cast.expression = parse(parser, _cast);
+    }
 
     return _cast;
 }
