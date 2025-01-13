@@ -2607,7 +2607,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
     }
 
     expression := parse(parser, unary_operation);
-    if expression.kind == .BINARY_OPERATION {
+    if expression && expression.kind == .BINARY_OPERATION {
         binary_op := cast(*Binary_Operation) expression;
 
         unary_operation.expression = binary_op.left;
