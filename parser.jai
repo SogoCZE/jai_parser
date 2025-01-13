@@ -2606,12 +2606,25 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
-    unary_operation.expression = parse(parser, unary_operation);
+    expression := parse(parser, unary_operation);
+    if expression.kind == .BINARY_OPERATION {
+        binary_op := cast(*Binary_Operation) expression;
 
-    // Binary operation
-    if is_operator(peek_token(parser.lexer)) {
-        return parse_binary_operation(parser, unary_operation);
+        unary_operation.expression = binary_op.left;
+        unary_operation.parent = binary_op;
+
+        binary_op.left = unary_operation;
+
+        return binary_op;
     }
+
+    unary_operation.expression = expression;
+
+    // @TODO: Is this necessary?
+    // Binary operation
+    // if is_operator(peek_token(parser.lexer)) {
+    //     return parse_binary_operation(parser, unary_operation);
+    // }
 
     return unary_operation;
 }
