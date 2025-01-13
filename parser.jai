@@ -2611,6 +2611,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         binary_op := cast(*Binary_Operation) expression;
 
         unary_operation.expression = binary_op.left;
+        binary_op.left.parent = unary_operation;
         unary_operation.parent = binary_op;
 
         binary_op.left = unary_operation;
