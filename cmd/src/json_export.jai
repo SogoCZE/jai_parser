@@ -68,7 +68,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
             if member.name == "node" continue;
             if member.type.type == .TYPE continue;
 
-             append(*builder, #string STR 
+             append(*builder, #string STR
                 append(*json_builder, ",");
             STR);
 
@@ -95,7 +95,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
 
                             append(*json_builder, "\"element_type\":");
                             append(*json_builder, to_json(node.array_literal_info.element_type));
-                            
+
                             append(*json_builder, ",");
                             append(*json_builder, "\"elements\":");
                             append(*json_builder, "[");
@@ -136,15 +136,15 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
 
             real_index += 1;
 
-            print_to_builder(*builder, #string STR 
-                append(*json_builder, "\""); 
-                append(*json_builder, "%"); 
+            print_to_builder(*builder, #string STR
+                append(*json_builder, "\"");
+                append(*json_builder, "%");
                 append(*json_builder, "\":");
             STR, member.name);
 
             if is_node(member.type) {
                 if is_array_of_nodes(member.type) {
-                    print_to_builder(*builder, #string STR 
+                    print_to_builder(*builder, #string STR
                         append(*json_builder, "[");
                         for node.% {
                             if it_index > 0 {
@@ -155,7 +155,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                         append(*json_builder, "]");
                     STR, member.name);
                 } else {
-                    print_to_builder(*builder, #string STR 
+                    print_to_builder(*builder, #string STR
                         append(*json_builder, to_json(node.%));
                     STR, member.name);
                 }
@@ -166,19 +166,19 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
             if member.type.type == .STRUCT || is_pointer_to_struct(member.type) {
                 // Hardcoded skip!!
                 if member.name == "header_location" {
-                    print_to_builder(*builder, #string STR 
+                    print_to_builder(*builder, #string STR
                         append(*json_builder, "\"\"");
                     STR, member.name);
                     continue;
                 }
 
-                print_to_builder(*builder, #string STR 
+                print_to_builder(*builder, #string STR
                     append(*json_builder, struct_with_nodes_to_json(node.%));
                 STR, member.name);
                 continue;
             }
 
-            print_to_builder(*builder, #string STR 
+            print_to_builder(*builder, #string STR
                 append(*json_builder, json_write_string(node.%1));
             STR, member.name);
         }
@@ -196,7 +196,7 @@ to_json :: (node: *Node) -> string {
 
     // TYPE_INSTANTIATION => Type_Instantiation
     enum_to_struct_name :: (enum_name: string) -> string {
-        lower_enum_name := to_lower_copy_new(enum_name);
+        lower_enum_name := to_lower_copy(enum_name);
         upper_next := true;
         for cast([]u8) lower_enum_name {
             if upper_next {
@@ -216,7 +216,7 @@ to_json :: (node: *Node) -> string {
         print_to_builder(*builder, "if node.kind == {");
 
         for name: info.names {
-            if name == "UNINITIALIZATED" continue; 
+            if name == "UNINITIALIZATED" continue;
             struct_name := enum_to_struct_name(name);
             print_to_builder(*builder, "case .%; return struct_with_nodes_to_json(cast(*%) node);\n", name, struct_name);
         }
@@ -224,7 +224,7 @@ to_json :: (node: *Node) -> string {
         append(*builder, "}");
 
         return builder_to_string(*builder);
-    } 
+    }
 
     return "";
 }
