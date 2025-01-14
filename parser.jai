@@ -2778,6 +2778,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
             // log("% > %", binary_operation.operation, other_binary_op.operation);
 
             binary_operation.right = other_binary_op.left;
+            other_binary_op.left.parent = binary_operation;
 
             other_binary_op.left = binary_operation;
             binary_operation.parent = other_binary_op;
