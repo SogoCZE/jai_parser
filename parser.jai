@@ -515,6 +515,100 @@ _Operator :: enum u8 {
     ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
 }
 
+convert_operator_to_level :: (op: _Operator) -> u8 {
+    if op == {
+        case .DOT; return 15;
+        case .ARRAY_SUBSCRIPT; return 15;
+        case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 15;
+
+        case .MULTIPLICATION; return 14;
+        case .DIVISION; return 14;
+        case .MODULO; return 14;
+
+        case .ADDITION; return 13;
+        case .SUBTRACTION; return 13;
+
+        case .LEFT_SHIFT; return 12;
+        case .RIGHT_SHIFT; return 12;
+        case .UNSIGNED_LEFT_SHIFT; return 12;
+        case .UNSIGNED_RIGHT_SHIFT; return 12;
+
+        case .LESS; return 11;
+        case .GREATER; return 11;
+        case .LESS_EQUAL; return 11;
+        case .GREATER_EQUAL; return 11;
+
+        case .IS_EQUAL; return 10;
+        case .IS_NOT_EQUAL; return 10;
+
+        case .BITWISE_AND; return 9;
+
+        case .BITWISE_XOR; return 8;
+
+        case .PIPE; return 7;
+
+        case .LOGICAL_AND; return 6;
+        case .LOGICAL_OR; return 5;
+
+        case .ASSING;
+        case .BITWISE_AND_ASSIGNMENT;
+        case .BITWISE_XOR_ASSIGNMENT;
+        case .PIPE_EQUAL;
+        case .PLUS_EQUAL;
+        case .MINUS_EQUAL;
+        case .MOD_EQUAL;
+        case .DIV_EQUAL;
+        case .TIMES_EQUAL;
+        case .LOGICAL_AND_ASSIGNMENT;
+        case .LOGICAL_OR_ASSIGNMENT;
+        case .LEFT_SHIFT_ASSIGNMENT;
+        case .RIGHT_SHIFT_ASSIGNMENT;
+        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;
+        case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
+            return 4;
+
+        case .RANGE; return 3;
+
+        case .NEGATE;
+        case .BITWISE_NOT;
+            return 2;
+
+        case .INVALID; return 0;
+    }
+
+    return 0;
+}
+
+operator == :: (a: _Operator, b: _Operator) -> bool {
+    a_level := convert_operator_to_level(a);
+    b_level := convert_operator_to_level(b);
+    return a_level == b_level;
+}
+
+operator > :: (a: _Operator, b: _Operator) -> bool {
+    a_level := convert_operator_to_level(a);
+    b_level := convert_operator_to_level(b);
+    return a_level > b_level;
+}
+
+operator >= :: (a: _Operator, b: _Operator) -> bool {
+    a_level := convert_operator_to_level(a);
+    b_level := convert_operator_to_level(b);
+    return a_level >= b_level;
+}
+
+operator < :: (a: _Operator, b: _Operator) -> bool {
+    a_level := convert_operator_to_level(a);
+    b_level := convert_operator_to_level(b);
+    return a_level < b_level;
+}
+
+operator <= :: (a: _Operator, b: _Operator) -> bool {
+    a_level := convert_operator_to_level(a);
+    b_level := convert_operator_to_level(b);
+    return a_level <= b_level;
+}
+
 Binary_Operation :: struct {
     using #as node: Node;
     kind = .BINARY_OPERATION;
@@ -2674,7 +2768,25 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         return binary_operation;
     }
 
-    binary_operation.right = parse(parser, binary_operation); // @TODO: anything?
+    right := parse(parser, binary_operation); // @TODO: anything?
+
+    if right && right.kind == .BINARY_OPERATION {
+        other_binary_op := cast(*Binary_Operation) right;
+
+        // Swap
+        if binary_operation.operation > other_binary_op.operation {
+            // log("% > %", binary_operation.operation, other_binary_op.operation);
+
+            binary_operation.right = other_binary_op.left;
+
+            other_binary_op.left = binary_operation;
+            binary_operation.parent = other_binary_op;
+
+            return other_binary_op;
+        }
+    }
+
+    binary_operation.right = right;
 
     set_end_location(binary_operation, binary_operation.right);
 
