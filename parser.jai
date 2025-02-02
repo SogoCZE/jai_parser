@@ -2774,7 +2774,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         other_binary_op := cast(*Binary_Operation) right;
 
         // Swap
-        if binary_operation.operation > other_binary_op.operation {
+        if binary_operation.operation < other_binary_op.operation {
             // log("% > %", binary_operation.operation, other_binary_op.operation);
 
             binary_operation.right = other_binary_op.left;
