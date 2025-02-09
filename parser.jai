@@ -3058,7 +3058,8 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
 parse_inline :: (parser: *Parser) -> *Node {
     eat_token(parser.lexer, .KEYWORD_INLINE);
     next_node := parse(parser, null);
-
+    if !next_node return null;
+    
     if next_node.kind == .PROCEDURE {
         (cast(*Procedure) next_node).flags |= .INLINE;
     }
