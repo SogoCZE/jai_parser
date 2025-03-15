@@ -3090,7 +3090,7 @@ parse_push_context :: (parser: *Parser) -> *Push_Context {
     _push_context.pushed = parse(parser, _push_context);
 
     // @TODO: Block only?
-    if is_token(parser.lexer, #char "{") {
+    if !_push_context.defer_pop && is_token(parser.lexer, #char "{") {
         _push_context.block = parse_block(parser);
         _push_context.block.parent = _push_context;
     }
