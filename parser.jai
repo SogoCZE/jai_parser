@@ -1579,7 +1579,6 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
         decl.expression = parse(parser, decl);
     }
 
-    // maybe_eat_token(parser.lexer, #char ";");
 
     if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "elsewhere") {
         decl.has_elsewhere = true;
@@ -1587,6 +1586,9 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
             decl.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
         }
     }
+    
+    // NOTE: Notes in declarations are after the semicolon
+    maybe_eat_token(parser.lexer, #char ";");
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
