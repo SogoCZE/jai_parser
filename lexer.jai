@@ -229,6 +229,7 @@ is_operator_assignment :: (token: *Token) -> bool {
     if !token return false;
 
     if token.kind == {
+        case #char "=";                          return true;
         case .IS_EQUAL;                          return true;
         case .PIPE_EQUAL;                        return true;
         case .PLUS_EQUAL;                        return true;

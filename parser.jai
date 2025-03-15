@@ -35,7 +35,7 @@ Node :: struct {
         DEFER;
         USING;
         CAST;
-        COMMA_SEPERATED_EXPRESSION;
+        COMMA_SEPARATED_EXPRESSION;
         IF;
         CASE;
         BREAK;
@@ -135,7 +135,7 @@ Compound_Declaration_Item :: struct {
 
     Item_Kind :: enum {
         DECLARATION;
-        ASSING;
+        ASSIGN;
     }
 
     item_kind: Item_Kind;
@@ -494,7 +494,7 @@ _Operator :: enum u8 {
     MODULO; // %
     LESS; // >
     GREATER; // <
-    ASSING; // =
+    ASSIGN; // =
     BITWISE_AND; // &
     PIPE; // |
     BITWISE_NOT; // ~
@@ -565,7 +565,7 @@ convert_operator_to_level :: (op: _Operator) -> u8 {
         case .LOGICAL_AND; return 6;
         case .LOGICAL_OR; return 5;
 
-        case .ASSING;
+        case .ASSIGN;
         case .BITWISE_AND_ASSIGNMENT;
         case .BITWISE_XOR_ASSIGNMENT;
         case .PIPE_EQUAL;
@@ -669,9 +669,9 @@ Unary_Operation :: struct {
     expression: *Node;
 }
 
-Comma_Seperated_Expression :: struct {
+Comma_Separated_Expression :: struct {
     using #as node: Node;
-    kind = .COMMA_SEPERATED_EXPRESSION;
+    kind = .COMMA_SEPARATED_EXPRESSION;
 
     members: []*Node;
 }
@@ -996,7 +996,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         init(*nodes_types);
 
         if maybe_eat_token(parser.lexer, #char "=") {
-            table_add(*nodes_types, 0, .ASSING);
+            table_add(*nodes_types, 0, .ASSIGN);
         } else if maybe_eat_token(parser.lexer, #char ":") {
             table_add(*nodes_types, 0, .DECLARATION);
         }
@@ -1035,7 +1035,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
                 if is_operator_assignment(peek_token(lexer, peek)) return true;
                 if is_token(lexer, #char ":", peek) return true;
                 if is_token(lexer, #char ";", peek) return true;
-                if is_token(lexer, #char ")", peek) return true; // @TODO: maybe check for this only if we open the comma_seperated_expression with the ( ...
+                if is_token(lexer, #char ")", peek) return true; // @TODO: maybe check for this only if we open the comma_separated_expression with the ( ...
                 if is_token(lexer, .DECLARATION_AND_ASSIGN, peek) return true;
 
                 return false;
@@ -1064,7 +1064,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
                 if is_token(parser.lexer, #char ",", 1) || is_end(parser.lexer, 1) {
                     eat_token(parser.lexer, #char "=");
-                    table_add(*nodes_types, item_index, .ASSING);
+                    table_add(*nodes_types, item_index, .ASSIGN);
                 } else {
                     break;
                 }
@@ -1108,11 +1108,25 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             }
         }
 
+        
         // Compound Declaration
-        if maybe_eat_token(parser.lexer, #char ":") {
+        is_compound_declaration: bool;
+        default_compound_declaration_item_kind: Compound_Declaration_Item.Item_Kind;
+        if maybe_eat_token(parser.lexer, #char ":") || maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) {
+            // NOTE: If the expression ends with : or := it doesn't matter what was before, we want to treat the expression as compound declaration.
+            is_compound_declaration = true;
+            default_compound_declaration_item_kind = .DECLARATION;
+        } else if is_token(parser.lexer, #char "=") {
+            // NOTE: If the expression ends with = we only want to treat it as compound declaration if any of the previous elements had a :. For example a: b = 1, 2;
+            is_compound_declaration = nodes_types.count > 0;
+            if is_compound_declaration eat_token(parser.lexer, #char "=");
+            default_compound_declaration_item_kind = .ASSIGN;
+        }
+
+        if is_compound_declaration {
             compound_declaration := New(Compound_Declaration);
 
-            transform_nodes_into_items(compound_declaration, nodes_types, nodes, .DECLARATION);
+            transform_nodes_into_items(compound_declaration, nodes_types, nodes, default_compound_declaration_item_kind);
 
             compound_declaration.members = nodes;
             compound_declaration.parent = parent;
@@ -1125,38 +1139,16 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             return compound_declaration;
         }
 
-        // Compound Declaration & Assing
-        if maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) {
-            compound_declaration := New(Compound_Declaration);
+        comma_separated_expression := New(Comma_Separated_Expression);
 
-            transform_nodes_into_items(compound_declaration, nodes_types, nodes, .DECLARATION);
-
-            compound_declaration.members = nodes;
-            compound_declaration.parent = parent;
-            compound_declaration.expression = parse(parser, compound_declaration);
-
-            set_start_location(compound_declaration, base_node);
-            set_end_location(compound_declaration, peek_token(parser.lexer, -1));
-            parser.node_visit(compound_declaration, parser.user_data);
-
-            return compound_declaration;
-        }
-
-        comma_seperated_expression := New(Comma_Seperated_Expression);
-
-        if is_token(parser.lexer, #char "=") {
-            transform_nodes_into_items(comma_seperated_expression, nodes_types, nodes, .ASSING);
-        } else {
-            for nodes it.parent = comma_seperated_expression;
-        }
-
-        comma_seperated_expression.members = nodes;
+        for nodes it.parent = comma_separated_expression;
+        comma_separated_expression.members = nodes;
 
         if is_operator_assignment(peek_token(parser.lexer)) {
             binary_operation := New(Binary_Operation);
 
             binary_operation.parent = parent;
-            binary_operation.left = comma_seperated_expression;
+            binary_operation.left = comma_separated_expression;
             binary_operation.operation = create_operator_from_token(eat_token(parser.lexer));
             binary_operation.right = parse(parser, null);
 
@@ -1175,13 +1167,13 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             return binary_operation;
         }
 
-        comma_seperated_expression.parent = parent;
+        comma_separated_expression.parent = parent;
 
-        set_start_location(comma_seperated_expression, base_node);
-        set_end_location(comma_seperated_expression, peek_token(parser.lexer, -1));
-        parser.node_visit(comma_seperated_expression, parser.user_data);
+        set_start_location(comma_separated_expression, base_node);
+        set_end_location(comma_separated_expression, peek_token(parser.lexer, -1));
+        parser.node_visit(comma_separated_expression, parser.user_data);
 
-        return comma_seperated_expression;
+        return comma_separated_expression;
     }
 
     parser.node_visit(base_node, parser.user_data);
@@ -1291,7 +1283,7 @@ create_operator_from_token :: (using token: Token) -> _Operator {
         case #char "*";                           return .MULTIPLICATION;
         case #char "/";                           return .DIVISION;
         case #char "%";                           return .MODULO;
-        case #char "=";                           return .ASSING;
+        case #char "=";                           return .ASSIGN;
         case #char ".";                           return .DOT;
         case #char "&";                           return .BITWISE_AND;
         case #char "|";                           return .PIPE;
@@ -1734,23 +1726,23 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
             return parse_quick_lambda(parser, members);
         }
 
-        // Comma Seperated Expression @TODO: maybe move this somewhere else?
-        comma_seperated_expression := New(Comma_Seperated_Expression);
+        // Comma Separated Expression @TODO: maybe move this somewhere else?
+        comma_separated_expression := New(Comma_Separated_Expression);
 
-        comma_seperated_expression.members = members;
-        for comma_seperated_expression.members it.parent = comma_seperated_expression;
+        comma_separated_expression.members = members;
+        for comma_separated_expression.members it.parent = comma_separated_expression;
 
         // Binary operation eg: ((10+10) - (20+5))
         if is_operator(peek_token(parser.lexer)) {
-            return parse_binary_operation(parser, comma_seperated_expression);
+            return parse_binary_operation(parser, comma_separated_expression);
         }
 
-        // Array Subscript after Comma Seperated Expression eg: *(<<arr)[it]
+        // Array Subscript after Comma Separated Expression eg: *(<<arr)[it]
         if is_token(parser.lexer, #char "[") {
-            return parse_array_subscript(parser, comma_seperated_expression);
+            return parse_array_subscript(parser, comma_separated_expression);
         }
 
-        return comma_seperated_expression;
+        return comma_separated_expression;
     }
 
     proc := New(Procedure);
