@@ -650,7 +650,6 @@ Unary_Operation :: struct {
         DOT;
         POINTER;
         POINTER_DEREFERENCE;
-        EXPAND;
         ELLIPSIS;
         BITWISE_NOT;
     }
