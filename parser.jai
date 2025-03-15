@@ -80,6 +80,7 @@ Node :: struct {
         DIRECTIVE_DISCARD;
         DIRECTIVE_EXISTS;
         DIRECTIVE_CONTEXT;
+        DIRECTIVE_STRING;
 
         NOTE;
     }
@@ -430,6 +431,16 @@ Directive_Context :: struct {
     kind = .DIRECTIVE_CONTEXT;
 }
 
+Directive_String :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_STRING;
+
+    cr: bool;
+    escape_percent: bool;
+    identifier: string;
+    string_value: string;
+}
+
 Literal :: struct {
     using #as node: Node;
     kind = .LITERAL;
@@ -445,7 +456,6 @@ Literal :: struct {
     }
 
     value_type: Value_Type;
-    here_string_cr: bool;
 
     using values: union {
         _string:  string;
@@ -2109,6 +2119,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "Context";             return parse_directive_context(parser);
         case "compile_time";        return parse_directive_compile_time(parser);
         case "discard";             return parse_directive_discard(parser);
+        case "string";              return parse_directive_string(parser);
 
         case "library";             return parse_directive_library(parser, false);
         case "system_library";      return parse_directive_library(parser, true);
@@ -2129,6 +2140,38 @@ parse_directive :: (parser: *Parser) -> *Node {
     log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, directive_token.file, directive_token.l0, directive_token.c0);
 
     return null;
+}
+
+parse_directive_string :: (parser: *Parser) -> *Directive_String {
+    directive_string := New(Directive_String);
+
+    while maybe_eat_token(parser.lexer, #char ",") {
+        if maybe_eat_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "cr") {
+            print("found cr\n");
+            directive_string.cr = true;
+        }
+
+        if maybe_eat_token(parser.lexer, token => token.kind == .IDENTIFIER && token.string_value == "\\%") {
+            directive_string.escape_percent = true;
+            print("found \\\%\n");
+        }
+    }
+
+    identifier := eat_token(parser.lexer, .IDENTIFIER);
+    if !identifier {
+        log_error("Exprected identifier after #string");
+        return null;
+    }
+    directive_string.identifier = identifier.string_value;
+    
+    value := eat_token(parser.lexer, .STRING);
+    if !value {
+        log_error("Expected string token after here string indentifier");
+        return null;
+    }
+    directive_string.string_value = value.string_value;
+
+    return directive_string;
 }
 
 parse_directive_run :: (parser: *Parser) -> *Directive_Run {
@@ -2600,7 +2643,6 @@ parse_literal :: (parser: *Parser) -> *Node {
     if base_literal.kind == {
         case .STRING;
             literal.value_type = .STRING;
-            literal.here_string_cr = base_literal.here_string_cr;
             literal._string = base_literal.string_value;
         case .KEYWORD_TRUE;
             literal.value_type = .BOOL;

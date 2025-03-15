@@ -101,8 +101,6 @@ Token :: struct {
     l1: int;
     c1: int;
 
-    here_string_cr: bool; // @TODO: Is this good to have this here?
-
     union {
         string_value: string;
         integer_value: int;
@@ -393,7 +391,11 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
         directive_token := parse_note_or_directive(iterator, true);
 
         if directive_token.string_value == "string" {
-            return parse_here_string(iterator);
+            array_add(*lexer.tokens, directive_token);
+
+            // NOTE: Here strings are processed in a bit hacky way. parse_here_string adds multiple tokens to the tokens list in lexer. That's why we return an empty token here. 
+            parse_here_string(iterator, lexer);
+            return .{};
         }
 
         return directive_token;
@@ -487,7 +489,11 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     token.c0 = iterator.column;
 
     token.kind = ifx directive then Token.Kind.DIRECTIVE else .NOTE;
-    token.string_value = next_while(iterator, c => !is_space(c));
+    if directive {
+        token.string_value = next_while(iterator, char => is_identifier_char(char) || is_digit(char));
+    } else {
+        token.string_value = next_while(iterator, char => !is_space(char));
+    }
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
@@ -606,34 +612,50 @@ parse_string :: (using iterator: *Iterator) -> Token {
 }
 
 // @TODO: We need to test it more!
-parse_here_string :: (using iterator: *Iterator) -> Token {
-    token: Token;
-    token.kind = .STRING;
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
-    // #string,cr
-    if peek(iterator) == #char "," {
-        next(iterator); // eat ,
+    // #string,cr or #string,\%
+    while peek(iterator) == #char "," {
+        comma_token := parse_char_token(iterator);
+        array_add(*lexer.tokens, comma_token);
 
         if is_identifier_char(peek(iterator)) {
-            token.here_string_cr = parse_identifier(iterator).string_value == "cr";
+            identifier := parse_identifier(iterator);
+            print("parsing here string: %\n", identifier.string_value);
+            array_add(*lexer.tokens, identifier);
+        } else if peek(iterator, 1) == #char "\\" && peek(iterator, 2) == #char "%" {
+            token: Token;
+            token.kind = .IDENTIFIER;
+            token.file = iterator.file;
+            token.l0 = iterator.line;
+            token.c0 = iterator.column;
+            token.l1 = token.l0;
+            token.c1 = token.c0;
+            token.string_value = "\\%";
+            array_add(*lexer.tokens, token);
+            next(iterator);
+            next(iterator);
         }
-
     }
 
     next_while(iterator, is_space); // Skip all whitespaces
 
     if !is_identifier_char(peek(iterator)) {
         log_error("Exprected identifier after #string");
-        return .{};
+        return;
     }
 
-    here_identifier := parse_identifier(iterator).string_value;
+    here_identifier_token := parse_identifier(iterator);
+    array_add(*lexer.tokens, here_identifier_token);
+    here_identifier := here_identifier_token.string_value;
+
+    string_token: Token;
+    string_token.kind = .STRING;
+    string_token.file = iterator.file;
+    string_token.l0 = iterator.line;
+    string_token.c0 = iterator.column;
 
     builder: String_Builder;
-    init_string_builder(*builder);
 
     while true {
         char := next(iterator);
@@ -661,11 +683,11 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
         append(*builder, char);
     }
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
-    token.string_value = builder_to_string(*builder);
+    string_token.l1 = iterator.line;
+    string_token.c1 = iterator.column;
+    string_token.string_value = builder_to_string(*builder);
 
-    return token;
+    array_add(*lexer.tokens, string_token);
 }
 
 parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
