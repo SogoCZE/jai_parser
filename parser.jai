@@ -236,6 +236,7 @@ For :: struct {
     using #as node: Node;
     kind = .FOR;
 
+    is_v2: bool;
     by_pointer: bool;
     reversed: bool;
     no_abc: bool; // #no_abc
@@ -2870,6 +2871,7 @@ parse_for :: (parser: *Parser) -> *Node {
     token := peek_token(parser.lexer);
     if token.kind == .DIRECTIVE && token.string_value == "v2" {
         eat_token(parser.lexer, .DIRECTIVE);
+        _for.is_v2 = true;
     }
 
     if maybe_eat_token(parser.lexer, #char "<") {
