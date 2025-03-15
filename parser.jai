@@ -99,7 +99,6 @@ Note :: struct {
     using #as node: Node;
     kind = .NOTE;
 
-    name: string;
     value: string;
 }
 
@@ -3194,37 +3193,11 @@ parse_notes :: (parser: *Parser, parent: *Node, notes: *[..]*Note) {
 parse_note :: (parser: *Parser, parent: *Node) -> *Note  {
     note_token := eat_token(parser.lexer, .NOTE);
     note := New(Note);
-    note.name = note_token.string_value;
+    note.value = note_token.string_value;
     note.parent = parent;
 
     set_start_location(note, note_token);
-
-    if maybe_eat_token(parser.lexer, #char "(") {
-        builder: String_Builder;
-
-        // @TODO: This is ugly
-        while !end(parser.lexer) && !is_token(parser.lexer, #char ")") {
-            token := eat_token(parser.lexer);
-
-            if token.kind < 256 {
-                append(*builder, cast(u8) token.kind);
-                continue;
-            }
-
-            if token.kind == .STRING || token.kind == .NUMBER || token.kind == .DIRECTIVE || token.kind == .NOTE || token.kind == .IDENTIFIER {
-                append(*builder, token.string_value);
-                continue;
-            }
-
-            // @TODO: Operators!
-            append(*builder, enum_value_to_name(token.kind));
-        }
-
-        note.value = builder_to_string(*builder);
-        maybe_eat_token(parser.lexer, #char ")");
-    }
-
-    set_end_location(note, peek_token(parser.lexer, -1));
+    set_end_location(note, note_token);
 
     return note;
 }

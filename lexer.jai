@@ -487,7 +487,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     token.c0 = iterator.column;
 
     token.kind = ifx directive then Token.Kind.DIRECTIVE else .NOTE;
-    token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
+    token.string_value = next_while(iterator, c => !is_space(c));
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
