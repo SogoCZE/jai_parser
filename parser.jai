@@ -946,7 +946,7 @@ Inline_Assembly :: struct {
 parse :: (parser: *Parser, parent: *Node) -> *Node {
     current_token := peek_token(parser.lexer);
 
-    base_node := parse_node(parser);
+    base_node := parse_node(parser, parent);
     if !base_node return null;
     base_node.parent = parent;
 
@@ -1317,7 +1317,7 @@ create_operator_from_token :: (using token: Token) -> _Operator {
     return .INVALID;
 }
 
-parse_node :: (parser: *Parser) -> *Node {
+parse_node :: (parser: *Parser, parent: *Node) -> *Node {
 
     // Declaration, Binary Operation, Unary Operation, Identifier
     if is_identifier(parser.lexer) {
@@ -1326,6 +1326,11 @@ parse_node :: (parser: *Parser) -> *Node {
         // struct or array literal
         if is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) || is_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
             return parse_array_or_struct_literal(parser, parse_identifier(parser, ident));
+        }
+
+        // Interface restriction in polymorphic constants. Without this check $T/interface X is parsed as a binary operation.
+        if is_token(parser.lexer, #char "/") && parent && parent.kind == .POLYMORPHIC_CONSTANT {
+            return parse_identifier(parser, ident);
         }
 
         // Binary operation
