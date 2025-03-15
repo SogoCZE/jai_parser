@@ -281,6 +281,7 @@ Procedure :: struct {
     foreign_alias: string;
     elsewhere: string;
     intrinsic: string;
+    intrinsic_is_string: bool;
     deprecated_note: string;
 
     flags: Flags;
@@ -1780,6 +1781,9 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.flags |= .INTRINSIC;
                 if is_token(parser.lexer, .IDENTIFIER) {
                     proc.intrinsic = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                } else if is_token(parser.lexer, .STRING) {
+                    proc.intrinsic = eat_token(parser.lexer, .STRING).string_value;
+                    proc.intrinsic_is_string = true;
                 }
 
             case "compiler";
