@@ -3132,9 +3132,14 @@ parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
         inline_assembly.expression = parse(parser, inline_assembly);
     }
 
-    eat_token(parser.lexer, #char "{");
+    block_start := eat_token(parser.lexer, #char "{");
     while !is_token(parser.lexer, #char "}") eat_token(parser.lexer);
-    eat_token(parser.lexer, #char "}");
+    block_end := eat_token(parser.lexer, #char "}");
+
+    start_string := block_start.string_value.data;
+    end_string := block_end.string_value.data;
+    inline_assembly.body.data = start_string;
+    inline_assembly.body.count = end_string - start_string + 1; // NOTE: +1 to include the '}'.
 
     return inline_assembly;
 }

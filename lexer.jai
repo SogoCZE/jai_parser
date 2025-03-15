@@ -733,6 +733,7 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     token.file = iterator.file;
     token.c0 = iterator.column;
 
+    char_start := iterator.buffer.data;
     char := next(iterator);
     next_char := peek(iterator);
 
@@ -935,6 +936,10 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     if token.kind == .UNKNOWN {
         token.kind = xx char;
     }
+
+    char_end := iterator.buffer.data;
+    token.string_value.data = char_start;
+    token.string_value.count = char_end - char_start;
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
