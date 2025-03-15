@@ -198,6 +198,7 @@ Cast :: struct {
 
     auto: bool;
     function_style: bool;
+    postfix: bool;
 
     expression: *Node;
     cast_expression: *Node;
@@ -2796,6 +2797,8 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     //     return parse_array_or_struct_literal(parser, left);
     // }
 
+    initial_left_parent := left.parent;
+
     binary_operation := New(Binary_Operation);
     binary_operation.left = left;
     binary_operation.left.parent = binary_operation;
@@ -2827,6 +2830,14 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         }
 
         return unary_operation;
+    }
+
+    // NOTE: Postfix cast: a.(*int)
+    if binary_operation.operation == .DOT && is_token(parser.lexer, #char "(") {
+        free(binary_operation);
+        _cast := parse_cast(parser, false, left);
+        _cast.parent = initial_left_parent;
+        return _cast;
     }
 
     // Guard?
@@ -3086,12 +3097,8 @@ parse_using :: (parser: *Parser) -> *Node {
     return _using;
 }
 
-parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
-    _cast := New(Cast);
-    _cast.auto = auto;
-
-    eat_token(parser.lexer, ifx auto then Token.Kind.KEYWORD_AUTO_CAST else Token.Kind.KEYWORD_CAST);
-
+// NOTE: The expression is only set if we're parsing a postfix cast
+parse_cast :: (parser: *Parser, auto: bool = false, expression: *Node = null) -> *Node {
     parse_modifier :: () #expand {
         eat_token(parser.lexer, #char ",");
 
@@ -3107,31 +3114,51 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
         }
     }
 
-    // modifiers
-    while is_token(parser.lexer, #char ",") {
-        parse_modifier();
+    _cast := New(Cast);
+    _cast.auto = auto;
+
+    if !expression {
+        eat_token(parser.lexer, ifx auto then Token.Kind.KEYWORD_AUTO_CAST else Token.Kind.KEYWORD_CAST);
+
+        // modifiers
+        while is_token(parser.lexer, #char ",") {
+            parse_modifier();
+        }
+    } else {
+        expression.parent = _cast;
+        _cast.expression = expression;
+        _cast.postfix = true;
     }
 
     if !auto && maybe_eat_token(parser.lexer, #char "(") {
         _cast.cast_expression = parse(parser, _cast);
 
-        if maybe_eat_token(parser.lexer, #char ",") {
-            _cast.function_style = true; // New cast is function like `cast(type, expression)`. The old cast is prefix like `cast(type) expression`. We need to support both of them now.
-
-            if !is_token(parser.lexer, #char ")") {
-                _cast.expression = parse(parser, _cast);
+        if !_cast.postfix {
+            if maybe_eat_token(parser.lexer, #char ",") {
+                _cast.function_style = true; // New cast is function like `cast(type, expression)`. The old cast is prefix like `cast(type) expression`. We need to support both of them now.
+                if !is_token(parser.lexer, #char ")") {
+                    _cast.expression = parse(parser, _cast);
+                }
             }
+        }
 
-            while is_token(parser.lexer, #char ",") {
-                parse_modifier();
-            }
+        while is_token(parser.lexer, #char ",") {
+            parse_modifier();
         }
 
         eat_token(parser.lexer, #char ")");
     }
 
-    if !_cast.function_style {
+    if !_cast.postfix && !_cast.function_style {
         _cast.expression = parse(parser, _cast);
+    }
+
+    // NOTE: For cases like a.(*int).* or cast(*int, a).* or a := b.(float) * 0.5 etc.
+    if _cast.postfix || _cast.function_style {
+        // Binary operation
+        if is_operator(peek_token(parser.lexer)) {
+            return parse_binary_operation(parser, _cast);
+        }
     }
 
     return _cast;
