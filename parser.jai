@@ -373,6 +373,7 @@ If :: struct {
     condition: *Node;
     if_kind: If_Kind;
     marked_as_complete: bool;
+    then_keyword_used: bool;
     _then: *Node;
     _else: *Node;
 }
@@ -2961,8 +2962,15 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
             _if.no_aoc = true;
         }
 
-        maybe_eat_token(parser.lexer, .KEYWORD_THEN);
-        _if._then = parse(parser, _if);
+        then_found, then_token := maybe_eat_token(parser.lexer, .KEYWORD_THEN);
+        _if.then_keyword_used = then_found;
+        // NOTE: In ifx we only want to parse _then if the 'then' keyword was actually used. For ifx with implicit 'then' _then will be empty because the condition is also treated as _then.
+        if _if.if_kind == .IF || (_if.if_kind == .IFX && then_found) {
+            _if._then = parse(parser, _if);
+        }
+
+        // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
+        maybe_eat_token(parser.lexer, #char ";");
 
         if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
             _if._else = parse(parser, _if);
