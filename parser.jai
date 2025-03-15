@@ -111,6 +111,7 @@ Declaration :: struct {
     const: bool;
     has_elsewhere: bool;
     elsewhere: string;
+    elsewhere_alias: string;
     type_inst: *Node;
     expression: *Node;
     backticked: bool;
@@ -280,6 +281,7 @@ Procedure :: struct {
     foreign_lib: string;
     foreign_alias: string;
     elsewhere: string;
+    elsewhere_alias: string;
     intrinsic: string;
     intrinsic_is_string: bool;
     deprecated_note: string;
@@ -1587,6 +1589,9 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token) -> *Declarati
         decl.has_elsewhere = true;
         if is_token(parser.lexer, .IDENTIFIER) {
             decl.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
+            if is_token(parser.lexer, .STRING) {
+                decl.elsewhere_alias = eat_token(parser.lexer, .STRING).string_value;
+            }
         }
     }
     
@@ -1791,6 +1796,9 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
             case "elsewhere";
                 proc.flags |= .ELSEWHERE;
                 proc.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                if is_token(parser.lexer, .STRING) {
+                    proc.elsewhere_alias = eat_token(parser.lexer, .STRING).string_value;
+                }
             case "foreign";
                 proc.flags |= .FOREIGN;
 
