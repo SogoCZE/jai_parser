@@ -3009,6 +3009,8 @@ parse_using :: (parser: *Parser) -> *Node {
              _using.filter_type = .EXCEPT;
             case "only";
              _using.filter_type = .ONLY;
+            case "no_parameters";
+             _using.no_parameters = true;
         }
     }
 
