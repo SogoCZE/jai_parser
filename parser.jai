@@ -197,6 +197,7 @@ Cast :: struct {
     kind = .CAST;
 
     auto: bool;
+    function_style: bool;
 
     expression: *Node;
     cast_expression: *Node;
@@ -3099,8 +3100,7 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
 
     eat_token(parser.lexer, ifx auto then Token.Kind.KEYWORD_AUTO_CAST else Token.Kind.KEYWORD_CAST);
 
-    // modifiers
-    if is_token(parser.lexer, #char ",") {
+    parse_modifier :: () #expand {
         eat_token(parser.lexer, #char ",");
 
         modifier := eat_token(parser.lexer, .IDENTIFIER);
@@ -3115,23 +3115,30 @@ parse_cast :: (parser: *Parser, auto: bool = false) -> *Cast {
         }
     }
 
-    new_cast: bool; // New cast is function like `cast(type, expression)`. The old cast is prefix like `cast(type) expression`. We need to support both of them now.
+    // modifiers
+    while is_token(parser.lexer, #char ",") {
+        parse_modifier();
+    }
 
     if !auto && maybe_eat_token(parser.lexer, #char "(") {
         _cast.cast_expression = parse(parser, _cast);
 
         if maybe_eat_token(parser.lexer, #char ",") {
-            new_cast = true;
+            _cast.function_style = true; // New cast is function like `cast(type, expression)`. The old cast is prefix like `cast(type) expression`. We need to support both of them now.
 
             if !is_token(parser.lexer, #char ")") {
                 _cast.expression = parse(parser, _cast);
+            }
+
+            while is_token(parser.lexer, #char ",") {
+                parse_modifier();
             }
         }
 
         eat_token(parser.lexer, #char ")");
     }
 
-    if !new_cast {
+    if !_cast.function_style {
         _cast.expression = parse(parser, _cast);
     }
 
