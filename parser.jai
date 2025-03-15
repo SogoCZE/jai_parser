@@ -1360,8 +1360,9 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
             return parse_identifier(parser, ident);
         }
 
+        equals_with_comma := is_token(parser.lexer, #char "=") && is_token(parser.lexer, #char ",", 1);
         // Binary operation
-        if is_operator(peek_token(parser.lexer)) && !is_token(parser.lexer, #char "=") && !parser.inside_compound_declaration {
+        if is_operator(peek_token(parser.lexer)) && !equals_with_comma && !parser.inside_compound_declaration {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
 
