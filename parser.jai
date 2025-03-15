@@ -669,6 +669,7 @@ Directive_Run :: struct {
     stallable: bool;
     host: bool;
     expression: *Node;
+    returns: []*Return_Value;
 }
 
 Directive_Char :: struct {
@@ -1638,6 +1639,46 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token) -> *Decla
     return decl;
 }
 
+parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
+{
+    starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
+    returns: [..]*Return_Value;
+
+    is_returns_end_token :: (token: *Token) -> bool {
+        if token.kind == #char ";" return true;
+        if token.kind == #char ")" return true;
+        if token.kind == #char "{" return true;
+        if token.kind == .DIRECTIVE return true;
+        return false;
+    }
+
+    while !end(parser.lexer) && !is_token(parser.lexer, is_returns_end_token) {
+        if maybe_eat_token(parser.lexer, #char ",") continue;
+
+        expression := parse(parser, parent);
+        if !expression continue;
+
+        return_value := New(Return_Value);
+        return_value.expression = expression;
+
+        if is_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
+            eat_token(parser.lexer, .DIRECTIVE);
+            return_value.must = true;
+        }
+
+        array_add(*returns, return_value);
+
+        // If we are inside procedure args we take only one return if we are not in parentheses.
+        if !starts_with_bracket && parser.inside_proc_args {
+            break;
+        }
+    }
+
+    if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
+
+    return returns;
+}
+
 parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
     header_location: Node.Location;
     set_start_location(*header_location, peek_token(parser.lexer));
@@ -1700,47 +1741,13 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
     // returns
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
-        starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
-        returns: [..]*Return_Value;
-
-        is_returns_end_token :: (token: *Token) -> bool {
-            if token.kind == #char ";" return true;
-            if token.kind == #char ")" return true;
-            if token.kind == #char "{" return true;
-            if token.kind == .DIRECTIVE return true;
-            return false;
-        }
-
-        while !end(parser.lexer) && !is_token(parser.lexer, is_returns_end_token) {
-            if maybe_eat_token(parser.lexer, #char ",") continue;
-
-            expression := parse(parser, proc);
-            if !expression continue;
-
-            return_value := New(Return_Value);
-            return_value.expression = expression;
-
-            if is_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
-                eat_token(parser.lexer, .DIRECTIVE);
-                return_value.must = true;
-            }
-
-            array_add(*returns, return_value);
-
-            // If we are inside procedure args we take only one return if we are not in parentheses.
-            if !starts_with_bracket && parser.inside_proc_args {
-                break;
-            }
-        }
-
+        returns := parse_procedure_returns(parser, proc);
         // If the last return value is must all the returns must be consumed.
         if returns.count > 0 && returns[returns.count-1].must {
             proc.flags |= .MUST_CONSUME_ALL_RETURNS;
         }
 
         proc.returns = returns;
-
-        if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
     }
 
     set_end_location(*header_location, peek_token(parser.lexer, -1));
@@ -2129,6 +2136,11 @@ parse_directive_run :: (parser: *Parser) -> *Directive_Run {
 
     //     directive_run.stallable = true;
     // }
+
+    if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
+        returns := parse_procedure_returns(parser, directive_run);
+        directive_run.returns = returns;
+    }
 
     directive_run.expression = parse(parser, directive_run);
 
