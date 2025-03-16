@@ -992,7 +992,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
     }
 
     // Comma Separated Expression, Compound Declaration ...
-    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && is_start_of_comma_separated(parser.lexer) {
+    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && !parser.inside_proc_args && is_start_of_comma_separated(parser.lexer) {
         unprocessed_tokens: [..]Token;
         nodes: [..] *Node;
 
