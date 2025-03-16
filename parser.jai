@@ -460,9 +460,10 @@ Literal :: struct {
 
     value_type: Value_Type;
 
+    // NOTE: _string is separated from the union for the same reason as in Token. See the note there.
+    _string:  string;
     using values: union {
-        _string:  string;
-        _float:   float;
+        _float:   float64;
         _int:     int;
         _bool:    bool;
 
@@ -2672,15 +2673,14 @@ parse_literal :: (parser: *Parser) -> *Node {
             literal.value_type = .BOOL;
             literal._bool = false;
         case .NUMBER;
-            // @TODO: This is temporary solution!! Fix this :number_types:
             literal._string = base_literal.string_value;
-
-            if base_literal.integer_value == 0 {
+            kind := base_literal.number_kind;
+            if kind == .FLOAT || kind == .HEX_FLOAT || kind == .SCIENTIFIC_FLOAT {
                 literal.value_type = .FLOAT;
-                // literal._float = base_literal.float_value; // @TODO: Bug!!!
+                literal._float = base_literal.float_value;
             } else {
                 literal.value_type = .INT;
-                // literal._int = base_literal.integer_value;
+                literal._int = base_literal.integer_value;
             }
     }
 
