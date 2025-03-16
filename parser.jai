@@ -1118,7 +1118,6 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         is_compound_declaration: bool;
         final_token := peek_token(parser.lexer);
         default_compound_declaration_item_kind: Compound_Declaration_Item.Item_Kind;
-        // NOTE: Don't eat : or := because parse_type_instantiation and parse_declaration_and_assign will do that
         if maybe_eat_token(parser.lexer, #char ":") || 
            maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) ||
            maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
