@@ -110,8 +110,17 @@ Token :: struct {
     backticked: bool;
 }
 
+Comment_Token :: struct
+{
+    #as using token: Token;
+    token.kind = .COMMENT;
+
+    multiline: bool;
+}
+
 Lexer :: struct {
     tokens: [..]Token;
+    comments: [..]Comment_Token;
     cursor := 0;
     next_backticked: bool;
 }
@@ -369,16 +378,26 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
+eat_comments :: (iterator: *Iterator, lexer: *Lexer) -> bool {
+    comments_found: bool;
+    while is_comment(iterator) {
+        comment := parse_comment(iterator);
+        array_add(*lexer.comments, comment);
+        comments_found = true;
+        next_while(iterator, is_space); // We skip all whitespaces
+    }
+
+    return comments_found;
+}
+
 parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
 
     // @TODO: remove this
     total_tokens += 1;
 
-    if is_comment(iterator) {
-        parse_comment(iterator); // Skip comments...
-        return .{};
-    }
+    // Skip comments - we don't want them in the parser. But we're keeping a separate list of comments if someone needs them (for example for formatting).
+    eat_comments(iterator, lexer);
 
     char := peek(iterator);
 
@@ -430,12 +449,11 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     }
 
     // Special chars or compound chars
-    return parse_char_token(iterator);
+    return parse_char_token(iterator, lexer);
 }
 
-parse_comment :: (using iterator: *Iterator) -> Token {
-    token: Token;
-    token.kind = .COMMENT;
+parse_comment :: (using iterator: *Iterator) -> Comment_Token {
+    token: Comment_Token;
     token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
@@ -443,9 +461,9 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     // Skip the first //
     next(iterator);
     multiline := next(iterator) == #char "*";
+    token.multiline = multiline;
 
     builder: String_Builder;
-    init_string_builder(*builder);
 
     nested_comment: int;
 
@@ -477,6 +495,10 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     token.string_value = builder_to_string(*builder);
     token.l1 = iterator.line;
     token.c1 = iterator.column;
+
+    if ends_with(token.string_value, "\r") {
+        token.string_value.count -= 1;
+    }
 
     return token;
 }
@@ -617,7 +639,7 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
     // #string,cr or #string,\%
     while peek(iterator) == #char "," {
-        comma_token := parse_char_token(iterator);
+        comma_token := parse_char_token(iterator, lexer);
         array_add(*lexer.tokens, comma_token);
 
         if is_identifier_char(peek(iterator)) {
@@ -750,7 +772,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     return token;
 }
 
-parse_char_token :: (iterator: *Iterator) -> Token {
+parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.file = iterator.file;
@@ -945,6 +967,10 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     }
 
     if char == #char ":" {
+        // NOTE: For cases like: test :/*comment*/: () {}
+        comments_found := eat_comments(iterator, lexer);
+        if comments_found next_char = peek(iterator);
+
         if next_char == #char "=" {
             next(iterator);
             token.kind = .DECLARATION_AND_ASSIGN;
