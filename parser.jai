@@ -677,6 +677,7 @@ Comma_Separated_Expression :: struct {
     kind = .COMMA_SEPARATED_EXPRESSION;
 
     members: []*Node;
+    surrounded_with_parens: bool;
 }
 
 Directive_Run :: struct {
@@ -1758,6 +1759,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
         // Comma Separated Expression @TODO: maybe move this somewhere else?
         comma_separated_expression := New(Comma_Separated_Expression);
+        comma_separated_expression.surrounded_with_parens = true;
 
         comma_separated_expression.members = members;
         for comma_separated_expression.members it.parent = comma_separated_expression;
