@@ -250,6 +250,8 @@ For :: struct {
     index: *Node;
     iterator: *Node;
     body: *Node;
+    by_pointer_condition: *Node;
+    reversed_condition: *Node;
 }
 
 Procedure :: struct {
@@ -2963,14 +2965,28 @@ parse_for :: (parser: *Parser) -> *Node {
         _for.is_v2 = true;
     }
 
-    if maybe_eat_token(parser.lexer, #char "<") {
-        _for.reversed = true;
-        _for.by_pointer = maybe_eat_token(parser.lexer, #char "*");
-    }
-
-    if maybe_eat_token(parser.lexer, #char "*") {
-        _for.by_pointer = true;
-        _for.reversed = maybe_eat_token(parser.lexer, #char "<");
+    modifier_found := true;
+    while modifier_found {
+        // TODO: Handle multiple modifiers of the same type and report errors if there are any.
+        token := peek_token(parser.lexer);
+        if token.kind == {
+            case #char "<";
+                eat_token(parser.lexer);
+                _for.reversed = true;
+            case #char "*";
+                eat_token(parser.lexer);
+                _for.by_pointer = true;
+            case .TIMES_EQUAL;
+                eat_token(parser.lexer);
+                _for.by_pointer_condition = parse(parser, _for);
+                maybe_eat_token(parser.lexer, #char ",");
+            case .LESS_EQUAL;
+                eat_token(parser.lexer);
+                _for.reversed_condition = parse(parser, _for);
+                maybe_eat_token(parser.lexer, #char ",");
+            case;
+                modifier_found = false;
+        }
     }
 
     // Only iterator
