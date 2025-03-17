@@ -415,7 +415,7 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     char := peek(iterator);
 
     // Notes
-    if char == #char "@" && is_identifier_char(peek(iterator, 2)) {
+    if char == #char "@" && (is_identifier_char(peek(iterator, 2)) || peek(iterator, 2) == #char "\"") {
         return parse_note_or_directive(iterator, false);
     }
 
@@ -536,7 +536,15 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     if directive {
         token.string_value = next_while(iterator, char => is_identifier_char(char) || is_digit(char));
     } else {
-        token.string_value = next_while(iterator, char => !is_space(char));
+        char := peek(iterator);
+        if char == #char "\"" {
+            builder: String_Builder;
+            string_token := parse_string(iterator, true);
+            print(*builder, "\"%\"", string_token.string_value);
+            token.string_value = builder_to_string(*builder);
+        } else {
+            token.string_value = next_while(iterator, char => !is_space(char));
+        }
     }
 
     token.l1 = iterator.line;
@@ -620,7 +628,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_string :: (using iterator: *Iterator) -> Token {
+parse_string :: (using iterator: *Iterator, include_escape_slash := false) -> Token {
     token: Token;
     token.kind = .STRING;
     token.file = iterator.file;
@@ -637,6 +645,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
         char := next(iterator);
 
         if escaped {
+            if include_escape_slash then append(*builder, "\\");
             append(*builder, char);
             escaped = false;
         } else if char == #char "\\" {
