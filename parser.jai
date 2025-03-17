@@ -292,6 +292,7 @@ Procedure :: struct {
     flags: Flags;
     arguments: []*Node;
     returns: []*Return_Value;
+    returns_surrounded_with_parens: bool;
     modify_block: *Block;
     body: *Block;
     notes: [] *Note;
@@ -688,6 +689,7 @@ Directive_Run :: struct {
     host: bool;
     expression: *Node;
     returns: []*Return_Value;
+    returns_surrounded_with_parens: bool;
 }
 
 Directive_Char :: struct {
@@ -1681,7 +1683,7 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token, first_ope
     return decl;
 }
 
-parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
+parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value, bool
 {
     starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
     returns: [..]*Return_Value;
@@ -1718,7 +1720,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
 
     if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
 
-    return returns;
+    return returns, starts_with_bracket;
 }
 
 parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
@@ -1784,12 +1786,13 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
     // returns
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
-        returns := parse_procedure_returns(parser, proc);
+        returns, surrounded_with_parens := parse_procedure_returns(parser, proc);
         // If the last return value is must all the returns must be consumed.
         if returns.count > 0 && returns[returns.count-1].must {
             proc.flags |= .MUST_CONSUME_ALL_RETURNS;
         }
 
+        proc.returns_surrounded_with_parens = surrounded_with_parens;
         proc.returns = returns;
     }
 
@@ -2218,8 +2221,9 @@ parse_directive_run :: (parser: *Parser) -> *Directive_Run {
     // }
 
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
-        returns := parse_procedure_returns(parser, directive_run);
+        returns, surrounded_with_parens := parse_procedure_returns(parser, directive_run);
         directive_run.returns = returns;
+        directive_run.returns_surrounded_with_parens = surrounded_with_parens;
     }
 
     directive_run.expression = parse(parser, directive_run);
