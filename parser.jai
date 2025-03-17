@@ -1764,6 +1764,8 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         // Comma Separated Expression @TODO: maybe move this somewhere else?
         comma_separated_expression := New(Comma_Separated_Expression);
         comma_separated_expression.surrounded_with_parens = true;
+        comma_separated_expression.location = header_location;
+        set_end_location(*comma_separated_expression.location, peek_token(parser.lexer, -1));
 
         comma_separated_expression.members = members;
         for comma_separated_expression.members it.parent = comma_separated_expression;
