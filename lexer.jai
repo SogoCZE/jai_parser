@@ -539,7 +539,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
         char := peek(iterator);
         if char == #char "\"" {
             builder: String_Builder;
-            string_token := parse_string(iterator, true);
+            string_token := parse_string(iterator);
             print(*builder, "\"%\"", string_token.string_value);
             token.string_value = builder_to_string(*builder);
         } else {
@@ -628,7 +628,7 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     return token;
 }
 
-parse_string :: (using iterator: *Iterator, include_escape_slash := false) -> Token {
+parse_string :: (using iterator: *Iterator) -> Token {
     token: Token;
     token.kind = .STRING;
     token.file = iterator.file;
@@ -645,7 +645,7 @@ parse_string :: (using iterator: *Iterator, include_escape_slash := false) -> To
         char := next(iterator);
 
         if escaped {
-            if include_escape_slash then append(*builder, "\\");
+            append(*builder, "\\");
             append(*builder, char);
             escaped = false;
         } else if char == #char "\\" {
