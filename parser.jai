@@ -3,6 +3,7 @@ Parser :: struct(User_Data_Type: Type) {
     node_visit: (node: *Node, user_data: User_Data_Type);
     user_data: User_Data_Type;
     inside_proc_args: bool;
+    inside_proc_returns: bool;
     inside_compound_declaration: bool;
 }
 
@@ -997,7 +998,9 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
     }
 
     // Comma Separated Expression, Compound Declaration ...
-    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && !parser.inside_proc_args && is_start_of_comma_separated(parser.lexer) {
+    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && !parser.inside_proc_args && !parser.inside_proc_returns && is_start_of_comma_separated(parser.lexer) {
+        log("parent.kind: %", parent.kind);
+
         unprocessed_tokens: [..]Token;
         nodes: [..] *Node;
 
@@ -1118,12 +1121,12 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             }
         }
 
-        
+
         // Compound Declaration
         is_compound_declaration: bool;
         final_token := peek_token(parser.lexer);
         default_compound_declaration_item_kind: Compound_Declaration_Item.Item_Kind;
-        if maybe_eat_token(parser.lexer, #char ":") || 
+        if maybe_eat_token(parser.lexer, #char ":") ||
            maybe_eat_token(parser.lexer, .DECLARATION_AND_ASSIGN) ||
            maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
             // NOTE: If the expression ends with : or := it doesn't matter what was before, we want to treat the expression as compound declaration.
@@ -1624,7 +1627,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
             }
         }
     }
-    
+
     // NOTE: Notes in declarations are after the semicolon
     maybe_eat_token(parser.lexer, #char ";");
 
@@ -1685,10 +1688,11 @@ parse_declaration_and_assign :: (parser: *Parser, ident_token: *Token, first_ope
     return decl;
 }
 
-parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value, bool
-{
+parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value, bool {
     starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
     returns: [..]*Return_Value;
+
+    parser.inside_proc_returns = true;
 
     is_returns_end_token :: (token: *Token) -> bool {
         if token.kind == #char ";" return true;
@@ -1721,6 +1725,8 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
     }
 
     if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
+
+    parser.inside_proc_returns = false;
 
     return returns, starts_with_bracket;
 }
@@ -2193,7 +2199,7 @@ parse_directive_string :: (parser: *Parser) -> *Directive_String {
         return null;
     }
     directive_string.identifier = identifier.string_value;
-    
+
     value := eat_token(parser.lexer, .STRING);
     if !value {
         log_error("Expected string token after here string indentifier");
@@ -3219,7 +3225,7 @@ parse_inline :: (parser: *Parser) -> *Node {
     eat_token(parser.lexer, .KEYWORD_INLINE);
     next_node := parse(parser, null);
     if !next_node return null;
-    
+
     if next_node.kind == .PROCEDURE {
         (cast(*Procedure) next_node).flags |= .INLINE;
     }
