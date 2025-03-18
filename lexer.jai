@@ -1062,9 +1062,11 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     }
 
     if char == #char ":" {
+        // NOTE: For cases like test:   = 5;
+        whitespace := next_while(iterator, is_space);
         // NOTE: For cases like: test :/*comment*/: () {}
         comments_found := eat_comments(iterator, lexer);
-        if comments_found next_char = peek(iterator);
+        if comments_found || whitespace.count > 0 then next_char = peek(iterator);
 
         if next_char == #char "=" {
             next(iterator);
