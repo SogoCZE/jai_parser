@@ -3070,8 +3070,9 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
 
         then_found, then_token := maybe_eat_token(parser.lexer, .KEYWORD_THEN);
         _if.then_keyword_used = then_found;
-        // NOTE: In ifx we only want to parse _then if the 'then' keyword was actually used. For ifx with implicit 'then' _then will be empty because the condition is also treated as _then.
-        if _if.if_kind == .IF || (_if.if_kind == .IFX && then_found) {
+        parse_then := then_found || !is_token(parser.lexer, .KEYWORD_ELSE);
+
+        if _if.if_kind == .IF || (_if.if_kind == .IFX && parse_then) {
             _if._then = parse(parser, _if);
         }
 
