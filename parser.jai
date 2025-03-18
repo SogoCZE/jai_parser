@@ -999,8 +999,6 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
     // Comma Separated Expression, Compound Declaration ...
     if (parent == null || can_contain_comma_separated_expression(parent.kind)) && !parser.inside_proc_args && !parser.inside_proc_returns && is_start_of_comma_separated(parser.lexer) {
-        log("parent.kind: %", parent.kind);
-
         unprocessed_tokens: [..]Token;
         nodes: [..] *Node;
 
