@@ -101,19 +101,38 @@ Token :: struct {
     l1: int;
     c1: int;
 
-    here_string_cr: bool; // @TODO: Is this good to have this here?
-
+    // NOTE: string_value is separated from int and float value because for numbers we want to keep both representations - string represantation of a number is usefull for example in formatting to not remove underscores from literals.
+    string_value: string;
+    number_kind: Number_Kind;
     union {
-        string_value: string;
         integer_value: int;
-        float_value: float;
+        float_value: float64;
     }
 
     backticked: bool;
 }
 
+Number_Kind :: enum {
+    UNKNOWN;
+    INT;
+    FLOAT;
+    SCIENTIFIC_FLOAT;
+    HEX_INT;
+    HEX_FLOAT;
+    BINARY;
+}
+
+Comment_Token :: struct
+{
+    #as using token: Token;
+    token.kind = .COMMENT;
+
+    multiline: bool;
+}
+
 Lexer :: struct {
     tokens: [..]Token;
+    comments: [..]Comment_Token;
     cursor := 0;
     next_backticked: bool;
 }
@@ -153,7 +172,8 @@ print_token :: (token: *Token) {
     }
 
     if token.kind == .NUMBER {
-        if token.float_value > 0 {
+        kind := token.number_kind;
+        if kind == .FLOAT || kind == .SCIENTIFIC_FLOAT || kind == .HEX_FLOAT {
             value = tprint("%", token.float_value);
         } else {
             value = tprint("%", token.integer_value);
@@ -231,6 +251,7 @@ is_operator_assignment :: (token: *Token) -> bool {
     if !token return false;
 
     if token.kind == {
+        case #char "=";                          return true;
         case .IS_EQUAL;                          return true;
         case .PIPE_EQUAL;                        return true;
         case .PLUS_EQUAL;                        return true;
@@ -370,21 +391,31 @@ is_comment :: (iterator: *Iterator) -> bool {
     return next_char == #char "/" || next_char == #char "*";
 }
 
+eat_comments :: (iterator: *Iterator, lexer: *Lexer) -> bool {
+    comments_found: bool;
+    while is_comment(iterator) {
+        comment := parse_comment(iterator);
+        array_add(*lexer.comments, comment);
+        comments_found = true;
+        next_while(iterator, is_space); // We skip all whitespaces
+    }
+
+    return comments_found;
+}
+
 parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     next_while(iterator, is_space); // We skip all whitespaces
 
     // @TODO: remove this
     total_tokens += 1;
 
-    if is_comment(iterator) {
-        parse_comment(iterator); // Skip comments...
-        return .{};
-    }
+    // Skip comments - we don't want them in the parser. But we're keeping a separate list of comments if someone needs them (for example for formatting).
+    eat_comments(iterator, lexer);
 
     char := peek(iterator);
 
     // Notes
-    if char == #char "@" && is_identifier_char(peek(iterator, 2)) {
+    if char == #char "@" && (is_identifier_char(peek(iterator, 2)) || peek(iterator, 2) == #char "\"") {
         return parse_note_or_directive(iterator, false);
     }
 
@@ -393,7 +424,11 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
         directive_token := parse_note_or_directive(iterator, true);
 
         if directive_token.string_value == "string" {
-            return parse_here_string(iterator);
+            array_add(*lexer.tokens, directive_token);
+
+            // NOTE: Here strings are processed in a bit hacky way. parse_here_string adds multiple tokens to the tokens list in lexer. That's why we return an empty token here. 
+            parse_here_string(iterator, lexer);
+            return .{};
         }
 
         return directive_token;
@@ -409,14 +444,22 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
         return parse_string(iterator);
     }
 
+    has_sign: bool;
+    previous_token := ifx lexer.tokens then lexer.tokens[lexer.tokens.count - 1] else .{};
+    if (is_operator(*previous_token) || previous_token.kind == .DECLARATION_AND_ASSIGN) &&
+       (char == #char "+" || char == #char "-") {
+        has_sign = true;
+        char = peek(iterator, 2);
+    }
+
     // .40
     if char == #char "." && is_digit(peek(iterator, 2)) {
-        return parse_number(iterator, true);
+        return parse_number(iterator, true, has_sign);
     }
 
     // Numbers
     if is_digit(char) {
-        return parse_number(iterator, false);
+        return parse_number(iterator, false, has_sign);
     }
 
     // Backtick
@@ -427,12 +470,11 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     }
 
     // Special chars or compound chars
-    return parse_char_token(iterator);
+    return parse_char_token(iterator, lexer);
 }
 
-parse_comment :: (using iterator: *Iterator) -> Token {
-    token: Token;
-    token.kind = .COMMENT;
+parse_comment :: (using iterator: *Iterator) -> Comment_Token {
+    token: Comment_Token;
     token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
@@ -440,9 +482,9 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     // Skip the first //
     next(iterator);
     multiline := next(iterator) == #char "*";
+    token.multiline = multiline;
 
     builder: String_Builder;
-    init_string_builder(*builder);
 
     nested_comment: int;
 
@@ -475,6 +517,10 @@ parse_comment :: (using iterator: *Iterator) -> Token {
     token.l1 = iterator.line;
     token.c1 = iterator.column;
 
+    if ends_with(token.string_value, "\r") {
+        token.string_value.count -= 1;
+    }
+
     return token;
 }
 
@@ -487,7 +533,19 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
     token.c0 = iterator.column;
 
     token.kind = ifx directive then Token.Kind.DIRECTIVE else .NOTE;
-    token.string_value = next_while(iterator,  char => is_identifier_char(char) || is_digit(char));
+    if directive {
+        token.string_value = next_while(iterator, char => is_identifier_char(char) || is_digit(char));
+    } else {
+        char := peek(iterator);
+        if char == #char "\"" {
+            builder: String_Builder;
+            string_token := parse_string(iterator);
+            print(*builder, "\"%\"", string_token.string_value);
+            token.string_value = builder_to_string(*builder);
+        } else {
+            token.string_value = next_while(iterator, char => !is_space(char));
+        }
+    }
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
@@ -587,6 +645,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
         char := next(iterator);
 
         if escaped {
+            append(*builder, "\\");
             append(*builder, char);
             escaped = false;
         } else if char == #char "\\" {
@@ -606,34 +665,50 @@ parse_string :: (using iterator: *Iterator) -> Token {
 }
 
 // @TODO: We need to test it more!
-parse_here_string :: (using iterator: *Iterator) -> Token {
-    token: Token;
-    token.kind = .STRING;
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
-    // #string,cr
-    if peek(iterator) == #char "," {
-        next(iterator); // eat ,
+    // #string,cr or #string,\%
+    while peek(iterator) == #char "," {
+        comma_token := parse_char_token(iterator, lexer);
+        array_add(*lexer.tokens, comma_token);
 
         if is_identifier_char(peek(iterator)) {
-            token.here_string_cr = parse_identifier(iterator).string_value == "cr";
+            identifier := parse_identifier(iterator);
+            print("parsing here string: %\n", identifier.string_value);
+            array_add(*lexer.tokens, identifier);
+        } else if peek(iterator, 1) == #char "\\" && peek(iterator, 2) == #char "%" {
+            token: Token;
+            token.kind = .IDENTIFIER;
+            token.file = iterator.file;
+            token.l0 = iterator.line;
+            token.c0 = iterator.column;
+            token.l1 = token.l0;
+            token.c1 = token.c0;
+            token.string_value = "\\%";
+            array_add(*lexer.tokens, token);
+            next(iterator);
+            next(iterator);
         }
-
     }
 
     next_while(iterator, is_space); // Skip all whitespaces
 
     if !is_identifier_char(peek(iterator)) {
         log_error("Exprected identifier after #string");
-        return .{};
+        return;
     }
 
-    here_identifier := parse_identifier(iterator).string_value;
+    here_identifier_token := parse_identifier(iterator);
+    array_add(*lexer.tokens, here_identifier_token);
+    here_identifier := here_identifier_token.string_value;
+
+    string_token: Token;
+    string_token.kind = .STRING;
+    string_token.file = iterator.file;
+    string_token.l0 = iterator.line;
+    string_token.c0 = iterator.column;
 
     builder: String_Builder;
-    init_string_builder(*builder);
 
     while true {
         char := next(iterator);
@@ -661,65 +736,130 @@ parse_here_string :: (using iterator: *Iterator) -> Token {
         append(*builder, char);
     }
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
-    token.string_value = builder_to_string(*builder);
+    string_token.l1 = iterator.line;
+    string_token.c1 = iterator.column;
+    string_token.string_value = builder_to_string(*builder);
 
-    return token;
+    array_add(*lexer.tokens, string_token);
 }
 
-parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
+parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.file = iterator.file;
     token.c0 = iterator.column;
     token.kind = .NUMBER;
 
-    hex := false;
-    if !from_dot && peek(iterator) == #char "0" && peek(iterator, 2) == #char "x" {
-        next(iterator); // eat 0
-        next(iterator); // eat x
-        hex = true;
-    }
+    kind: Number_Kind = .UNKNOWN;
 
     builder: String_Builder;
-    init_string_builder(*builder);
+
+    if has_sign {
+        append(*builder, next(iterator)); // skip the sign
+    }
 
     if from_dot {
-        next(iterator); // eat .
-        append(*builder, "0.");
+        kind = .FLOAT;
+        append(*builder, next(iterator)); // eat .
     }
 
-    if hex append(*builder, "0x");
-
-    is_float := from_dot;
-
-    is_valid_numeric_char :: (char: u8, iterator: *Iterator, is_float: *bool) -> bool {
-        if is_digit(char) return true;
-        if char == #char "_" return true;
-        if !<<is_float && char == #char "." && peek(iterator, 2) != #char "." {
-            <<is_float = true;
-            return true;
+    if !from_dot && peek(iterator) == #char "0" {
+        next_char := peek(iterator, 2);
+        if next_char == {
+            case #char "x"; kind = .HEX_INT;
+            case #char "h"; kind = .HEX_FLOAT;
+            case #char "b"; kind = .BINARY;
         }
 
-        return false;
+        if kind != .UNKNOWN {
+            append(*builder, next(iterator)); // eat 0
+            append(*builder, next(iterator)); // eat x, h or b
+        }
     }
 
-    // @TOOD: clean this up!
-    if hex {
-        while !end(iterator) && (is_digit(peek(iterator)) || is_identifier_char(peek(iterator))) {
+    if kind == .UNKNOWN {
+        // NOTE: It could be int, float or scientific float. Now we assume int because float type will be decided after we parse the integer part.
+        kind = .INT;
+    }
+
+    is_hex_char :: (char: u8) -> bool {
+        return (char >= #char "a" && char <= #char "f") ||
+               (char >= #char "A" && char <= #char "F");
+    }
+
+    is_underscore :: (char: u8) -> bool { return char == #char "_"; }
+
+    int_predicate :: (char) => is_digit(char) || is_underscore(char);
+    hex_predicate :: (char) => is_digit(char) || is_hex_char(char) || is_underscore(char);
+    binary_predicate :: (char) => char == #char "1" || char == #char "0" || is_underscore(char);
+
+    value: string;
+    if kind == {
+        case .INT; 
+            value = next_while(iterator, int_predicate);
+        case .HEX_INT; #through;
+        case .HEX_FLOAT;
+            value = next_while(iterator, hex_predicate);
+        case .BINARY;
+            value = next_while(iterator, binary_predicate);
+    }
+
+    append(*builder, value);
+
+    if from_dot || (peek(iterator, 1) == #char "." && peek(iterator, 2) != #char ".") {
+        kind = .FLOAT;
+        if !from_dot append(*builder, next(iterator)); // eat '.' if it wasn'y already eaten at the beginning
+
+        decimal_part := next_while(iterator, int_predicate);
+        append(*builder, decimal_part);
+
+        if peek(iterator) == #char "e" {
+            kind = .SCIENTIFIC_FLOAT;
             append(*builder, next(iterator));
-        }
-    } else {
-        while !end(iterator) && is_valid_numeric_char(peek(iterator), iterator, *is_float) {
-            append(*builder, next(iterator));
+            sign := peek(iterator);
+            if sign == #char "+" || sign == #char "-" {
+                append(*builder, next(iterator));
+            }
+
+            exponent_part := next_while(iterator, int_predicate);
+            append(*builder, exponent_part);
         }
     }
 
     number_value := builder_to_string(*builder);
-    number_value = replace(number_value, "_", ""); // Remove all _ in number
-
     token.string_value = number_value;
+    token.number_kind = kind;
+
+    without_underscores := replace(number_value, "_", ""); // Remove all _ in number
+    if kind == .FLOAT || kind == .SCIENTIFIC_FLOAT {
+        token.float_value = string_to_float(without_underscores);
+    } else {
+        base := 10;
+        if kind == {
+            case .HEX_FLOAT; #through;
+            case .HEX_INT; base = 16;
+            case .BINARY; base = 2;
+        }
+        
+        if kind != .INT {
+            advance(*without_underscores, 2); // Skip 0x, 0h or 0b
+            sign_to_set := ifx kind == .HEX_FLOAT then #char "+" else number_value[0];
+            // NOTE: If the number had a sing the skip above won't skip everything we need. For example -0xFF after the skip will become xFF. But because we know that there was a sign in the original string we can replace the 'x' with it so in the end we get: -FF.
+            if has_sign {
+                without_underscores[0] = sign_to_set;
+            }
+        }
+        
+        // NOTE: We're also parsing HEX_FLOAT here because string_to_float doesn't do that. Because the float is in hex format we can parse it in the same way as an integer and then just treat the bits as a float.
+        token.integer_value = string_to_int(without_underscores, base);
+
+        // NOTE: For HEX_FLOAT if it was negative we need to negate the number after parsing because if we pass a negated hex string into string_to_int it changes the bit layout. 
+        // For example -0xFF becomes 0xffffffffffffff01 which is correct for integers but not for our hack with hex floats. For hex floats we want the bits to be the same as the literal so we always parse it as a positive number and negate at the end.
+        sign := number_value[0];
+        if kind == .HEX_FLOAT && has_sign && sign == #char "-" {
+            token.float_value *= -1;
+        }
+    }
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
@@ -727,12 +867,13 @@ parse_number :: (using iterator: *Iterator, from_dot: bool) -> Token {
     return token;
 }
 
-parse_char_token :: (iterator: *Iterator) -> Token {
+parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     token: Token;
     token.l0 = iterator.line;
     token.file = iterator.file;
     token.c0 = iterator.column;
 
+    char_start := iterator.buffer.data;
     char := next(iterator);
     next_char := peek(iterator);
 
@@ -921,6 +1062,12 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     }
 
     if char == #char ":" {
+        // NOTE: For cases like test:   = 5;
+        whitespace := next_while(iterator, is_space);
+        // NOTE: For cases like: test :/*comment*/: () {}
+        comments_found := eat_comments(iterator, lexer);
+        if comments_found || whitespace.count > 0 then next_char = peek(iterator);
+
         if next_char == #char "=" {
             next(iterator);
             token.kind = .DECLARATION_AND_ASSIGN;
@@ -935,6 +1082,10 @@ parse_char_token :: (iterator: *Iterator) -> Token {
     if token.kind == .UNKNOWN {
         token.kind = xx char;
     }
+
+    char_end := iterator.buffer.data;
+    token.string_value.data = char_start;
+    token.string_value.count = char_end - char_start;
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
