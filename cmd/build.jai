@@ -8,13 +8,19 @@ TRACY_PROFILE :: false;
         return;
     }
 
+    root_options := get_build_options();
+    args := root_options.compile_time_command_line;
+
+    release := array_find(args, "-release");
 
     options := get_build_options(w);
     options.output_executable_name = "jai_parser";
-    options.output_path = "./bin";   
-    options.use_natvis_compatible_types = true;   
+    options.output_path = "./bin";
+    options.use_natvis_compatible_types = true;
 
-    // set_optimization(*options, .OPTIMIZED);
+    if release {
+        set_optimization(*options, .VERY_OPTIMIZED);
+    }
 
     tracy: *Metaprogram_Plugin;
     #if TRACY_PROFILE {
@@ -43,7 +49,7 @@ TRACY_PROFILE :: false;
     compiler_begin_intercept(w);
 
     if tracy && tracy.add_source tracy.add_source(tracy);
-    add_build_file("./src/main.jai", w); 
+    add_build_file("./src/main.jai", w);
 
     message_loop(w, tracy);
 
