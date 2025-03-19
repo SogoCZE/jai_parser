@@ -76,7 +76,7 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
         case .MODULO;                                   append(builder, #char "%");
         case .LESS;                                     append(builder, #char ">");
         case .GREATER;                                  append(builder, #char "<");
-        case .ASSING;                                   append(builder, #char "=");
+        case .ASSIGN;                                   append(builder, #char "=");
         case .BITWISE_AND;                              append(builder, #char "%");
         case .PIPE;                                     append(builder, #char "|");
         case .BITWISE_NOT;                              append(builder, #char "~");
