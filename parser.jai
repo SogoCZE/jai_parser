@@ -4,7 +4,6 @@ Parser :: struct(User_Data_Type: Type) {
     user_data: User_Data_Type;
     inside_proc_args: bool;
     inside_proc_returns: bool;
-    inside_compound_declaration: bool;
 }
 
 Node :: struct {
@@ -1139,7 +1138,6 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
         if is_compound_declaration {
             compound_declaration := New(Compound_Declaration);
-            parser.inside_compound_declaration = true;
 
             transform_nodes_into_items(compound_declaration, nodes_types, nodes, default_compound_declaration_item_kind);
 
@@ -1161,7 +1159,6 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
             set_end_location(compound_declaration, peek_token(parser.lexer, -1));
             parser.node_visit(compound_declaration, parser.user_data);
 
-            parser.inside_compound_declaration = false;
             return compound_declaration;
         }
 
@@ -1368,7 +1365,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
 
         equals_with_comma := is_token(parser.lexer, #char "=") && is_token(parser.lexer, #char ",", 1);
         // Binary operation
-        if is_operator(peek_token(parser.lexer)) && !equals_with_comma && !parser.inside_compound_declaration {
+        if is_operator(peek_token(parser.lexer)) && !equals_with_comma {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
 
@@ -1396,7 +1393,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
             return parse_declaration_and_assign(parser, ident);
         }
 
-        if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) && !parser.inside_compound_declaration {
+        if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) {
             return parse_type_instantiation(parser, ident);
         }
 
