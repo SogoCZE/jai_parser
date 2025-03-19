@@ -407,7 +407,8 @@ Directive_Import :: struct {
         STRING;
     }
 
-    arguments: []*Node;
+    module_parameters: []*Node;
+    program_parameters: []*Node;
     import_kind: Import_Kind;
     module: string;
 }
@@ -819,9 +820,8 @@ Directive_Module_Parameters :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_MODULE_PARAMETERS;
 
-    // @TODO: rename this (currently we don't know why does the directive have double parameters)
-    parameters: [] *Node;
-    second_parameters: [] *Node;
+    module_parameters: []*Node;
+    program_parameters: []*Node;
 }
 
 Directive_Placeholder :: struct {
@@ -2301,7 +2301,11 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     directive_import.module = eat_token(parser.lexer, .STRING).string_value;
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.arguments = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.module_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
+    }
+
+    if is_token(parser.lexer, #char "(") {
+        directive_import.program_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
     }
 
     return directive_import;
@@ -2466,11 +2470,11 @@ parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Para
     directive_module_parameters := New(Directive_Module_Parameters);
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.module_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.second_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.program_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     return directive_module_parameters;
