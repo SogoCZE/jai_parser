@@ -10,6 +10,7 @@ Node :: struct {
 
     Kind :: enum {
         UNINITIALIZATED;
+        TYPE_INSTANTIATION;
         DECLARATION;
         COMPOUND_DECLARATION;
         COMPOUND_DECLARATION_ITEM;
@@ -118,6 +119,13 @@ Declaration :: struct {
     backticked: bool;
     notes: [] *Note;
     alignment: int; // @TODO: move this maybe into Type Instantiation struct?
+}
+
+Type_Instantiation :: struct {
+    using #as node: Node;
+    kind = .TYPE_INSTANTIATION;
+    pointer: bool;
+    expression: *Node;
 }
 
 Compound_Declaration :: struct {
@@ -1014,27 +1022,6 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         eat_token(parser.lexer, #char ",");
         array_add(*nodes, base_node);
 
-        parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token, left := false) {
-
-            // @TODO: Is there any buildin compiler util for this?
-            get_type_from_pointer_type :: (info: Type) -> Type {
-                p := cast(*Type_Info_Pointer) info;
-                return get_type(p.pointer_to);
-            }
-
-            local_parser: #run get_type_from_pointer_type(type_of(parser)); // @TODO: is this ok?
-            local_parser.node_visit = parser.node_visit;
-            local_parser.user_data = parser.user_data;
-            local_parser.lexer = New(Lexer);
-            local_parser.lexer.tokens = from;
-
-            while !end(local_parser.lexer) {
-                node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
-                if !node continue;
-                array_add(to, node);
-            }
-        }
-
         skip_brackets: int;
         item_index := 1;
 
@@ -1095,7 +1082,7 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         }
 
         // Left overs
-        parse_token_array(parser, *nodes, unprocessed_tokens, true);
+        parse_token_array(parser, *nodes, unprocessed_tokens);
 
         transform_nodes_into_items :: (parent: *Node, nodes_types: Table(int, Compound_Declaration_Item.Item_Kind), nodes: []*Node, default: Compound_Declaration_Item.Item_Kind) {
             for node: nodes {
@@ -1206,6 +1193,28 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 }
 
 #scope_module
+
+parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token) {
+
+    // @TODO: Is there any buildin compiler util for this?
+    get_type_from_pointer_type :: (info: Type) -> Type {
+        p := cast(*Type_Info_Pointer) info;
+        return get_type(p.pointer_to);
+    }
+
+    local_parser: #run get_type_from_pointer_type(type_of(parser)); // @TODO: is this ok?
+    local_parser.node_visit = parser.node_visit;
+    local_parser.user_data = parser.user_data;
+    local_parser.lexer = New(Lexer);
+    local_parser.lexer.tokens = from;
+
+    while !end(local_parser.lexer) {
+        node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
+        if !node continue;
+        array_add(to, node);
+    }
+}
+
 
 set_start_location :: (using node: *Node, token: *Token) {
     if !token return;
@@ -1578,6 +1587,57 @@ parse_comment :: (parser: *Parser) -> *Comment {
     return comment;
 }
 
+parse_type :: (parser: *Parser, parent: *Node) -> *Node {
+    token := peek_token(parser.lexer);
+    if !token return null;
+
+    type_inst := New(Type_Instantiation);
+    if maybe_eat_token(parser.lexer, #char "*") {
+        type_inst.pointer = true;
+        token = peek_token(parser.lexer);
+    }
+
+    if token.kind == {
+        case #char "["; #through;
+        case .DIRECTIVE;
+            // NOTE: Array types and directives can use the regular parsing proc.
+            type_inst.expression = parse(parser, parent);
+        case .IDENTIFIER;
+            // NOTE: This code is for cases like this:
+            // 1. a: int = 5;
+            // 2. a: int: 5;
+            // We have to gather all tokens until ':', "=" or ";" and only parse those tokens as type instantiation. If we don't do that the type instantiation will be parsed as a Binary_Operation (int = 5) or a Declaration (int: 5) and the expression field in the resulting Declaration will be set to null.
+            tokens: [..]Token;
+
+            while token != null && 
+                  token.kind != #char ":" &&
+                  token.kind != #char "=" &&
+                  token.kind != #char ";" &&
+                  // NOTE: ',' and ')' are for cases when we are inside proc arguments
+                  token.kind != #char "," &&
+                  token.kind != #char ")" {
+                array_add(*tokens, eat_token(parser.lexer));
+                token = peek_token(parser.lexer);
+            }
+            
+            nodes: [..]*Node;
+            parse_token_array(parser, *nodes, tokens);
+
+            if nodes.count > 1 || nodes.count == 0 {
+                log_error("Expected only one expression as type. Got: %", nodes.count);
+                return null;
+            }
+
+            type_inst.expression = nodes[0];
+
+            array_reset(*tokens);
+            array_reset(*nodes);
+
+    }
+
+    return type_inst;
+}
+
 // player: Entity;
 // player: Entity = .{health=20};
 parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operator_eaten := false) -> *Declaration {
@@ -1597,13 +1657,8 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
             return decl;
         }
 
-        decl.type_inst = parse(parser, decl);
-    }
-
-    // decl: u8 #align 32
-    if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "align") {
-        align_token := eat_token(parser.lexer, .NUMBER);
-        decl.alignment = parse_int(*align_token.string_value);
+        // decl.type_inst = parse(parser, decl);
+        decl.type_inst = parse_type(parser, decl);
     }
 
     is_const := is_token(parser.lexer, #char ":");
@@ -1611,6 +1666,13 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
     if maybe_eat_token(parser.lexer, #char "=") || maybe_eat_token(parser.lexer, #char ":") {
         decl.const = is_const;
         decl.expression = parse(parser, decl);
+    }
+
+    // decl: u8 #align 32;
+    // decl := 5 #align 32;
+    if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "align") {
+        align_token := eat_token(parser.lexer, .NUMBER);
+        decl.alignment = parse_int(*align_token.string_value);
     }
 
 
@@ -2751,7 +2813,7 @@ parse_array_type :: (parser: *Parser) -> *Array_Type {
     }
 
     eat_token(parser.lexer, #char "]");
-    array_type.element_type = parse(parser, array_type);
+    array_type.element_type = parse_type(parser, array_type);
 
     return array_type;
 }
