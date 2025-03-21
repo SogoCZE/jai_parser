@@ -865,6 +865,7 @@ Directive_Poke_Name :: struct {
 
     module: string;
     name: string;
+    operator_overload: *Node;
 }
 
 Directive_Dynamic_Specialize :: struct {
@@ -2538,6 +2539,8 @@ parse_directive_poke_name :: (parser: *Parser) -> *Directive_Poke_Name {
     if is_token(parser.lexer, .IDENTIFIER) {
         name_token := eat_token(parser.lexer, .IDENTIFIER);
         directive_poke_name.name = name_token.string_value;
+    } else if is_token(parser.lexer, .KEYWORD_OPERATOR) {
+        directive_poke_name.operator_overload = parse_operator_overload(parser);
     }
 
     return directive_poke_name;
