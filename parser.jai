@@ -1603,6 +1603,7 @@ parse_type :: (parser: *Parser, parent: *Node) -> *Node {
     if !token return null;
 
     type_inst := New(Type_Instantiation);
+    type_inst.parent = parent;
     if maybe_eat_token(parser.lexer, #char "*") {
         type_inst.pointer = true;
         token = peek_token(parser.lexer);
