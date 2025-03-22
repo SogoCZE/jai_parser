@@ -976,7 +976,7 @@ Inline_Assembly :: struct {
     body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks.
 }
 
-parse :: (parser: *Parser, parent: *Node) -> *Node {
+parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node {
     current_token := peek_token(parser.lexer);
 
     base_node := parse_node(parser, parent);
@@ -988,6 +988,10 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
+        if kind == .CASE return true;
+        if kind == .FOR return true;
+        if kind == .IF return true;
+        if kind == .WHILE return true;
         if kind == .COMPOUND_DECLARATION return true;
         if kind == .DECLARATION return true;
         // if kind == .STRUCT return true;
@@ -1006,8 +1010,14 @@ parse :: (parser: *Parser, parent: *Node) -> *Node {
         return false;
     }
 
+    // NOTE: no_comma_separated is a way for an expression to override the result of can_contain_comma_separated_expression.
+    // Right now it is only used in for loops that use *= or <=.
+    // For example: for *=DO_POINTER, <=DO_REVERSE things print(it);
+    // In this case *=DO_POINTER, <=DO_REVERSE would be parsed as a comma separated expression because can_contain_comma_separated_expression allows for loops but we only want to allow comma separated expression in the for loop body and not in the iterator part.
+
+    comma_separated := parent && !no_comma_separated && can_contain_comma_separated_expression(parent.kind);
     // Comma Separated Expression, Compound Declaration ...
-    if (parent == null || can_contain_comma_separated_expression(parent.kind)) && !parser.inside_proc_args && !parser.inside_proc_returns && is_start_of_comma_separated(parser.lexer) {
+    if (parent == null || comma_separated) && !parser.inside_proc_args && !parser.inside_proc_returns && is_start_of_comma_separated(parser.lexer) {
         unprocessed_tokens: [..]Token;
         nodes: [..] *Node;
 
@@ -3071,11 +3081,11 @@ parse_for :: (parser: *Parser) -> *Node {
                 _for.by_pointer = true;
             case .TIMES_EQUAL;
                 eat_token(parser.lexer);
-                _for.by_pointer_condition = parse(parser, _for);
+                _for.by_pointer_condition = parse(parser, _for, true);
                 maybe_eat_token(parser.lexer, #char ",");
             case .LESS_EQUAL;
                 eat_token(parser.lexer);
-                _for.reversed_condition = parse(parser, _for);
+                _for.reversed_condition = parse(parser, _for, true);
                 maybe_eat_token(parser.lexer, #char ",");
             case;
                 modifier_found = false;
