@@ -1154,6 +1154,8 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
                     compound_declaration.const = true;
             }
 
+            compound_declaration.type_inst.parent = compound_declaration;
+
             set_start_location(compound_declaration, base_node);
             set_end_location(compound_declaration, peek_token(parser.lexer, -1));
             parser.node_visit(compound_declaration, parser.user_data);
