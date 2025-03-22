@@ -2157,6 +2157,8 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     proc_call.procedure = procedure;
     procedure.parent = proc_call;
 
+    set_start_location(proc_call, procedure);
+
     if procedure.kind == .IDENTIFIER {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
     }
@@ -2175,6 +2177,9 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     eat_token(parser.lexer, #char ")");
     parser.inside_proc_call = false;
 
+    // NOTE: We're setting the proc_call location here just in case we go into one of the ifs below.
+    // If we go there without setting the location the location will remain set to 0 because we'll return a different node to the caller and the code in the 'parse' fucntion will set the location for that new node.
+    set_end_location(proc_call, peek_token(parser.lexer, -1));
     // Array Subscript generate_array()[0]
     if is_token(parser.lexer, #char "[") {
         return parse_array_subscript(parser, proc_call);
