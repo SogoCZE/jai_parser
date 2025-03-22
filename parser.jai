@@ -3367,9 +3367,9 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
         eat_token(parser.lexer, #char "]");
 
         if maybe_eat_token(parser.lexer, #char "=") {
-            operator_overload.operation = .ARRAY_SUBSCRIPT;
-        } else {
             operator_overload.operation = .ARRAY_SUBSCRIPT_ASSIGNMENT;
+        } else {
+            operator_overload.operation = .ARRAY_SUBSCRIPT;
         }
 
     } else {
