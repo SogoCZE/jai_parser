@@ -352,7 +352,7 @@ Struct :: struct {
     modify_block: *Block;
     block: *Block;
 
-    notes: [] *Note;
+    notes: [..] *Note;
 }
 
 Union :: struct {
@@ -361,7 +361,7 @@ Union :: struct {
     polymorphic_arguments: [] *Node;
 
     block: *Block;
-    notes: [] *Note;
+    notes: [..] *Note;
 }
 
 Enum :: struct {
@@ -372,7 +372,7 @@ Enum :: struct {
     is_enum_flags: bool;
     type: *Node;
     block: *Block;
-    notes: [] *Note;
+    notes: [..] *Note;
 }
 
 If :: struct {
@@ -1663,6 +1663,8 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
         decl.backticked = ident_token.backticked;
     }
 
+    notes: [..]*Note;
+
     if is_token(parser.lexer, #char "(") {
         decl.type_inst = parse_procedure(parser, true);
     } else {
@@ -1674,6 +1676,31 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
 
         // decl.type_inst = parse(parser, decl);
         decl.type_inst = parse_type(parser, decl);
+
+        copy_notes :: (from: *Node, to: *[..]*Note, parent: *Declaration) {
+            notes_to_copy: *[..]*Note;
+            if from.kind == {
+                case .STRUCT;
+                    notes_to_copy = *from.(*Struct).notes;
+                case .ENUM;
+                    notes_to_copy = *from.(*Enum).notes;
+                case .UNION;
+                    notes_to_copy = *from.(*Union).notes;
+                case .ARRAY_TYPE;
+                    copy_notes(from.(*Array_Type).element_type, to, parent);
+            }
+
+            if !notes_to_copy then return;
+            for notes_to_copy.* {
+                // NOTE: Only copy the notes from the end of the block because they are the ones applied to the declaration.
+                if it.location.l0 != from.location.l0 {
+                    it.parent = parent;
+                    array_add(to, it);
+                    remove it;
+                }
+            }
+        }
+        copy_notes(decl.type_inst.(*Type_Instantiation).expression, *notes, decl);
     }
 
     is_const := is_token(parser.lexer, #char ":");
@@ -1706,10 +1733,10 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
-        notes: [..]*Note;
         parse_notes(parser, decl, *notes);
-        decl.notes = notes;
     }
+
+    decl.notes = notes;
 
     return decl;
 }
