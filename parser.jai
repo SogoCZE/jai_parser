@@ -4,6 +4,7 @@ Parser :: struct(User_Data_Type: Type) {
     user_data: User_Data_Type;
     inside_proc_args: bool;
     inside_proc_returns: bool;
+    inside_proc_call: bool;
 }
 
 Node :: struct {
@@ -1597,12 +1598,12 @@ parse_type :: (parser: *Parser, parent: *Node) -> *Node {
         token = peek_token(parser.lexer);
     }
 
-    if token.kind == {
-        case #char "["; #through;
-        case .DIRECTIVE;
-            // NOTE: Array types and directives can use the regular parsing proc.
+    if token.kind == .IDENTIFIER {
+        next := peek_token(parser.lexer, 1);
+        if next.kind == #char "(" {
+            // TODO: Polymorphic structs (t: Table(int, bool)) will be parsed as Procedure_Call. The Type_Instantiation struct should probably contain more information about the type.
             type_inst.expression = parse(parser, parent);
-        case .IDENTIFIER;
+        } else {
             // NOTE: This code is for cases like this:
             // 1. a: int = 5;
             // 2. a: int: 5;
@@ -1610,11 +1611,13 @@ parse_type :: (parser: *Parser, parent: *Node) -> *Node {
             tokens: [..]Token;
 
             while token != null && 
+                  token.kind != .DIRECTIVE &&
                   token.kind != #char ":" &&
                   token.kind != #char "=" &&
                   token.kind != #char ";" &&
-                  // NOTE: ',' and ')' are for cases when we are inside proc arguments
+                  // NOTE: ',' and ')' are for cases when we are inside proc arguments or proc returns
                   token.kind != #char "," &&
+                  token.kind != #char "{" &&
                   token.kind != #char ")" {
                 array_add(*tokens, eat_token(parser.lexer));
                 token = peek_token(parser.lexer);
@@ -1632,7 +1635,9 @@ parse_type :: (parser: *Parser, parent: *Node) -> *Node {
 
             array_reset(*tokens);
             array_reset(*nodes);
-
+        }
+    } else {
+        type_inst.expression = parse(parser, parent);
     }
 
     return type_inst;
@@ -2146,6 +2151,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
     }
 
+    parser.inside_proc_call = true;
     eat_token(parser.lexer, #char "(");
 
     proc_call.arguments = parse_until(parser, token => token.kind == #char ")" || token.kind == .DOUBLE_COMMA, #char ",", proc_call);
@@ -2157,6 +2163,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     }
 
     eat_token(parser.lexer, #char ")");
+    parser.inside_proc_call = false;
 
     // Array Subscript generate_array()[0]
     if is_token(parser.lexer, #char "[") {
@@ -2323,7 +2330,12 @@ parse_directive_code :: (parser: *Parser) -> *Directive_Code {
     }
 
     if !directive_code._null {
-        directive_code.expression = parse(parser, directive_code);
+        if is_token(parser.lexer, .KEYWORD_RETURN) && parser.inside_proc_call {
+            directive_code.expression = parse_return(parser, true);
+            directive_code.expression.parent = directive_code;
+        } else {
+            directive_code.expression = parse(parser, directive_code);
+        }
     }
 
     return directive_code;
@@ -2977,12 +2989,21 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     return binary_operation;
 }
 
-parse_return :: (parser: *Parser) -> *Node {
+parse_return :: (parser: *Parser, parent_is_code := false) -> *Node {
     _return := New(Return);
     return_token := eat_token(parser.lexer, .KEYWORD_RETURN);
     _return.backticked = return_token.backticked;
 
-    _return.returns = parse_until(parser, token => token.kind == #char ";", #char ",", parent=_return);
+    condition: (*Token) -> bool;
+    if parent_is_code {
+        // NOTE: In cases like macro(a, b, #code return null); We want to parse until ')' because the semicolon is not allowed in that return statement. This type of #code is only valid as a last argument in the list so we can safely parse until ')'. 
+        // For example in macro(a, #code return null, b) if we only want the #code to include 'return null' we would have to pull it out to a separate variable RN :: #code return null; and call macro(a, RN, b);.
+        condition = token => token.kind == #char ")";
+    } else {
+        condition = token => token.kind == #char ";";
+    }
+
+    _return.returns = parse_until(parser, condition, #char ",", parent=_return);
     for _return.returns it.parent = _return;
 
     return _return;
