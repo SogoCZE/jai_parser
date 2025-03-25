@@ -1392,7 +1392,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
             return parse_type_instantiation(parser, ident);
         }
 
-        return parse_identifier(parser, ident, false);
+        return parse_identifier(parser, ident);
     }
 
     // Procedure
@@ -1989,7 +1989,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 parse_quick_lambda :: (parser: *Parser, arguments: []*Node) -> *Quick_Lambda {
     quick_lambda := New(Quick_Lambda);
     quick_lambda.arguments = arguments;
-    for quick_lambda.arguments it.parent = quick_lambda;
+    for quick_lambda.arguments {
+        it.parent = quick_lambda;
+        parser.node_visit(it, parser.user_data);
+    }
 
     eat_token(parser.lexer, .QUICK_LAMBDA);
     quick_lambda._return = parse(parser, quick_lambda);
@@ -2165,6 +2168,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     proc_call := New(Procedure_Call);
     proc_call.procedure = procedure;
     procedure.parent = proc_call;
+    parser.node_visit(proc_call.procedure, parser.user_data);
 
     set_start_location(proc_call, procedure);
 
@@ -2743,19 +2747,22 @@ parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kin
     return directive_scope;
 }
 
-parse_identifier :: (parser: *Parser, ident_token: *Token, node_visit := false) -> *Identifier {
+parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
     set_start_location(identifier, ident_token);
     identifier.name = ident_token.string_value;
     identifier.backticked = ident_token.backticked;
     set_end_location(identifier, peek_token(parser.lexer, -1));
-    if node_visit parser.node_visit(identifier, parser.user_data);
     return identifier;
 }
 
 parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
     literal := New(Literal);
-    if type type.parent = literal;
+    if type {
+        type.parent = literal;
+        parser.node_visit(type, parser.user_data);
+    }
+
 
     if maybe_eat_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
         literal.value_type = .ARRAY;
@@ -2816,6 +2823,7 @@ parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
     array_subscript := New(Array_Subscript);
     array_subscript.expression = expression;
     array_subscript.expression.parent = array_subscript;
+    parser.node_visit(array_subscript.expression, parser.user_data);
 
     eat_token(parser.lexer, #char "[");
 
@@ -2955,6 +2963,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
 
     binary_operation.left = left;
     binary_operation.left.parent = binary_operation;
+    parser.node_visit(binary_operation.left, parser.user_data);
 
     set_start_location(binary_operation, left);
 
@@ -3124,11 +3133,13 @@ parse_for :: (parser: *Parser) -> *Node {
     } else {
         _for.value = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
         _for.value.parent = _for;
+        parser.node_visit(_for.value, parser.user_data);
 
         // @TODO: Is this correct?
         if maybe_eat_token(parser.lexer, #char ",") {
             _for.index = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
             _for.index.parent = _for;
+            parser.node_visit(_for.index, parser.user_data);
         }
 
         eat_token(parser.lexer, #char ":");
