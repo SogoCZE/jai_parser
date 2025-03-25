@@ -5,6 +5,7 @@ Parser :: struct(User_Data_Type: Type) {
     inside_proc_args: bool;
     inside_proc_returns: bool;
     inside_proc_call: bool;
+    inside_type_inst: bool;
 }
 
 Node :: struct {
@@ -548,9 +549,13 @@ _Operator :: enum u8 {
 
 convert_operator_to_level :: (op: _Operator) -> u8 {
     if op == {
-        case .DOT; return 15;
-        case .ARRAY_SUBSCRIPT; return 15;
-        case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 15;
+        case .DOT; return 16;
+        case .ARRAY_SUBSCRIPT; return 16;
+        case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 16;
+
+        case .NEGATE;
+        case .BITWISE_NOT;
+            return 15;
 
         case .MULTIPLICATION; return 14;
         case .DIVISION; return 14;
@@ -600,44 +605,10 @@ convert_operator_to_level :: (op: _Operator) -> u8 {
 
         case .RANGE; return 3;
 
-        case .NEGATE;
-        case .BITWISE_NOT;
-            return 2;
-
         case .INVALID; return 0;
     }
 
     return 0;
-}
-
-operator == :: (a: _Operator, b: _Operator) -> bool {
-    a_level := convert_operator_to_level(a);
-    b_level := convert_operator_to_level(b);
-    return a_level == b_level;
-}
-
-operator > :: (a: _Operator, b: _Operator) -> bool {
-    a_level := convert_operator_to_level(a);
-    b_level := convert_operator_to_level(b);
-    return a_level > b_level;
-}
-
-operator >= :: (a: _Operator, b: _Operator) -> bool {
-    a_level := convert_operator_to_level(a);
-    b_level := convert_operator_to_level(b);
-    return a_level >= b_level;
-}
-
-operator < :: (a: _Operator, b: _Operator) -> bool {
-    a_level := convert_operator_to_level(a);
-    b_level := convert_operator_to_level(b);
-    return a_level < b_level;
-}
-
-operator <= :: (a: _Operator, b: _Operator) -> bool {
-    a_level := convert_operator_to_level(a);
-    b_level := convert_operator_to_level(b);
-    return a_level <= b_level;
 }
 
 Binary_Operation :: struct {
@@ -664,6 +635,7 @@ Polymorphic_Constant :: struct {
     expression: *Node;
 }
 
+// Musíme vyřešit predecenci Unary Operatoru vs dot...!!! Důležité!!!!
 Unary_Operation :: struct {
     using #as node: Node;
     kind = .UNARY_OPERATION;
@@ -1388,7 +1360,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
 
         equals_with_comma := is_token(parser.lexer, #char "=") && is_token(parser.lexer, #char ",", 1);
         // Binary operation
-        if is_operator(peek_token(parser.lexer)) && !equals_with_comma {
+        if is_operator(peek_token(parser.lexer)) && !equals_with_comma && !parser.inside_type_inst {
             return parse_binary_operation(parser, parse_identifier(parser, ident));
         }
 
@@ -1416,7 +1388,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
             return parse_declaration_and_assign(parser, ident);
         }
 
-        if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) {
+        if is_token(parser.lexer, #char ":") && !is_token(parser.lexer, #char ",", 1) && !parser.inside_type_inst {
             return parse_type_instantiation(parser, ident);
         }
 
@@ -1600,63 +1572,64 @@ parse_comment :: (parser: *Parser) -> *Comment {
     return comment;
 }
 
-parse_type :: (parser: *Parser, parent: *Node) -> *Node {
-    token := peek_token(parser.lexer);
-    if !token return null;
+// parse_type :: (parser: *Parser, parent: *Node) -> *Node {
+//     token := peek_token(parser.lexer);
+//     if !token return null;
 
-    type_inst := New(Type_Instantiation);
-    type_inst.parent = parent;
-    if maybe_eat_token(parser.lexer, #char "*") {
-        type_inst.pointer = true;
-        token = peek_token(parser.lexer);
-    }
+//     type_inst := New(Type_Instantiation);
+//     type_inst.parent = parent;
+//     if maybe_eat_token(parser.lexer, #char "*") {
+//         type_inst.pointer = true;
+//         token = peek_token(parser.lexer);
+//     }
 
-    if token.kind == .IDENTIFIER {
-        next := peek_token(parser.lexer, 1);
-        if next.kind == #char "(" {
-            // TODO: Polymorphic structs (t: Table(int, bool)) will be parsed as Procedure_Call. The Type_Instantiation struct should probably contain more information about the type.
-            type_inst.expression = parse(parser, parent);
-        } else {
-            // NOTE: This code is for cases like this:
-            // 1. a: int = 5;
-            // 2. a: int: 5;
-            // We have to gather all tokens until ':', "=" or ";" and only parse those tokens as type instantiation. If we don't do that the type instantiation will be parsed as a Binary_Operation (int = 5) or a Declaration (int: 5) and the expression field in the resulting Declaration will be set to null.
-            tokens: [..]Token;
+//     if token.kind == .IDENTIFIER {
+//         next := peek_token(parser.lexer, 1);
+//         if next.kind == #char "(" {
+//             // TODO: Polymorphic structs (t: Table(int, bool)) will be parsed as Procedure_Call. The Type_Instantiation struct should probably contain more information about the type.
+//             type_inst.expression = parse(parser, parent);
+//         } else {
+//             // NOTE: This code is for cases like this:
+//             // 1. a: int = 5;
+//             // 2. a: int: 5;
+//             // We have to gather all tokens until ':', "=" or ";" and only parse those tokens as type instantiation. If we don't do that the type instantiation will be parsed as a Binary_Operation (int = 5) or a Declaration (int: 5) and the expression field in the resulting Declaration will be set to null.
+//             tokens: [..]Token;
 
-            while token != null && 
-                  token.kind != .DIRECTIVE &&
-                  token.kind != #char ":" &&
-                  token.kind != #char "=" &&
-                  token.kind != #char ";" &&
-                  // NOTE: ',' and ')' are for cases when we are inside proc arguments or proc returns
-                  token.kind != #char "," &&
-                  token.kind != #char "{" &&
-                  token.kind != #char ")" {
-                array_add(*tokens, eat_token(parser.lexer));
-                token = peek_token(parser.lexer);
-            }
-            
-            nodes: [..]*Node;
-            parse_token_array(parser, *nodes, tokens);
+//             while token != null &&
+//                   token.kind != .DIRECTIVE &&
+//                   token.kind != #char ":" &&
+//                   token.kind != #char "=" &&
+//                   token.kind != #char ";" &&
+//                   // NOTE: ',' and ')' are for cases when we are inside proc arguments or proc returns
+//                   token.kind != #char "," &&
+//                   token.kind != #char "{" &&
+//                   token.kind != #char ")" {
+//                 array_add(*tokens, eat_token(parser.lexer));
+//                 token = peek_token(parser.lexer);
+//             }
 
-            if nodes.count > 1 || nodes.count == 0 {
-                log_error("Expected only one expression as type. Got: %", nodes.count);
-                return null;
-            }
+//             nodes: [..]*Node;
+//             parse_token_array(parser, *nodes, tokens);
 
-            type_inst.expression = nodes[0];
+//             if nodes.count > 1 || nodes.count == 0 {
+//                 log_error("Expected only one expression as type. Got: %", nodes.count);
+//                 return null;
+//             }
 
-            array_reset(*tokens);
-            array_reset(*nodes);
-        }
-    } else {
-        type_inst.expression = parse(parser, parent);
-    }
+//             type_inst.expression = nodes[0];
 
-    return type_inst;
-}
+//             array_reset(*tokens);
+//             array_reset(*nodes);
+//         }
+//     } else {
+//         type_inst.expression = parse(parser, parent);
+//     }
+
+//     return type_inst;
+// }
 
 // player: Entity;
+// MAX_HEALTH: int: 10;
 // player: Entity = .{health=20};
 parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operator_eaten := false) -> *Declaration {
     if !first_operator_eaten eat_token(parser.lexer, #char ":");
@@ -1677,8 +1650,10 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
             return decl;
         }
 
-        // decl.type_inst = parse(parser, decl);
-        decl.type_inst = parse_type(parser, decl);
+        parser.inside_type_inst = true;
+        decl.type_inst = parse(parser, decl);
+        parser.inside_type_inst = false;
+        // decl.type_inst = parse_type(parser, decl);
 
         copy_notes :: (from: *Node, to: *[..]*Note, parent: *Declaration) {
             notes_to_copy: *[..]*Note;
@@ -1703,7 +1678,11 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
                 }
             }
         }
-        copy_notes(decl.type_inst.(*Type_Instantiation).expression, *notes, decl);
+
+        if decl.type_inst {
+            copy_notes(decl.type_inst, *notes, decl);
+        }
+
     }
 
     is_const := is_token(parser.lexer, #char ":");
@@ -2196,7 +2175,12 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     parser.inside_proc_call = true;
     eat_token(parser.lexer, #char "(");
 
+    saved_inside_type_inst := parser.inside_type_inst;
+    parser.inside_type_inst = false;
+
     proc_call.arguments = parse_until(parser, token => token.kind == #char ")" || token.kind == .DOUBLE_COMMA, #char ",", proc_call);
+
+    parser.inside_type_inst = saved_inside_type_inst;
 
     end_token := peek_token(parser.lexer);
     if end_token && end_token.kind == .DOUBLE_COMMA {
@@ -2221,7 +2205,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     }
 
     // Binary operation
-    if is_operator(peek_token(parser.lexer)) {
+    if is_operator(peek_token(parser.lexer)) && !parser.inside_type_inst {
         return parse_binary_operation(parser, proc_call);
     }
 
@@ -2870,7 +2854,7 @@ parse_array_type :: (parser: *Parser) -> *Array_Type {
     }
 
     eat_token(parser.lexer, #char "]");
-    array_type.element_type = parse_type(parser, array_type);
+    array_type.element_type = parse(parser, array_type);
 
     return array_type;
 }
@@ -2934,13 +2918,15 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
     if expression && expression.kind == .BINARY_OPERATION {
         binary_op := cast(*Binary_Operation) expression;
 
-        unary_operation.expression = binary_op.left;
-        binary_op.left.parent = unary_operation;
-        unary_operation.parent = binary_op;
+        if binary_op.operation != .DOT {
+            unary_operation.expression = binary_op.left;
+            binary_op.left.parent = unary_operation;
+            unary_operation.parent = binary_op;
 
-        binary_op.left = unary_operation;
+            binary_op.left = unary_operation;
 
-        return binary_op;
+            return binary_op;
+        }
     }
 
     unary_operation.expression = expression;
@@ -2963,6 +2949,7 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     initial_left_parent := left.parent;
 
     binary_operation := New(Binary_Operation);
+
     binary_operation.left = left;
     binary_operation.left.parent = binary_operation;
 
@@ -3013,10 +3000,11 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     if right && right.kind == .BINARY_OPERATION {
         other_binary_op := cast(*Binary_Operation) right;
 
-        // Swap
-        if binary_operation.operation < other_binary_op.operation {
-            // log("% > %", binary_operation.operation, other_binary_op.operation);
+        a_op_level := convert_operator_to_level(binary_operation.operation);
+        b_op_level := convert_operator_to_level(other_binary_op.operation);
 
+        // Swap
+        if a_op_level > b_op_level {
             binary_operation.right = other_binary_op.left;
             other_binary_op.left.parent = binary_operation;
 
@@ -3041,7 +3029,7 @@ parse_return :: (parser: *Parser, parent_is_code := false) -> *Node {
 
     condition: (*Token) -> bool;
     if parent_is_code {
-        // NOTE: In cases like macro(a, b, #code return null); We want to parse until ')' because the semicolon is not allowed in that return statement. This type of #code is only valid as a last argument in the list so we can safely parse until ')'. 
+        // NOTE: In cases like macro(a, b, #code return null); We want to parse until ')' because the semicolon is not allowed in that return statement. This type of #code is only valid as a last argument in the list so we can safely parse until ')'.
         // For example in macro(a, #code return null, b) if we only want the #code to include 'return null' we would have to pull it out to a separate variable RN :: #code return null; and call macro(a, RN, b);.
         condition = token => token.kind == #char ")";
     } else {
@@ -3444,7 +3432,7 @@ parse_notes :: (parser: *Parser, parent: *Node, notes: *[..]*Note) {
     while is_token(parser.lexer, .NOTE) array_add(notes, parse_note(parser, parent));
 }
 
-parse_note :: (parser: *Parser, parent: *Node) -> *Note  {
+parse_note :: (parser: *Parser, parent: *Node) -> *Note {
     note_token := eat_token(parser.lexer, .NOTE);
     note := New(Note);
     note.value = note_token.string_value;

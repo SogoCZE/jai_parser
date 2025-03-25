@@ -10,7 +10,7 @@
             "name": "Debug",
             "program": "${workspaceFolder}/cmd/bin/jai_parser",
             "args": [
-                "tests/crash.jai"
+                "tests/test.jai"
             ],
             "cwd": "${workspaceFolder}"
         }
