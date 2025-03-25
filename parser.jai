@@ -2743,7 +2743,7 @@ parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kin
     return directive_scope;
 }
 
-parse_identifier :: (parser: *Parser, ident_token: *Token, node_visit := true) -> *Identifier {
+parse_identifier :: (parser: *Parser, ident_token: *Token, node_visit := false) -> *Identifier {
     identifier := New(Identifier);
     set_start_location(identifier, ident_token);
     identifier.name = ident_token.string_value;

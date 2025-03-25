@@ -54,6 +54,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
     append(*json_builder, "{");
 
     print_to_builder(*json_builder, "\"kind\": %,", json_write_string(node.kind));
+    print_to_builder(*json_builder, "\"parent\": %,", ifx node.parent then json_write_string(node.parent.kind) else "null");
     print_to_builder(*json_builder, "\"location\": %", json_write_string(node.location, indent_char=""));
 
     #insert -> string {
