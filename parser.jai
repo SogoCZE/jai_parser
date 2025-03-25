@@ -2843,8 +2843,6 @@ parse_array_type :: (parser: *Parser) -> *Array_Type {
 
     eat_token(parser.lexer, #char "[");
 
-    log("Prdel! %", parser.inside_type_inst);
-
     if !is_token(parser.lexer, #char "]") {
 
         if maybe_eat_token(parser.lexer, .DOUBLE_DOT) {
