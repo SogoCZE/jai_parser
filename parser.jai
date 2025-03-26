@@ -1360,8 +1360,11 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
 
         equals_with_comma := is_token(parser.lexer, #char "=") && is_token(parser.lexer, #char ",", 1);
         // Binary operation
-        if is_operator(peek_token(parser.lexer)) && !equals_with_comma && !parser.inside_type_inst {
-            return parse_binary_operation(parser, parse_identifier(parser, ident));
+        if is_operator(peek_token(parser.lexer)) && !equals_with_comma {
+            operator_token := peek_token(parser.lexer);
+            if operator_token.kind == #char "." || !parser.inside_type_inst {
+                return parse_binary_operation(parser, parse_identifier(parser, ident));
+            }
         }
 
         // Array Subscript
@@ -2334,7 +2337,10 @@ parse_directive_run :: (parser: *Parser) -> *Directive_Run {
         directive_run.returns_surrounded_with_parens = surrounded_with_parens;
     }
 
+    saved_inside_type_inst := parser.inside_type_inst;
+    parser.inside_type_inst = false;
     directive_run.expression = parse(parser, directive_run);
+    parser.inside_type_inst = saved_inside_type_inst;
 
     return directive_run;
 }
