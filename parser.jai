@@ -3189,8 +3189,10 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         _if.if_kind = kind;
     }
 
-    has_directive, directive_token := maybe_eat_token(parser.lexer, .DIRECTIVE);
-    if has_directive && directive_token.string_value == "complete" {
+    token := peek_token(parser.lexer);
+    if token && token.kind == .DIRECTIVE && token.string_value == "complete" {
+        // NOTE: Only eat the token if it's #complete. There could be #exists but then we want to parse it as a condition.
+        eat_token(parser.lexer);
         _if.marked_as_complete = true;
     }
 
