@@ -2051,8 +2051,11 @@ parse_struct :: (parser: *Parser) -> *Struct {
     }
 
     if is_token(parser.lexer, #char "{") {
+        saved_inside_type_inst := parser.inside_type_inst;
+        parser.inside_type_inst = false;
         _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
+        parser.inside_type_inst = saved_inside_type_inst;
     } else {
         token := peek_token(parser.lexer);
         if token {
@@ -2087,8 +2090,11 @@ parse_union :: (parser: *Parser) -> *Union {
     }
 
     if is_token(parser.lexer, #char "{") {
+        saved_inside_type_inst := parser.inside_type_inst;
+        parser.inside_type_inst = false;
         _union.block = parse_block(parser);
         _union.block.parent = _union;
+        parser.inside_type_inst = saved_inside_type_inst;
     } else {
         token := peek_token(parser.lexer);
         if token {
