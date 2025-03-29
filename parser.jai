@@ -983,9 +983,13 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
     }
 
     // NOTE: no_comma_separated is a way for an expression to override the result of can_contain_comma_separated_expression.
-    // Right now it is only used in for loops that use *= or <=.
-    // For example: for *=DO_POINTER, <=DO_REVERSE things print(it);
-    // In this case *=DO_POINTER, <=DO_REVERSE would be parsed as a comma separated expression because can_contain_comma_separated_expression allows for loops but we only want to allow comma separated expression in the for loop body and not in the iterator part.
+    // Right now it is used in:
+    // - for loops that use *= or <=.
+    //   For example: for *=DO_POINTER, <=DO_REVERSE things print(it);
+    //   In this case *=DO_POINTER, <=DO_REVERSE would be parsed as a comma separated expression because can_contain_comma_separated_expression allows for loops but we only want to allow comma separated expression in the for loop body and not in the iterator part.
+    // - ifx statements
+    //   For example: array_add(*list, .{ifx a else b, c, d, e});
+    //   In this case the else expression would be parsed as a comma separated expression 'b, c, d, e' but we only want it to be 'b'
 
     comma_separated := parent && !no_comma_separated && can_contain_comma_separated_expression(parent.kind);
     // Comma Separated Expression, Compound Declaration ...
@@ -2557,7 +2561,10 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
 
     }
 
+    saved_inside_type_inst := parser.inside_type_inst;
+    parser.inside_type_inst = false;
     directive_insert.expression = parse(parser, directive_insert);
+    parser.inside_type_inst = saved_inside_type_inst;
 
     return directive_insert;
 }
@@ -3217,14 +3224,14 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         parse_then := then_found || !is_token(parser.lexer, .KEYWORD_ELSE);
 
         if _if.if_kind == .IF || (_if.if_kind == .IFX && parse_then) {
-            _if._then = parse(parser, _if);
+            _if._then = parse(parser, _if, _if.if_kind == .IFX);
         }
 
         // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
         maybe_eat_token(parser.lexer, #char ";");
 
         if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
-            _if._else = parse(parser, _if);
+            _if._else = parse(parser, _if, _if.if_kind == .IFX);
         }
     } else {
         _if.if_kind = .SWITCH;
