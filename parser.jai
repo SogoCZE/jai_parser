@@ -43,6 +43,7 @@ Node :: struct {
         IF;
         CASE;
         BREAK;
+        REMOVE;
         FOR;
         WHILE;
         INITIALIZE_ZERO;
@@ -222,6 +223,12 @@ Cast :: struct {
 Break :: struct {
     using #as node: Node;
     kind = .BREAK;
+    expression: *Node;
+}
+
+Remove :: struct {
+    using #as node: Node;
+    kind = .REMOVE;
     expression: *Node;
 }
 
@@ -786,6 +793,9 @@ Directive_Insert :: struct {
     type: Insert_Kind; // Set when using -> Code or -> string
     scoped: bool; // #insert,scope()
     scope: *Node; // #insert,scope(scope)
+    for_expansion_break: *Node; // #insert(break=break value, continue=continue value, remove=remove value) inside for expansions
+    for_expansion_continue: *Node;
+    for_expansion_remove: *Node;
     expression: *Node;
 }
 
@@ -1504,6 +1514,11 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
     // Break
     if is_token(parser.lexer, .KEYWORD_BREAK) {
         return parse_break(parser);
+    }
+
+    // Remove 
+    if is_token(parser.lexer, .KEYWORD_REMOVE) {
+        return parse_remove(parser);
     }
 
     // Continue
@@ -2557,6 +2572,30 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
         maybe_eat_token(parser.lexer, #char ")");
     }
 
+    if maybe_eat_token(parser.lexer, #char "(") {
+        while !is_token(parser.lexer, #char ")") {
+            if maybe_eat_token(parser.lexer, .KEYWORD_BREAK) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_break = parse(parser, directive_insert);
+            }
+
+            if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_continue = parse(parser, directive_insert);
+
+            }
+
+            if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_remove = parse(parser, directive_insert);
+
+            }
+
+            maybe_eat_token(parser.lexer, #char ",");
+        }
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
         insert_type_ident := eat_token(parser.lexer, .IDENTIFIER);
 
@@ -3269,6 +3308,16 @@ parse_break :: (parser: *Parser) -> *Node {
 
     return _break;
 }
+
+parse_remove :: (parser: *Parser) -> *Node {
+    _remove := New(Remove);
+    eat_token(parser.lexer, .KEYWORD_REMOVE);
+
+    _remove.expression = parse(parser, _remove);
+
+    return _remove;
+}
+
 
 parse_using :: (parser: *Parser) -> *Node {
     _using := New(Using);
