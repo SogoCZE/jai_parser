@@ -108,6 +108,7 @@ ast_print_binary_operation :: (builder: *String_Builder, binary_op: *Binary_Oper
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;           append(builder, "<<<=");
 
         case .ARRAY_SUBSCRIPT;                          append(builder, "[]");
+        case .ARRAY_SUBSCRIPT_ADDRESS;                  append(builder, "*[]");
         case .ARRAY_SUBSCRIPT_ASSIGNMENT;               append(builder, "[]=");
     }
 

@@ -551,6 +551,7 @@ _Operator :: enum u8 {
     UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
 
     ARRAY_SUBSCRIPT; // []
+    ARRAY_SUBSCRIPT_ADDRESS; // *[]
     ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
 }
 
@@ -558,6 +559,7 @@ convert_operator_to_level :: (op: _Operator) -> u8 {
     if op == {
         case .DOT; return 16;
         case .ARRAY_SUBSCRIPT; return 16;
+        case .ARRAY_SUBSCRIPT_ADDRESS; return 16;
         case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 16;
 
         case .NEGATE;
@@ -3469,8 +3471,13 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
     op := eat_token(parser.lexer);
     // assert(is_operator(op));
 
-    // operator [] :: and operator []= ::
-    if op.kind == #char "[" {
+    // operator *[] ::
+    if op.kind == #char "*" && maybe_eat_token(parser.lexer, #char "[") {
+        eat_token(parser.lexer, #char "]");
+        operator_overload.operation = .ARRAY_SUBSCRIPT_ADDRESS;
+    }
+    else if op.kind == #char "[" {
+        // operator [] :: and operator []= ::
         eat_token(parser.lexer, #char "]");
 
         if maybe_eat_token(parser.lexer, #char "=") {
