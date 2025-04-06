@@ -43,6 +43,7 @@ Node :: struct {
         IF;
         CASE;
         BREAK;
+        REMOVE;
         FOR;
         WHILE;
         INITIALIZE_ZERO;
@@ -222,6 +223,12 @@ Cast :: struct {
 Break :: struct {
     using #as node: Node;
     kind = .BREAK;
+    expression: *Node;
+}
+
+Remove :: struct {
+    using #as node: Node;
+    kind = .REMOVE;
     expression: *Node;
 }
 
@@ -544,6 +551,7 @@ _Operator :: enum u8 {
     UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
 
     ARRAY_SUBSCRIPT; // []
+    ARRAY_SUBSCRIPT_ADDRESS; // *[]
     ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
 }
 
@@ -551,6 +559,7 @@ convert_operator_to_level :: (op: _Operator) -> u8 {
     if op == {
         case .DOT; return 16;
         case .ARRAY_SUBSCRIPT; return 16;
+        case .ARRAY_SUBSCRIPT_ADDRESS; return 16;
         case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 16;
 
         case .NEGATE;
@@ -786,6 +795,9 @@ Directive_Insert :: struct {
     type: Insert_Kind; // Set when using -> Code or -> string
     scoped: bool; // #insert,scope()
     scope: *Node; // #insert,scope(scope)
+    for_expansion_break: *Node; // #insert(break=break value, continue=continue value, remove=remove value) inside for expansions
+    for_expansion_continue: *Node;
+    for_expansion_remove: *Node;
     expression: *Node;
 }
 
@@ -983,9 +995,13 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
     }
 
     // NOTE: no_comma_separated is a way for an expression to override the result of can_contain_comma_separated_expression.
-    // Right now it is only used in for loops that use *= or <=.
-    // For example: for *=DO_POINTER, <=DO_REVERSE things print(it);
-    // In this case *=DO_POINTER, <=DO_REVERSE would be parsed as a comma separated expression because can_contain_comma_separated_expression allows for loops but we only want to allow comma separated expression in the for loop body and not in the iterator part.
+    // Right now it is used in:
+    // - for loops that use *= or <=.
+    //   For example: for *=DO_POINTER, <=DO_REVERSE things print(it);
+    //   In this case *=DO_POINTER, <=DO_REVERSE would be parsed as a comma separated expression because can_contain_comma_separated_expression allows for loops but we only want to allow comma separated expression in the for loop body and not in the iterator part.
+    // - ifx statements
+    //   For example: array_add(*list, .{ifx a else b, c, d, e});
+    //   In this case the else expression would be parsed as a comma separated expression 'b, c, d, e' but we only want it to be 'b'
 
     comma_separated := parent && !no_comma_separated && can_contain_comma_separated_expression(parent.kind);
     // Comma Separated Expression, Compound Declaration ...
@@ -1500,6 +1516,11 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
     // Break
     if is_token(parser.lexer, .KEYWORD_BREAK) {
         return parse_break(parser);
+    }
+
+    // Remove 
+    if is_token(parser.lexer, .KEYWORD_REMOVE) {
+        return parse_remove(parser);
     }
 
     // Continue
@@ -2047,8 +2068,11 @@ parse_struct :: (parser: *Parser) -> *Struct {
     }
 
     if is_token(parser.lexer, #char "{") {
+        saved_inside_type_inst := parser.inside_type_inst;
+        parser.inside_type_inst = false;
         _struct.block = parse_block(parser);
         _struct.block.parent = _struct;
+        parser.inside_type_inst = saved_inside_type_inst;
     } else {
         token := peek_token(parser.lexer);
         if token {
@@ -2083,8 +2107,11 @@ parse_union :: (parser: *Parser) -> *Union {
     }
 
     if is_token(parser.lexer, #char "{") {
+        saved_inside_type_inst := parser.inside_type_inst;
+        parser.inside_type_inst = false;
         _union.block = parse_block(parser);
         _union.block.parent = _union;
+        parser.inside_type_inst = saved_inside_type_inst;
     } else {
         token := peek_token(parser.lexer);
         if token {
@@ -2547,6 +2574,30 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
         maybe_eat_token(parser.lexer, #char ")");
     }
 
+    if maybe_eat_token(parser.lexer, #char "(") {
+        while !is_token(parser.lexer, #char ")") {
+            if maybe_eat_token(parser.lexer, .KEYWORD_BREAK) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_break = parse(parser, directive_insert);
+            }
+
+            if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_continue = parse(parser, directive_insert);
+
+            }
+
+            if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
+                eat_token(parser.lexer, #char "=");
+                directive_insert.for_expansion_remove = parse(parser, directive_insert);
+
+            }
+
+            maybe_eat_token(parser.lexer, #char ",");
+        }
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
     if maybe_eat_token(parser.lexer, .ARROW_RIGHT) {
         insert_type_ident := eat_token(parser.lexer, .IDENTIFIER);
 
@@ -2557,7 +2608,10 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
 
     }
 
+    saved_inside_type_inst := parser.inside_type_inst;
+    parser.inside_type_inst = false;
     directive_insert.expression = parse(parser, directive_insert);
+    parser.inside_type_inst = saved_inside_type_inst;
 
     return directive_insert;
 }
@@ -3182,8 +3236,10 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         _if.if_kind = kind;
     }
 
-    has_directive, directive_token := maybe_eat_token(parser.lexer, .DIRECTIVE);
-    if has_directive && directive_token.string_value == "complete" {
+    token := peek_token(parser.lexer);
+    if token && token.kind == .DIRECTIVE && token.string_value == "complete" {
+        // NOTE: Only eat the token if it's #complete. There could be #exists but then we want to parse it as a condition.
+        eat_token(parser.lexer);
         _if.marked_as_complete = true;
     }
 
@@ -3217,14 +3273,14 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         parse_then := then_found || !is_token(parser.lexer, .KEYWORD_ELSE);
 
         if _if.if_kind == .IF || (_if.if_kind == .IFX && parse_then) {
-            _if._then = parse(parser, _if);
+            _if._then = parse(parser, _if, _if.if_kind == .IFX);
         }
 
         // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
         maybe_eat_token(parser.lexer, #char ";");
 
         if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
-            _if._else = parse(parser, _if);
+            _if._else = parse(parser, _if, _if.if_kind == .IFX);
         }
     } else {
         _if.if_kind = .SWITCH;
@@ -3254,6 +3310,16 @@ parse_break :: (parser: *Parser) -> *Node {
 
     return _break;
 }
+
+parse_remove :: (parser: *Parser) -> *Node {
+    _remove := New(Remove);
+    eat_token(parser.lexer, .KEYWORD_REMOVE);
+
+    _remove.expression = parse(parser, _remove);
+
+    return _remove;
+}
+
 
 parse_using :: (parser: *Parser) -> *Node {
     _using := New(Using);
@@ -3405,8 +3471,13 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
     op := eat_token(parser.lexer);
     // assert(is_operator(op));
 
-    // operator [] :: and operator []= ::
-    if op.kind == #char "[" {
+    // operator *[] ::
+    if op.kind == #char "*" && maybe_eat_token(parser.lexer, #char "[") {
+        eat_token(parser.lexer, #char "]");
+        operator_overload.operation = .ARRAY_SUBSCRIPT_ADDRESS;
+    }
+    else if op.kind == #char "[" {
+        // operator [] :: and operator []= ::
         eat_token(parser.lexer, #char "]");
 
         if maybe_eat_token(parser.lexer, #char "=") {

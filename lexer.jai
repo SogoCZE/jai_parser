@@ -80,6 +80,7 @@ Token :: struct {
         KEYWORD_PUSH_CONTEXT;
         KEYWORD_OPERATOR;
         KEYWORD_CONTINUE;
+        KEYWORD_REMOVE;
         KEYWORD_IMPORT;
         KEYWORD_LOAD;
         KEYWORD_FALSE;
