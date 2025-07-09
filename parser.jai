@@ -1680,6 +1680,8 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
         // decl.type_inst = parse_type(parser, decl);
 
         copy_notes :: (from: *Node, to: *[..]*Note, parent: *Declaration) {
+            if !from return;
+
             notes_to_copy: *[..]*Note;
             if from.kind == {
                 case .STRUCT;
