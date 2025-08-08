@@ -50,7 +50,7 @@ ast_print_unary_operation :: (builder: *String_Builder, unary_op: *Unary_Operati
         case .POINTER; append(builder, #char "*");
         case .ELLIPSIS; append(builder, "..");
         case .NEGATE; append(builder, #char "!");
-        case .POINTER_DEREFERENCE; append(builder, "<<");
+        case .POINTER_DEREFERENCE; append(builder, "(.*)");
         case .BITWISE_NOT; append(builder, #char "~");
         case .DOT; append(builder, #char ".");
     }

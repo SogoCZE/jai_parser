@@ -2942,6 +2942,7 @@ is_unary_operator :: (parser: *Parser) -> bool {
     if is_token(parser.lexer, #char "~")            return true;
     if is_token(parser.lexer, .DOUBLE_DOLLAR)       return true;
     if is_token(parser.lexer, .LEFT_SHIFT)          return true;
+    if is_token(parser.lexer, .PREFIX_DEREFERENCE)  return true;
     if is_token(parser.lexer, .DOUBLE_DOT)          return true;
     return false;
 }
@@ -2984,6 +2985,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char "!";             unary_operation.operation = .NEGATE;
         case #char "~";             unary_operation.operation = .BITWISE_NOT;
         case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
+        case .PREFIX_DEREFERENCE;   unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
