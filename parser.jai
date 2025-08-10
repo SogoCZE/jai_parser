@@ -3261,12 +3261,10 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
 
     if _if.condition && _if.condition.kind == .BINARY_OPERATION {
         binary_op := find_last_binary_operator(xx _if.condition);
-
         switch = binary_op.operation == .IS_EQUAL && binary_op.right == null;
     }
 
     if !switch {
-
         // #no_aoc -> if true #no_aoc {}
         if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_aoc") {
             _if.no_aoc = true;
@@ -3288,6 +3286,11 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         }
     } else {
         _if.if_kind = .SWITCH;
+
+        // switch block
+        if is_token(parser.lexer, #char "{") {
+            _if._then = parse(parser, _if);
+        }
     }
 
     return _if;
