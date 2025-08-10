@@ -48,6 +48,8 @@ Token :: struct {
         UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; // >>>=
         UNSIGNED_LEFT_SHIFT_ASSIGNMENT; // <<<=
 
+        PREFIX_DEREFERENCE; // (.*) as a unary operator
+
         CONSTANT_DECLARATION; // ::
         DECLARATION_AND_ASSIGN; // :=
 
@@ -243,6 +245,7 @@ is_operator :: (token: *Token) -> bool {
         case .UNSIGNED_LEFT_SHIFT;               return true;
         case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;   return true;
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;    return true;
+        case .PREFIX_DEREFERENCE;                return true;
     }
 
     return false;
@@ -878,6 +881,8 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     char := next(iterator);
     next_char := peek(iterator);
 
+    // other compound tokens follow the pattern of branching on the first char
+
     if char == #char "+" && next_char == #char "=" {
         next(iterator);
         token.kind = .PLUS_EQUAL;
@@ -1055,6 +1060,17 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
             token.kind = .BEGIN_ARRAY_LITERAL;
         }
 
+    }
+
+    if char == #char "(" {
+        // Prefix dereference operator: (.*)
+        if next_char == #char "." &&
+           peek(iterator, 2) == #char "*" && peek(iterator, 3) == #char ")" {
+            next(iterator); // eat '.'
+            next(iterator); // eat '*'
+            next(iterator); // eat ')'
+            token.kind = .PREFIX_DEREFERENCE;
+        }
     }
 
     if char == #char "," && next_char == #char "," {
