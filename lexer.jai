@@ -83,11 +83,11 @@ Token :: struct {
         KEYWORD_OPERATOR;
         KEYWORD_CONTINUE;
         KEYWORD_REMOVE;
-        KEYWORD_IMPORT;
-        KEYWORD_LOAD;
         KEYWORD_FALSE;
         KEYWORD_TRUE;
         KEYWORD_AUTO_CAST; // xx
+        // KEYWORD_IMPORT;
+        // KEYWORD_LOAD;
         // KEYWORD_IS_CONSTANT;
         // KEYWORD_CONTEXT;
         // KEYWORD_ADD_CONTEXT;
@@ -430,7 +430,7 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
         if directive_token.string_value == "string" {
             array_add(*lexer.tokens, directive_token);
 
-            // NOTE: Here strings are processed in a bit hacky way. parse_here_string adds multiple tokens to the tokens list in lexer. That's why we return an empty token here. 
+            // NOTE: Here strings are processed in a bit hacky way. parse_here_string adds multiple tokens to the tokens list in lexer. That's why we return an empty token here.
             parse_here_string(iterator, lexer);
             return .{};
         }
@@ -799,7 +799,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool) -> T
 
     value: string;
     if kind == {
-        case .INT; 
+        case .INT;
             value = next_while(iterator, int_predicate);
         case .HEX_INT; #through;
         case .HEX_FLOAT;
@@ -844,7 +844,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool) -> T
             case .HEX_INT; base = 16;
             case .BINARY; base = 2;
         }
-        
+
         if kind != .INT {
             advance(*without_underscores, 2); // Skip 0x, 0h or 0b
             sign_to_set := ifx kind == .HEX_FLOAT then #char "+" else number_value[0];
@@ -853,11 +853,11 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool) -> T
                 without_underscores[0] = sign_to_set;
             }
         }
-        
+
         // NOTE: We're also parsing HEX_FLOAT here because string_to_float doesn't do that. Because the float is in hex format we can parse it in the same way as an integer and then just treat the bits as a float.
         token.integer_value = string_to_int(without_underscores, base);
 
-        // NOTE: For HEX_FLOAT if it was negative we need to negate the number after parsing because if we pass a negated hex string into string_to_int it changes the bit layout. 
+        // NOTE: For HEX_FLOAT if it was negative we need to negate the number after parsing because if we pass a negated hex string into string_to_int it changes the bit layout.
         // For example -0xFF becomes 0xffffffffffffff01 which is correct for integers but not for our hack with hex floats. For hex floats we want the bits to be the same as the literal so we always parse it as a positive number and negate at the end.
         sign := number_value[0];
         if kind == .HEX_FLOAT && has_sign && sign == #char "-" {
