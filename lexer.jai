@@ -881,8 +881,6 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
     char := next(iterator);
     next_char := peek(iterator);
 
-    // other compound tokens follow the pattern of branching on the first char
-
     if char == #char "+" && next_char == #char "=" {
         next(iterator);
         token.kind = .PLUS_EQUAL;
