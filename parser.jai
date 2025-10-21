@@ -1089,7 +1089,7 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
                 item := New(Compound_Declaration_Item);
                 item.parent = parent;
 
-                item_kind, ok := table_find(*nodes_types, it_index);
+                ok, item_kind := table_find_new(*nodes_types, it_index);
                 if ok {
                     item.item_kind = item_kind;
                 } else {
@@ -1519,7 +1519,7 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
         return parse_break(parser);
     }
 
-    // Remove 
+    // Remove
     if is_token(parser.lexer, .KEYWORD_REMOVE) {
         return parse_remove(parser);
     }
@@ -1681,6 +1681,8 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
         // decl.type_inst = parse_type(parser, decl);
 
         copy_notes :: (from: *Node, to: *[..]*Note, parent: *Declaration) {
+            if !from return;
+
             notes_to_copy: *[..]*Note;
             if from.kind == {
                 case .STRUCT;
@@ -2941,6 +2943,7 @@ is_unary_operator :: (parser: *Parser) -> bool {
     if is_token(parser.lexer, #char "~")            return true;
     if is_token(parser.lexer, .DOUBLE_DOLLAR)       return true;
     if is_token(parser.lexer, .LEFT_SHIFT)          return true;
+    if is_token(parser.lexer, .PREFIX_DEREFERENCE)  return true;
     if is_token(parser.lexer, .DOUBLE_DOT)          return true;
     return false;
 }
@@ -2983,6 +2986,7 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char "!";             unary_operation.operation = .NEGATE;
         case #char "~";             unary_operation.operation = .BITWISE_NOT;
         case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
+        case .PREFIX_DEREFERENCE;   unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
     }
 
@@ -3262,12 +3266,10 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
 
     if _if.condition && _if.condition.kind == .BINARY_OPERATION {
         binary_op := find_last_binary_operator(xx _if.condition);
-
         switch = binary_op.operation == .IS_EQUAL && binary_op.right == null;
     }
 
     if !switch {
-
         // #no_aoc -> if true #no_aoc {}
         if maybe_eat_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "no_aoc") {
             _if.no_aoc = true;
@@ -3289,6 +3291,11 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         }
     } else {
         _if.if_kind = .SWITCH;
+
+        // switch block
+        if is_token(parser.lexer, #char "{") {
+            _if._then = parse(parser, _if);
+        }
     }
 
     return _if;
