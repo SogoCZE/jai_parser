@@ -1089,7 +1089,7 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
                 item := New(Compound_Declaration_Item);
                 item.parent = parent;
 
-                ok, item_kind := table_find_new(*nodes_types, it_index);
+                ok, item_kind := table_find(*nodes_types, it_index);
                 if ok {
                     item.item_kind = item_kind;
                 } else {
