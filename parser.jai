@@ -263,6 +263,7 @@ For :: struct {
     no_abc: bool; // #no_abc
     no_aoc: bool; // #no_aoc
 
+    expansion: *Node;
     value: *Node;
     index: *Node;
     iterator: *Node;
@@ -3165,6 +3166,10 @@ parse_for :: (parser: *Parser) -> *Node {
     if token.kind == .DIRECTIVE && token.string_value == "v2" {
         eat_token(parser.lexer, .DIRECTIVE);
         _for.is_v2 = true;
+    }
+
+    if maybe_eat_token(parser.lexer, #char ":") {
+        _for.expansion = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
     }
 
     modifier_found := true;
