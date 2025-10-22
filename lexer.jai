@@ -673,7 +673,6 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
         if is_identifier_char(peek(iterator)) {
             identifier := parse_identifier(iterator);
-            print("parsing here string: %\n", identifier.string_value);
             array_add(*lexer.tokens, identifier);
         } else if peek(iterator, 1) == #char "\\" && peek(iterator, 2) == #char "%" {
             token: Token;
