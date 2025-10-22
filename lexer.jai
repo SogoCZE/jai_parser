@@ -86,11 +86,6 @@ Token :: struct {
         KEYWORD_FALSE;
         KEYWORD_TRUE;
         KEYWORD_AUTO_CAST; // xx
-        // KEYWORD_IMPORT;
-        // KEYWORD_LOAD;
-        // KEYWORD_IS_CONSTANT;
-        // KEYWORD_CONTEXT;
-        // KEYWORD_ADD_CONTEXT;
 
         UNKNOWN;
     }
