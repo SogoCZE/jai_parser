@@ -3316,7 +3316,7 @@ parse_break :: (parser: *Parser) -> *Node {
     _break := New(Break);
     eat_token(parser.lexer, .KEYWORD_BREAK);
 
-    if !is_token(parser.lexer, #char ";") {
+    if is_token(parser.lexer, .IDENTIFIER) {
         _break.expression = parse(parser, _break);
     }
 
