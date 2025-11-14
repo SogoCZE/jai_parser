@@ -133,6 +133,8 @@ Lexer :: struct {
     comments: [..]Comment_Token;
     cursor := 0;
     next_backticked: bool;
+
+    has_syntax_errors: bool;
 }
 
 create_lexer :: (source: string, file: string) -> Lexer {
@@ -280,11 +282,13 @@ eat_token :: (using lexer: *Lexer) -> *Token {
 eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
     token := eat_token(lexer);
     if !token {
+        lexer.has_syntax_errors = true;
         log_error("Null token!"); // @TODO: add caller_location or something?
         return *(Token.{});
     }
 
     if token.kind != kind {
+        lexer.has_syntax_errors = true;
         log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?
     }
 
