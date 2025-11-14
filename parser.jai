@@ -403,6 +403,7 @@ If :: struct {
     then_keyword_used: bool;
     _then: *Node;
     _else: *Node;
+    else_location: Node.Location;
 }
 
 Case :: struct {
@@ -3286,7 +3287,9 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
         maybe_eat_token(parser.lexer, #char ";");
 
-        if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
+        else_found, else_token := maybe_eat_token(parser.lexer, .KEYWORD_ELSE); 
+        if else_found {
+            _if.else_location = .{else_token.l0, else_token.c0, else_token.l1, else_token.c1, _if.location.file};
             _if._else = parse(parser, _if, _if.if_kind == .IFX);
         }
     } else {
