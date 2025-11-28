@@ -55,6 +55,7 @@ Node :: struct {
         DIRECTIVE_CHAR;
         DIRECTIVE_AS;
         DIRECTIVE_PLACE;
+        DIRECTIVE_OVERLAY;
         DIRECTIVE_TYPE;
         DIRECTIVE_CODE;
         DIRECTIVE_ADD_CONTEXT;
@@ -705,6 +706,14 @@ Directive_Place :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_PLACE;
 
+    expression: *Node;
+}
+
+Directive_Overlay :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_OVERLAY;
+
+    field: *Node;
     expression: *Node;
 }
 
@@ -2260,6 +2269,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "run";                 return parse_directive_run(parser);
         case "as";                  return parse_directive_as(parser);
         case "place";               return parse_directive_place(parser);
+        case "overlay";             return parse_directive_overlay(parser);
         case "type";                return parse_directive_type(parser);
         case "code";                return parse_directive_code(parser);
         case "char";                return parse_directive_char(parser);
@@ -2463,6 +2473,22 @@ parse_directive_place :: (parser: *Parser) -> *Directive_Place {
     directive_place := New(Directive_Place);
     directive_place.expression = parse(parser, directive_place);
     return directive_place;
+}
+
+parse_directive_overlay :: (parser: *Parser) -> *Directive_Overlay {
+    directive_overlay := New(Directive_Overlay);
+
+    if maybe_eat_token(parser.lexer, #char "(") {
+        if !is_token(parser.lexer, #char ")") {
+            directive_overlay.field = parse(parser, directive_overlay);
+        }
+
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
+    directive_overlay.expression = parse(parser, directive_overlay);
+
+    return directive_overlay;
 }
 
 parse_directive_type :: (parser: *Parser) -> *Directive_Type {
