@@ -55,6 +55,7 @@ Node :: struct {
         DIRECTIVE_CHAR;
         DIRECTIVE_AS;
         DIRECTIVE_PLACE;
+        DIRECTIVE_OVERLAY;
         DIRECTIVE_TYPE;
         DIRECTIVE_CODE;
         DIRECTIVE_ADD_CONTEXT;
@@ -403,6 +404,7 @@ If :: struct {
     then_keyword_used: bool;
     _then: *Node;
     _else: *Node;
+    else_location: Node.Location;
 }
 
 Case :: struct {
@@ -704,6 +706,14 @@ Directive_Place :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_PLACE;
 
+    expression: *Node;
+}
+
+Directive_Overlay :: struct {
+    using #as node: Node;
+    kind = .DIRECTIVE_OVERLAY;
+
+    field: *Node;
     expression: *Node;
 }
 
@@ -2259,6 +2269,7 @@ parse_directive :: (parser: *Parser) -> *Node {
         case "run";                 return parse_directive_run(parser);
         case "as";                  return parse_directive_as(parser);
         case "place";               return parse_directive_place(parser);
+        case "overlay";             return parse_directive_overlay(parser);
         case "type";                return parse_directive_type(parser);
         case "code";                return parse_directive_code(parser);
         case "char";                return parse_directive_char(parser);
@@ -2462,6 +2473,22 @@ parse_directive_place :: (parser: *Parser) -> *Directive_Place {
     directive_place := New(Directive_Place);
     directive_place.expression = parse(parser, directive_place);
     return directive_place;
+}
+
+parse_directive_overlay :: (parser: *Parser) -> *Directive_Overlay {
+    directive_overlay := New(Directive_Overlay);
+
+    if maybe_eat_token(parser.lexer, #char "(") {
+        if !is_token(parser.lexer, #char ")") {
+            directive_overlay.field = parse(parser, directive_overlay);
+        }
+
+        maybe_eat_token(parser.lexer, #char ")");
+    }
+
+    directive_overlay.expression = parse(parser, directive_overlay);
+
+    return directive_overlay;
 }
 
 parse_directive_type :: (parser: *Parser) -> *Directive_Type {
@@ -3286,7 +3313,9 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
         maybe_eat_token(parser.lexer, #char ";");
 
-        if maybe_eat_token(parser.lexer, .KEYWORD_ELSE) {
+        else_found, else_token := maybe_eat_token(parser.lexer, .KEYWORD_ELSE); 
+        if else_found {
+            _if.else_location = .{else_token.l0, else_token.c0, else_token.l1, else_token.c1, _if.location.file};
             _if._else = parse(parser, _if, _if.if_kind == .IFX);
         }
     } else {
