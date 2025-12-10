@@ -2903,6 +2903,9 @@ parse_literal :: (parser: *Parser) -> *Node {
 
     // Binary operation
     if is_operator(peek_token(parser.lexer)) {
+        // NOTE: If we're going to parse a binary operation we need to set the 'left' side location here because the 'base_node' in 'parse' will be set to the binary operation node and the code that sets the location will skip this literal.
+        set_start_location(literal, base_literal);
+        set_end_location(literal, peek_token(parser.lexer, -1));
         return parse_binary_operation(parser, literal);
     }
 
