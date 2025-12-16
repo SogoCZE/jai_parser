@@ -3507,7 +3507,7 @@ parse_push_context :: (parser: *Parser) -> *Push_Context {
     return _push_context;
 }
 
-parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
+parse_operator_overload :: (parser: *Parser) -> *Node {
     operator_overload := New(Operator_Overload);
 
     eat_token(parser.lexer, .KEYWORD_OPERATOR);
@@ -3535,7 +3535,9 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
     }
 
 
-    if maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
+    if is_token(parser.lexer, #char "(") {
+        return parse_procedure_call(parser, operator_overload);
+    } else if maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
         operator_overload.procedure = parse(parser, operator_overload);
     }
 
