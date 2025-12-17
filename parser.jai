@@ -1817,6 +1817,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
         if token.kind == #char ";" return true;
         if token.kind == #char ")" return true;
         if token.kind == #char "{" return true;
+        if token.kind == #char "=" return true;
         if token.kind == .DIRECTIVE return true;
         return false;
     }
@@ -3051,6 +3052,11 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     // if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
     //     return parse_array_or_struct_literal(parser, left);
     // }
+
+    // NOTE: For cases like this: a :: (proc: (b: int) -> bool = null, c: int = 0) we don't want the 'bool = null' to parse as a binary operation.
+    if is_token(parser.lexer, #char "=") && parser.inside_proc_returns {
+        return left;
+    }
 
     initial_left_parent := left.parent;
 
