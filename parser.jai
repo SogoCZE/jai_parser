@@ -989,6 +989,7 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
         if kind == .WHILE return true;
         if kind == .COMPOUND_DECLARATION return true;
         if kind == .DECLARATION return true;
+        if kind == .DIRECTIVE_SCOPE return true;
         // if kind == .STRUCT return true;
         // if kind == .ENUM return true;
         // if kind == .UNION return true;
@@ -1270,7 +1271,7 @@ set_end_location :: (using node: *Node, from_node: *Node) {
     location.c1 = from_node.location.c1;
 }
 
-delimeted :: (parser: *Parser, open: Token.Kind, close: Token.Kind, seperator: Token.Kind = 0, parent: *Node) -> []*Node {
+delimited :: (parser: *Parser, open: Token.Kind, close: Token.Kind, separator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     eat_token(parser.lexer, open);
@@ -1278,8 +1279,8 @@ delimeted :: (parser: *Parser, open: Token.Kind, close: Token.Kind, seperator: T
     while !end(parser.lexer) {
         if is_token(parser.lexer, close) break;
 
-        if seperator != 0 && is_token(parser.lexer, seperator) {
-            eat_token(parser.lexer, seperator);
+        if separator != 0 && is_token(parser.lexer, separator) {
+            eat_token(parser.lexer, separator);
             continue;
         }
 
@@ -1295,14 +1296,14 @@ delimeted :: (parser: *Parser, open: Token.Kind, close: Token.Kind, seperator: T
     return nodes;
 }
 
-parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, seperator: Token.Kind = 0, parent: *Node) -> []*Node {
+parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, separator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     while !end(parser.lexer) {
         if !peek_token(parser.lexer) || stop(peek_token(parser.lexer)) break;
 
-        if seperator != 0 && is_token(parser.lexer, seperator) {
-            eat_token(parser.lexer, seperator);
+        if separator != 0 && is_token(parser.lexer, separator) {
+            eat_token(parser.lexer, separator);
             continue;
         }
 
@@ -1817,6 +1818,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
         if token.kind == #char ";" return true;
         if token.kind == #char ")" return true;
         if token.kind == #char "{" return true;
+        if token.kind == #char "=" return true;
         if token.kind == .DIRECTIVE return true;
         return false;
     }
@@ -1860,7 +1862,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         parser.inside_proc_args = true;
     }
 
-    members := delimeted(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
+    members := delimited(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
 
     if !inside_proc_args_was_already_set {
         parser.inside_proc_args = false;
@@ -2043,7 +2045,7 @@ parse_struct :: (parser: *Parser) -> *Struct {
     eat_token(parser.lexer, .KEYWORD_STRUCT);
 
     if is_token(parser.lexer, #char "(") {
-        _struct.polymorphic_arguments = delimeted(parser, #char "(", #char ")", #char ",", _struct);
+        _struct.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _struct);
     }
 
     parse_struct_directive :: (parser: *Parser, _struct: *Struct) {
@@ -2116,7 +2118,7 @@ parse_union :: (parser: *Parser) -> *Union {
     eat_token(parser.lexer, .KEYWORD_UNION);
 
     if is_token(parser.lexer, #char "(") {
-        _union.polymorphic_arguments = delimeted(parser, #char "(", #char ")", #char ",", _union);
+        _union.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _union);
     }
 
     if is_token(parser.lexer, #char "{") {
@@ -2198,7 +2200,7 @@ parse_block :: (parser: *Parser, call_node_visit := true, no_aoc := false) -> *B
     block := New(Block);
     block.no_aoc = no_aoc;
     set_start_location(block, peek_token(parser.lexer));
-    block.members = delimeted(parser, #char "{", #char "}", parent=block);
+    block.members = delimited(parser, #char "{", #char "}", parent=block);
     set_end_location(block, peek_token(parser.lexer, -1));
 
     if call_node_visit parser.node_visit(block, parser.user_data);
@@ -2453,11 +2455,11 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     directive_import.module = eat_token(parser.lexer, .STRING).string_value;
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.module_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.program_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
     }
 
     return directive_import;
@@ -2665,11 +2667,11 @@ parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Para
     directive_module_parameters := New(Directive_Module_Parameters);
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.module_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.program_parameters = delimeted(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     return directive_module_parameters;
@@ -2719,7 +2721,7 @@ parse_directive_this :: (parser: *Parser) -> *Directive_This {
     directive_this := New(Directive_This);
 
     if is_token(parser.lexer, #char "(") {
-        directive_this.arguments = delimeted(parser, #char "(", #char ")", #char ",", directive_this);
+        directive_this.arguments = delimited(parser, #char "(", #char ")", #char ",", directive_this);
     }
 
     return directive_this;
@@ -3051,6 +3053,11 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
     // if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
     //     return parse_array_or_struct_literal(parser, left);
     // }
+
+    // NOTE: For cases like this: a :: (proc: (b: int) -> bool = null, c: int = 0) we don't want the 'bool = null' to parse as a binary operation.
+    if is_token(parser.lexer, #char "=") && parser.inside_proc_returns {
+        return left;
+    }
 
     initial_left_parent := left.parent;
 
@@ -3390,7 +3397,7 @@ parse_using :: (parser: *Parser) -> *Node {
     if _using.filter_type != .NONE {
 
         if is_token(parser.lexer, #char "(") {
-            _using.filters = delimeted(parser, #char "(", #char ")", #char ",", _using);
+            _using.filters = delimited(parser, #char "(", #char ")", #char ",", _using);
         } else {
             _using.filter_expression = parse(parser, _using);
         }
@@ -3507,7 +3514,7 @@ parse_push_context :: (parser: *Parser) -> *Push_Context {
     return _push_context;
 }
 
-parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
+parse_operator_overload :: (parser: *Parser) -> *Node {
     operator_overload := New(Operator_Overload);
 
     eat_token(parser.lexer, .KEYWORD_OPERATOR);
@@ -3535,7 +3542,9 @@ parse_operator_overload :: (parser: *Parser) -> *Operator_Overload {
     }
 
 
-    if maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
+    if is_token(parser.lexer, #char "(") {
+        return parse_procedure_call(parser, operator_overload);
+    } else if maybe_eat_token(parser.lexer, .CONSTANT_DECLARATION) {
         operator_overload.procedure = parse(parser, operator_overload);
     }
 
