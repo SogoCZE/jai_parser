@@ -989,6 +989,7 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
         if kind == .WHILE return true;
         if kind == .COMPOUND_DECLARATION return true;
         if kind == .DECLARATION return true;
+        if kind == .DIRECTIVE_SCOPE return true;
         // if kind == .STRUCT return true;
         // if kind == .ENUM return true;
         // if kind == .UNION return true;
