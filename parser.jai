@@ -2300,6 +2300,10 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
         return parse_binary_operation(parser, proc_call);
     }
 
+    if is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
+         return parse_array_or_struct_literal(parser, proc_call);
+    }
+
     return proc_call;
 }
 
