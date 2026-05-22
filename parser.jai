@@ -1022,7 +1022,6 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
         nodes: [..] *Node;
 
         nodes_types: Table(int, Compound_Declaration_Item.Item_Kind);
-        init(*nodes_types);
 
         if maybe_eat_token(parser.lexer, #char "=") {
             table_add(*nodes_types, 0, .ASSIGN);
