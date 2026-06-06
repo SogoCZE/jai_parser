@@ -2900,20 +2900,39 @@ parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
         parser.node_visit(type, parser.user_data);
     }
 
-    if maybe_eat_token(parser.lexer, .BEGIN_ARRAY_LITERAL) {
+    _, array_begin_token := maybe_eat_token(parser.lexer, .BEGIN_ARRAY_LITERAL);
+    struct_begin_token: *Token;
+
+    if array_begin_token {
         literal.value_type = .ARRAY;
         literal.values.array_literal_info = .{element_type=type};
         literal.values.array_literal_info.elements = parse_until(parser, token => token.kind == #char "]", #char ",", parent=literal);
         eat_token(parser.lexer, #char "]");
-    } else if maybe_eat_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
-        literal.value_type = .STRUCT;
-        literal.values.struct_literal_info = .{type=type};
-        literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
-        eat_token(parser.lexer, #char "}");
+    } else {
+        _, struct_begin_token = maybe_eat_token(parser.lexer, .BEGIN_STRUCT_LITERAL);
+
+        if struct_begin_token {
+            literal.value_type = .STRUCT;
+            literal.values.struct_literal_info = .{type=type};
+            literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
+            eat_token(parser.lexer, #char "}");
+        }
     }
 
     // Binary operation
     if is_operator(peek_token(parser.lexer)) {
+        // NOTE: See the note about setting the location in parse_literal
+        if type {
+            set_start_location(literal, type);
+        } else {
+            if literal.value_type == {
+                case .ARRAY;
+                    set_start_location(literal, array_begin_token);
+                case .STRUCT;
+                    set_start_location(literal, struct_begin_token);
+            }
+        }
+        set_end_location(literal, peek_token(parser.lexer, -1));
         return parse_binary_operation(parser, literal);
     }
 
