@@ -19,6 +19,7 @@ Node :: struct {
         BLOCK;
         STRUCT;
         UNION;
+        TAGGED_UNION_BINDING;
         ENUM;
         PUSH_CONTEXT;
         PROCEDURE;
@@ -373,6 +374,14 @@ Union :: struct {
 
     block: *Block;
     notes: [..] *Note;
+}
+
+Tagged_Union_Binding :: struct {
+    using #as node: Node;
+    kind = .TAGGED_UNION_BINDING;
+
+    tag: *Node;
+    member: *Node;
 }
 
 Enum :: struct {
@@ -2137,7 +2146,43 @@ parse_union :: (parser: *Parser) -> *Union {
     if is_token(parser.lexer, #char "{") {
         saved_inside_type_inst := parser.inside_type_inst;
         parser.inside_type_inst = false;
-        _union.block = parse_block(parser);
+
+        // NOTE: The block parsing here is done manually instead of calling parse_block because the union block can contain the tagged union bindings (.TYPE ,, value: int;). Instead of adding special handling  of ',,' inside other parsing procedures we just do it here.
+        block := New(Block);
+        block_nodes: [..]*Node;
+        set_start_location(block, peek_token(parser.lexer));
+        
+        eat_token(parser.lexer, #char "{");
+
+        while !end(parser.lexer) {
+            if is_token(parser.lexer, #char "}") break;
+
+            node := parse(parser, block);
+            if node == null continue;
+
+            if maybe_eat_token(parser.lexer, .DOUBLE_COMMA) {
+                binding := New(Tagged_Union_Binding);
+                node.parent = binding;
+                binding.parent = block;
+                binding.tag = node;
+                binding.member = parse(parser, binding);
+                set_start_location(binding, binding.tag);
+                set_end_location(binding, binding.member);
+                array_add(*block_nodes, binding);
+            } else {
+                array_add(*block_nodes, node);
+            }
+
+            if is_token(parser.lexer, #char "}") break;
+        }
+
+        maybe_eat_token(parser.lexer, #char "}");
+        set_end_location(block, peek_token(parser.lexer, -1));
+        parser.node_visit(block, parser.user_data);
+
+        block.members = block_nodes;
+        _union.block = block;
+
         _union.block.parent = _union;
         parser.inside_type_inst = saved_inside_type_inst;
     } else {
