@@ -677,6 +677,7 @@ Unary_Operation :: struct {
 
     operation: Operation = .INVALID;
     expression: *Node;
+    is_prefix_dereference: bool;
 }
 
 Comma_Separated_Expression :: struct {
@@ -3133,9 +3134,11 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char "*";             unary_operation.operation = .POINTER;
         case #char "!";             unary_operation.operation = .NEGATE;
         case #char "~";             unary_operation.operation = .BITWISE_NOT;
-        case .LEFT_SHIFT;           unary_operation.operation = .POINTER_DEREFERENCE;
-        case .PREFIX_DEREFERENCE;   unary_operation.operation = .POINTER_DEREFERENCE;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
+        case .LEFT_SHIFT; #through;           
+        case .PREFIX_DEREFERENCE;   
+            unary_operation.operation = .POINTER_DEREFERENCE;
+            unary_operation.is_prefix_dereference = true;
     }
 
     expression := parse(parser, unary_operation);
