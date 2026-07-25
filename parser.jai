@@ -2738,7 +2738,7 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
     return directive_insert;
 }
 
-parse_directive_location :: (parser: *Parser) -> *Directive_Location {
+parse_directive_location :: (parser: *Parser) -> *Node {
     directive_location := New(Directive_Location);
 
     if maybe_eat_token(parser.lexer, #char "(") {
@@ -2748,6 +2748,11 @@ parse_directive_location :: (parser: *Parser) -> *Directive_Location {
         }
 
         eat_token(parser.lexer, #char ")");
+    }
+
+
+    if is_token(parser.lexer, #char ".") {
+        return parse_postfix(parser, directive_location);
     }
 
     return directive_location;
