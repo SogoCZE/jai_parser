@@ -834,8 +834,13 @@ Directive_Module_Parameters :: struct {
     using #as node: Node;
     kind = .DIRECTIVE_MODULE_PARAMETERS;
 
+    has_module_parameters: bool;
     module_parameters: []*Node;
+
+    has_program_parameters: bool;
     program_parameters: []*Node;
+
+    body: *Node;
 }
 
 Directive_Placeholder :: struct {
@@ -2763,11 +2768,17 @@ parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Para
     directive_module_parameters := New(Directive_Module_Parameters);
 
     if is_token(parser.lexer, #char "(") {
+        directive_module_parameters.has_module_parameters = true;
         directive_module_parameters.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "(") {
+        directive_module_parameters.has_program_parameters = true;
         directive_module_parameters.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+    }
+
+    if is_token(parser.lexer, #char "{") {
+        directive_module_parameters.body = parse(parser, directive_module_parameters);
     }
 
     return directive_module_parameters;
