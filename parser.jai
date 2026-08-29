@@ -2698,25 +2698,20 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
     }
 
     if maybe_eat_token(parser.lexer, #char "(") {
-        while !is_token(parser.lexer, #char ")") {
+        while !end(parser.lexer) && !is_token(parser.lexer, #char ")") {
             if maybe_eat_token(parser.lexer, .KEYWORD_BREAK) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_break = parse(parser, directive_insert);
-            }
-
-            if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
+            } else if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_continue = parse(parser, directive_insert);
-
-            }
-
-            if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
+            } else if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_remove = parse(parser, directive_insert);
-
+            } else if !maybe_eat_token(parser.lexer, #char ",") {
+                // Unexpected token (e.g. `#insert(x)`), skip it so we always make progress and never loop forever.
+                eat_token(parser.lexer);
             }
-
-            maybe_eat_token(parser.lexer, #char ",");
         }
         maybe_eat_token(parser.lexer, #char ")");
     }
@@ -3223,6 +3218,12 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
 
     right_side_token := peek_token(parser.lexer);
 
+    // Nothing after the '.' (e.g. `if !home.` at the end of the file while editing).
+    if !right_side_token {
+        set_end_location(binary_operation, dot_token);
+        return binary_operation;
+    }
+
     // right side
     if right_side_token.kind == .IDENTIFIER {
         ident_token := eat_token(parser.lexer, .IDENTIFIER);
@@ -3397,6 +3398,7 @@ parse_for :: (parser: *Parser) -> *Node {
 
     // This is temporary and will go away with future compiler betas (for #v2 ..)
     token := peek_token(parser.lexer);
+    if !token return _for; // `for` at the end of the file.
     if token.kind == .DIRECTIVE && token.string_value == "v2" {
         eat_token(parser.lexer, .DIRECTIVE);
         _for.is_v2 = true;
@@ -3410,6 +3412,7 @@ parse_for :: (parser: *Parser) -> *Node {
     while modifier_found {
         // TODO: Handle multiple modifiers of the same type and report errors if there are any.
         token := peek_token(parser.lexer);
+        if !token break;
         if token.kind == {
             case #char "<";
                 eat_token(parser.lexer);
@@ -3765,7 +3768,7 @@ parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     }
 
     block_start := eat_token(parser.lexer, #char "{");
-    while !is_token(parser.lexer, #char "}") eat_token(parser.lexer);
+    while !end(parser.lexer) && !is_token(parser.lexer, #char "}") eat_token(parser.lexer);
     block_end := eat_token(parser.lexer, #char "}");
 
     start_string := block_start.string_value.data;
