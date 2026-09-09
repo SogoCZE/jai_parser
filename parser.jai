@@ -6,7 +6,13 @@ Parser :: struct(User_Data_Type: Type) {
     inside_proc_returns: bool;
     inside_proc_call: bool;
     inside_type_inst: bool;
+
+    depth: s64;
+    depth_limit_reported: bool;
 }
+
+MAX_PARSE_DEPTH :: 1000;
+DUMMY_PARENT_NODE: Node;
 
 Node :: struct {
 
@@ -985,6 +991,23 @@ Inline_Assembly :: struct {
 parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node {
     current_token := peek_token(parser.lexer);
 
+    parser.depth += 1;
+    defer parser.depth -= 1;
+
+    if parser.depth > MAX_PARSE_DEPTH {
+        if !parser.depth_limit_reported {
+            parser.depth_limit_reported = true;
+            if current_token {
+                log_error("Parser: maximum nesting depth (%) exceeded at %:%:%", MAX_PARSE_DEPTH, current_token.file, current_token.l0, current_token.c0);
+            } else {
+                log_error("Parser: maximum nesting depth (%) exceeded at end of file", MAX_PARSE_DEPTH);
+            }
+        }
+        parser.lexer.has_syntax_errors = true;
+        eat_token(parser.lexer);
+        return null;
+    }
+
     base_node := parse_node(parser, parent);
     if !base_node return null;
     base_node.parent = parent;
@@ -1231,11 +1254,12 @@ parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token) {
     local_parser: #run get_type_from_pointer_type(type_of(parser)); // @TODO: is this ok?
     local_parser.node_visit = parser.node_visit;
     local_parser.user_data = parser.user_data;
+    local_parser.depth = parser.depth;
     local_parser.lexer = New(Lexer);
     local_parser.lexer.tokens = from;
 
     while !end(local_parser.lexer) {
-        node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
+        node := parse(*local_parser, *DUMMY_PARENT_NODE); // @TODO: Parent hack!
         if !node continue;
         array_add(to, node);
     }
@@ -1875,7 +1899,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         parser.inside_proc_args = true;
     }
 
-    members := delimited(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
+    members := delimited(parser, #char "(", #char ")", #char ",", *DUMMY_PARENT_NODE); // @TODO: Parent hack!?
 
     if !inside_proc_args_was_already_set {
         parser.inside_proc_args = false;
@@ -2152,7 +2176,7 @@ parse_union :: (parser: *Parser) -> *Union {
         block := New(Block);
         block_nodes: [..]*Node;
         set_start_location(block, peek_token(parser.lexer));
-        
+
         eat_token(parser.lexer, #char "{");
 
         while !end(parser.lexer) {
@@ -2409,7 +2433,6 @@ parse_directive :: (parser: *Parser) -> *Node {
     }
 
     // @TODO: Unknown directive?
-    eat_token(parser.lexer);
     log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, directive_token.file, directive_token.l0, directive_token.c0);
 
     return null;
@@ -2428,7 +2451,12 @@ parse_directive_string :: (parser: *Parser) -> *Directive_String {
         }
     }
 
-    identifier := eat_token(parser.lexer, .IDENTIFIER);
+    identifier: *Token;
+    if is_token(parser.lexer, token => token.kind == .IDENTIFIER || is_keyword(token.kind)) {
+        identifier = eat_token(parser.lexer);
+    } else {
+        identifier = eat_token(parser.lexer, .IDENTIFIER); // Reports the syntax error.
+    }
     if !identifier {
         log_error("Exprected identifier after #string");
         return null;
@@ -3130,8 +3158,8 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char "!";             unary_operation.operation = .NEGATE;
         case #char "~";             unary_operation.operation = .BITWISE_NOT;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
-        case .LEFT_SHIFT; #through;           
-        case .PREFIX_DEREFERENCE;   
+        case .LEFT_SHIFT; #through;
+        case .PREFIX_DEREFERENCE;
             unary_operation.operation = .POINTER_DEREFERENCE;
             unary_operation.is_prefix_dereference = true;
     }
@@ -3188,8 +3216,6 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
         set_start_location(unary_operation, left);
         set_end_location(unary_operation, peek_token(parser.lexer, -1));
 
-        free(binary_operation);
-
         // Binary operation
         if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
             return parse_binary_operation(parser, unary_operation);
@@ -3205,7 +3231,6 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
 
     // NOTE: Postfix cast: a.(*int)
     if is_token(parser.lexer, #char "(") {
-        free(binary_operation);
         _cast := parse_cast(parser, false, left);
         _cast.parent = initial_left_parent;
         return _cast;
@@ -3729,6 +3754,12 @@ parse_operator_overload :: (parser: *Parser) -> *Node {
     op := eat_token(parser.lexer);
     // assert(is_operator(op));
 
+    if !op {
+        log_error("Expected an operator after 'operator' but reached the end of the file.");
+        parser.lexer.has_syntax_errors = true;
+        return operator_overload;
+    }
+
     // operator *[] ::
     if op.kind == #char "*" && maybe_eat_token(parser.lexer, #char "[") {
         eat_token(parser.lexer, #char "]");
@@ -3773,8 +3804,11 @@ parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
 
     start_string := block_start.string_value.data;
     end_string := block_end.string_value.data;
-    inline_assembly.body.data = start_string;
-    inline_assembly.body.count = end_string - start_string + 1; // NOTE: +1 to include the '}'.
+
+    if block_start.kind == #char "{" && block_end.kind == #char "}" && start_string && end_string && end_string >= start_string {
+        inline_assembly.body.data = start_string;
+        inline_assembly.body.count = end_string - start_string + 1;
+    }
 
     return inline_assembly;
 }

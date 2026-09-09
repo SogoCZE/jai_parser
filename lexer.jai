@@ -279,12 +279,15 @@ eat_token :: (using lexer: *Lexer) -> *Token {
     return *tokens[cursor-1];
 }
 
+EMPTY_TOKEN: Token;
+
 eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
     token := eat_token(lexer);
     if !token {
         lexer.has_syntax_errors = true;
-        log_error("Null token!"); // @TODO: add caller_location or something?
-        return *(Token.{});
+        log_error("Null token! (expected '%')", token_kind_to_string(kind)); // @TODO: add caller_location or something?
+        EMPTY_TOKEN = .{};
+        return *EMPTY_TOKEN;
     }
 
     if token.kind != kind {
@@ -316,6 +319,7 @@ end :: (using lexer: *Lexer) -> bool {
 }
 
 peek_token :: (using lexer: *Lexer, $count := 0) -> *Token {
+    if cursor + count < 0 return null;
     if cursor + count >= tokens.count return null;
     return *tokens[cursor+count];
 }
@@ -414,6 +418,8 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
 
     // Skip comments - we don't want them in the parser. But we're keeping a separate list of comments if someone needs them (for example for formatting).
     eat_comments(iterator, lexer);
+
+    if end(iterator) return .{};
 
     char := peek(iterator);
 
@@ -594,41 +600,61 @@ parse_identifier :: (using iterator: *Iterator) -> Token {
     }
 
     identifier := builder_to_string(*builder); // is_digit because we can have numbers in at the end of the idents Person2 :: struct {}
-    keyword: string;
 
-    for token_kind: enum_names(Token.Kind) {
-        if !starts_with(token_kind, "KEYWORD") continue;
-
-        KEYWORD_COUNT :: #run "KEYWORD_".count;
-
-        token_kind_lower_without_prefix := token_kind;
-        token_kind_lower_without_prefix = slice(token_kind_lower_without_prefix, KEYWORD_COUNT, token_kind.count-KEYWORD_COUNT);
-        token_kind_lower_without_prefix = to_lower_copy(token_kind_lower_without_prefix); // @TODO: Do we need to free something?
-
-        if identifier == "xx" {
-            keyword = "KEYWORD_AUTO_CAST";
-            break;
-        }
-
-        if identifier == token_kind_lower_without_prefix {
-            keyword = token_kind;
-            break;
-        }
-    }
-
-    if keyword {
-        enum_value, ok := enum_name_to_value(Token.Kind, keyword);
-        assert(ok, "invalid keyword %", keyword);
-        token.kind = enum_value;
+    keyword_kind, is_keyword := keyword_kind_from_identifier(identifier);
+    if is_keyword {
+        token.kind = keyword_kind;
     } else {
         token.kind = .IDENTIFIER;
-        token.string_value = identifier;
     }
+
+    token.string_value = identifier;
 
     token.l1 = iterator.line;
     token.c1 = iterator.column;
 
     return token;
+}
+
+Keyword_Entry :: struct {
+    name: string;
+    kind: Token.Kind;
+}
+
+KEYWORD_TABLE :: #run build_keyword_table();
+
+build_keyword_table :: () -> [] Keyword_Entry {
+    KEYWORD_PREFIX :: "KEYWORD_";
+
+    entries: [..] Keyword_Entry;
+
+    names  := enum_names(Token.Kind);
+    values := enum_values_as_enum(Token.Kind);
+    assert(names.count == values.count);
+
+    for name, index: names {
+        if !starts_with(name, KEYWORD_PREFIX) continue;
+
+        lower := to_lower_copy(slice(name, KEYWORD_PREFIX.count, name.count - KEYWORD_PREFIX.count));
+        array_add(*entries, .{ name = lower, kind = values[index] });
+    }
+
+    return entries;
+}
+
+is_keyword :: (kind: Token.Kind) -> bool {
+    for KEYWORD_TABLE if it.kind == kind return true;
+    return false;
+}
+
+keyword_kind_from_identifier :: (identifier: string) -> Token.Kind, bool {
+    if identifier == "xx" return .KEYWORD_AUTO_CAST, true;
+
+    for KEYWORD_TABLE {
+        if it.name == identifier return it.kind, true;
+    }
+
+    return .UNKNOWN, false;
 }
 
 parse_string :: (using iterator: *Iterator) -> Token {
@@ -703,6 +729,12 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
     here_identifier_token := parse_identifier(iterator);
     array_add(*lexer.tokens, here_identifier_token);
     here_identifier := here_identifier_token.string_value;
+
+    if !here_identifier {
+        log_error("Expected identifier after #string (%:%:%)", iterator.file, here_identifier_token.l0, here_identifier_token.c0);
+        lexer.has_syntax_errors = true;
+        return;
+    }
 
     string_token: Token;
     string_token.kind = .STRING;
