@@ -78,7 +78,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                 // Fix this :number_types:
                 print_to_builder(*builder, #string _STR
 
-                    append(*json_builder, "\"values\":");
+                    append(*json_builder, "\\\"values\\\":");
 
                     if node.value_type == {
                         case .BOOL;
@@ -94,11 +94,11 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                         case .ARRAY;
                             append(*json_builder, "{");
 
-                            append(*json_builder, "\"element_type\":");
+                            append(*json_builder, "\\\"element_type\\\":");
                             append(*json_builder, to_json(node.array_literal_info.element_type));
 
                             append(*json_builder, ",");
-                            append(*json_builder, "\"elements\":");
+                            append(*json_builder, "\\\"elements\\\":");
                             append(*json_builder, "[");
 
                             for element: node.array_literal_info.elements {
@@ -113,11 +113,11 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                         case .STRUCT;
                             append(*json_builder, "{");
 
-                            append(*json_builder, "\"type\":");
+                            append(*json_builder, "\\\"type\\\":");
                             append(*json_builder, to_json(node.struct_literal_info.type));
 
                             append(*json_builder, ",");
-                            append(*json_builder, "\"body\":");
+                            append(*json_builder, "\\\"body\\\":");
                             append(*json_builder, "[");
 
                             for node: node.struct_literal_info.body {
@@ -138,9 +138,9 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
             real_index += 1;
 
             print_to_builder(*builder, #string STR
-                append(*json_builder, "\"");
+                append(*json_builder, "\\\"");
                 append(*json_builder, "%");
-                append(*json_builder, "\":");
+                append(*json_builder, "\\\":");
             STR, member.name);
 
             if is_node(member.type) {
@@ -168,7 +168,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                 // @TODO: Hardcoded skip!!
                 if member.name == "header_location" {
                     print_to_builder(*builder, #string STR
-                        append(*json_builder, "\"\"");
+                        append(*json_builder, "\\\"\\\"");
                     STR, member.name);
                     continue;
                 }
@@ -176,7 +176,7 @@ struct_with_nodes_to_json :: (node: *$T/Node) -> string {
                 // @TODO: Hardcoded skip!!
                 if member.name == "else_location" {
                     print_to_builder(*builder, #string STR
-                        append(*json_builder, "\"\"");
+                        append(*json_builder, "\\\"\\\"");
                     STR, member.name);
                     continue;
                 }
