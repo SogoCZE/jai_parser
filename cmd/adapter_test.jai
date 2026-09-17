@@ -49,6 +49,33 @@ main :: () {
 	assert_token(directive_lexer.tokens[2], .KEYWORD_THEN, "then");
 	assert_token(directive_lexer.tokens[3], .KEYWORD_FALSE, "false");
 
+	declaration_source :: "constant : \n : 1; variable : /* declaration */ = 2;";
+	declaration_lexer := Parser.create_lexer_from_jai_parser(declaration_source, "spaced_declarations.jai");
+	assert(declaration_lexer.tokens.count == 8);
+	assert_token(declaration_lexer.tokens[1], .CONSTANT_DECLARATION, ": \n :");
+	assert_token(declaration_lexer.tokens[5], .DECLARATION_AND_ASSIGN, ": /* declaration */ =");
+	assert(declaration_lexer.comments.count == 1);
+	assert(declaration_lexer.comments[0].string_value == " declaration ");
+
+	signed_source :: "a := -12; b = +.5; c :: -3; d = -0x10; bits := 0xffff_ffff_ffff_ffff;";
+	signed_eager := Parser.create_lexer(signed_source, "signed_numbers.jai");
+	signed_adapter := Parser.create_lexer_from_jai_parser(signed_source, "signed_numbers.jai");
+	assert(signed_adapter.tokens.count == signed_eager.tokens.count);
+	for index: 0..signed_eager.tokens.count - 1 {
+		expected := signed_eager.tokens[index];
+		actual := signed_adapter.tokens[index];
+		assert(actual.kind == expected.kind);
+		assert(actual.string_value == expected.string_value);
+		if expected.kind == .NUMBER {
+			assert(actual.number_kind == expected.number_kind);
+			if expected.number_kind == .FLOAT || expected.number_kind == .SCIENTIFIC_FLOAT || expected.number_kind == .HEX_FLOAT {
+				assert(actual.float_value == expected.float_value);
+			} else {
+				assert(actual.integer_value == expected.integer_value);
+			}
+		}
+	}
+
 	string_source :: "\"line\\n\\x41\" @\"note\\n\"";
 	string_lexer := Parser.create_lexer_from_jai_parser(string_source, "raw_strings.jai");
 	assert(string_lexer.tokens.count == 2);

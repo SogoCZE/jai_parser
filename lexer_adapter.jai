@@ -33,14 +33,21 @@ create_lexer_from_jai_parser :: (source: string, file: string) -> Lexer {
 
 		if fast_token.type == #char ":" {
 			next := Fast_Lexer.peek_token(*fast, 1);
-			if next.preceding_trivia.count == 0
-				&& (next.type == #char ":" || next.type == #char "=") {
+			if next.type == #char ":" || next.type == #char "=" {
 				first := consume_fast_token(*fast, *state);
 				second := consume_fast_token(*fast, *state);
 				kind := ifx next.type == #char ":" then Token.Kind.CONSTANT_DECLARATION else .DECLARATION_AND_ASSIGN;
 				append_combined_token(*state, first, second, kind);
 				continue;
 			}
+		}
+
+		if (fast_token.type == #char "+" || fast_token.type == #char "-")
+			&& should_fold_number_sign(*fast, *state) {
+			sign := consume_fast_token(*fast, *state);
+			number := consume_fast_token(*fast, *state);
+			append_signed_number(*state, sign, number);
+			continue;
 		}
 
 
@@ -179,7 +186,46 @@ append_combined_token :: (
 	result.l1 = cast(int) second.l1 - 1;
 	result.c1 = cast(int) second.c1 - 1;
 	result.string_value.data = first.original_text.data;
-	result.string_value.count = first.original_text.count + second.original_text.count;
+	result.string_value.count = second.original_text.data - first.original_text.data + second.original_text.count;
+	append_adapter_token(state, result);
+}
+
+should_fold_number_sign :: (fast: *Fast_Lexer.Lexer, state: *Adapter_State) -> bool {
+	if !state.result.tokens		return false;
+
+
+	number := Fast_Lexer.peek_token(fast, 1);
+	if number.type != .NUMBER
+		|| number.preceding_trivia.count
+		|| !number.original_text.count
+		|| !is_digit(number.original_text[0]) {
+		return false;
+	}
+
+
+	previous := *state.result.tokens[state.result.tokens.count - 1];
+	return is_operator(previous) || previous.kind == .DECLARATION_AND_ASSIGN;
+}
+
+append_signed_number :: (
+	state: *Adapter_State,
+	sign: Fast_Lexer.Token,
+	number: Fast_Lexer.Token,
+) {
+	result := convert_fast_token(state.file, number);
+	result.l0 = cast(int) sign.l0 - 1;
+	result.c0 = cast(int) sign.c0 - 1;
+	result.string_value.data = sign.original_text.data;
+	result.string_value.count = number.original_text.data - sign.original_text.data + number.original_text.count;
+
+	if sign.type == #char "-" {
+		if number.value_flags & .FLOAT {
+			result.float_value *= -1;
+		} else {
+			result.integer_value *= -1;
+		}
+	}
+
 	append_adapter_token(state, result);
 }
 
@@ -227,14 +273,22 @@ convert_fast_token :: (file: string, source: Fast_Lexer.Token) -> Token {
 		if source.value_flags & .FLOAT {
 			result.float_value = source.float64_value;
 		} else {
-			result.integer_value = cast(int) source.integer_value;
+			result.integer_value = cast,no_check(int) source.integer_value;
 		}
 	} else if source.type == .STRING {
-		result.string_value = source.string_value;
+		if (source.original_text.count >= 2
+			&& source.original_text[0] == #char "\""
+			&& source.original_text[source.original_text.count - 1] == #char "\""
+		) {
+			result.string_value = slice(source.original_text, 1, source.original_text.count - 2);
+		} else {
+			result.string_value = source.string_value;
+		}
 	} else if source.type == .NOTE {
-		if source.original_text.count >= 3
+		if (source.original_text.count >= 3
 			&& source.original_text[0] == #char "@"
-			&& source.original_text[1] == #char "\"" {
+			&& source.original_text[1] == #char "\""
+		) {
 			result.string_value = slice(source.original_text, 1, source.original_text.count - 1);
 		} else {
 			result.string_value = cast(string) source.ident_value.name;
