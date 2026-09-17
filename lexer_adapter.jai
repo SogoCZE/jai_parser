@@ -1,4 +1,4 @@
-Fast_Lexer :: #import "Jai_Parser"(ENABLE_TRIVIA=true);
+Fast_Lexer :: #import "Jai_Parser"(ENABLE_TRIVIA=true, EVALUATE_STRING_ESCAPES=false);
 
 Adapter_State :: struct {
 	result: *Lexer;
@@ -178,6 +178,8 @@ append_combined_token :: (
 	result.kind = kind;
 	result.l1 = cast(int) second.l1 - 1;
 	result.c1 = cast(int) second.c1 - 1;
+	result.string_value.data = first.original_text.data;
+	result.string_value.count = first.original_text.count + second.original_text.count;
 	append_adapter_token(state, result);
 }
 
@@ -186,12 +188,14 @@ append_split_postfix_dereference :: (state: *Adapter_State, source: Fast_Lexer.T
 	dot.kind = #char ".";
 	dot.l1 = dot.l0;
 	dot.c1 = dot.c0 + 1;
+	dot.string_value = slice(source.original_text, 0, 1);
 	append_adapter_token(state, dot);
 
 	star := dot;
 	star.kind = #char "*";
 	star.c0 += 1;
 	star.c1 += 1;
+	star.string_value = slice(source.original_text, 1, 1);
 	append_adapter_token(state, star);
 }
 
@@ -203,6 +207,7 @@ convert_fast_token :: (file: string, source: Fast_Lexer.Token) -> Token {
 	result.l1 = cast(int) source.l1 - 1;
 	result.c1 = cast(int) source.c1 - 1;
 	result.backticked = source.ident_is_backticked;
+	result.string_value = source.original_text;
 
 	if cast(s16) source.type < 256 {
 		result.kind = cast(Token.Kind) cast(s16) source.type;
@@ -227,7 +232,13 @@ convert_fast_token :: (file: string, source: Fast_Lexer.Token) -> Token {
 	} else if source.type == .STRING {
 		result.string_value = source.string_value;
 	} else if source.type == .NOTE {
-		result.string_value = cast(string) source.ident_value.name;
+		if source.original_text.count >= 3
+			&& source.original_text[0] == #char "@"
+			&& source.original_text[1] == #char "\"" {
+			result.string_value = slice(source.original_text, 1, source.original_text.count - 1);
+		} else {
+			result.string_value = cast(string) source.ident_value.name;
+		}
 	}
 
 	return result;

@@ -425,12 +425,12 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
 
     // Notes
     if char == #char "@" && (is_identifier_char(peek(iterator, 2)) || peek(iterator, 2) == #char "\"") {
-        return parse_note_or_directive(iterator, false);
+        return parse_note_or_directive(iterator, lexer, false);
     }
 
     // Directives
     if char == #char "#" && is_identifier_char(peek(iterator, 2)) {
-        directive_token := parse_note_or_directive(iterator, true);
+        directive_token := parse_note_or_directive(iterator, lexer, true);
 
         if directive_token.string_value == "string" {
             array_add(*lexer.tokens, directive_token);
@@ -450,7 +450,7 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer) -> Token {
 
     // Strings
     if char == #char "\"" {
-        return parse_string(iterator);
+        return parse_string(iterator, lexer);
     }
 
     has_sign: bool;
@@ -533,7 +533,7 @@ parse_comment :: (using iterator: *Iterator) -> Comment_Token {
     return token;
 }
 
-parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token {
+parse_note_or_directive :: (using iterator: *Iterator, lexer: *Lexer, directive: bool) -> Token {
     next(iterator); // Skip the "@"
 
     token: Token;
@@ -548,7 +548,7 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool) -> Token
         char := peek(iterator);
         if char == #char "\"" {
             builder: String_Builder;
-            string_token := parse_string(iterator);
+            string_token := parse_string(iterator, lexer);
             print(*builder, "\"%\"", string_token.string_value);
             token.string_value = builder_to_string(*builder);
         } else {
@@ -657,7 +657,7 @@ keyword_kind_from_identifier :: (identifier: string) -> Token.Kind, bool {
     return .UNKNOWN, false;
 }
 
-parse_string :: (using iterator: *Iterator) -> Token {
+parse_string :: (using iterator: *Iterator, lexer: *Lexer) -> Token {
     token: Token;
     token.kind = .STRING;
     token.file = iterator.file;
@@ -666,6 +666,7 @@ parse_string :: (using iterator: *Iterator) -> Token {
 
     next(iterator); // We skip the first "
     escaped := false;
+    terminated := false;
 
     builder: String_Builder;
     init_string_builder(*builder);
@@ -680,10 +681,20 @@ parse_string :: (using iterator: *Iterator) -> Token {
         } else if char == #char "\\" {
             escaped = true;
         } else if char == #char "\"" {
+            terminated = true;
+            break;
+        } else if char == #char "\n" {
+            log_error("Newline in string constant! (%:%:%)", iterator.file, iterator.line, iterator.column);
+            lexer.has_syntax_errors = true;
             break;
         } else {
             append(*builder, char);
         }
+    }
+
+    if !terminated && end(iterator) {
+        log_error("End of file during string constant! (%:%:%)", iterator.file, iterator.line, iterator.column);
+        lexer.has_syntax_errors = true;
     }
 
     token.l1 = iterator.line;
@@ -723,6 +734,7 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
     if !is_identifier_char(peek(iterator)) {
         log_error("Exprected identifier after #string");
+        lexer.has_syntax_errors = true;
         return;
     }
 
@@ -749,6 +761,7 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
 
         if char == 0 {
             log_error("Unexpected end of file inside #string");
+            lexer.has_syntax_errors = true;
             break;
         }
 
