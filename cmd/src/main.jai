@@ -59,6 +59,7 @@ Files :: Table(string, []*Node);
 Node_Visit_Data :: struct {
     path_without_filename: string;
     files: *Files;
+    use_fast_parser: bool;
 }
 
 // @TODO: remove this
@@ -85,17 +86,17 @@ node_visit :: (node: *Node, data: Node_Visit_Data) {
                 // @TODO: Do we wanna parse the string here?
         }
 
-        parse_file(data.files, path); // @TODO: Run this in another thread?
+        parse_file(data.files, path, data.use_fast_parser); // @TODO: Run this in another thread?
     }
 
     if node.kind == .DIRECTIVE_LOAD {
         _load := cast(*Directive_Load) node;
         load_relative_path := tprint("%/%", data.path_without_filename, _load.file);
-        parse_file(data.files, load_relative_path); // @TODO: Run this in another thread?
+        parse_file(data.files, load_relative_path, data.use_fast_parser); // @TODO: Run this in another thread?
     }
 }
 
-parse_file :: (files: *Files, path: string) {
+parse_file :: (files: *Files, path: string, use_fast_parser := false) {
     if table_contains(files, path) {
         log("Skipping % because it already exists", path);
         return;
@@ -107,9 +108,15 @@ parse_file :: (files: *Files, path: string) {
     parser.user_data = .{
         files=files,
         path_without_filename=path_without_filename,
+        use_fast_parser=use_fast_parser,
     };
     parser.node_visit = node_visit;
-    parser.lexer = *create_lexer(File_Module.read_entire_file(path), path);
+    source := File_Module.read_entire_file(path);
+    if use_fast_parser {
+        parser.lexer = *create_lexer_from_jai_parser(source, path);
+    } else {
+        parser.lexer = *create_lexer(source, path);
+    }
 
     nodes: [..]*Node;
 
@@ -133,14 +140,25 @@ main :: () {
     cmd_arguments := get_command_line_arguments();
 
     if cmd_arguments.count < 2 {
-        print("You dont provide any file to parse.\n");
+        print("Usage: jai_parser <file> [--fast-parser]\n");
         return;
+    }
+
+    use_fast_parser := false;
+    if cmd_arguments.count > 2 {
+        if cmd_arguments.count != 3 || cmd_arguments[2] != "--fast-parser" {
+            print("Usage: jai_parser <file> [--fast-parser]\n");
+            return;
+        }
+
+
+        use_fast_parser = true;
     }
 
     set_allocators(*pool);
     push_allocator(pool_allocator_proc, *pool);
 
-    parse_file(*files, cmd_arguments[1]);
+    parse_file(*files, cmd_arguments[1], use_fast_parser);
 
     end := current_time_consensus();
     duration_ms := to_milliseconds(end - start);

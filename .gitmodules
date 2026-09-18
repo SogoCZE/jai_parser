@@ -1,3 +1,6 @@
 [submodule "cmd/modules/jaison"]
 	path = cmd/modules/jaison
 	url = https://github.com/rluba/jaison
+[submodule "cmd/modules/Jai_Parser"]
+	path = cmd/modules/Jai_Parser
+	url = https://github.com/GufNZ/JaiModules-Jai_Parser

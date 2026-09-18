@@ -1,12 +1,14 @@
 # Jai Parser
 
-Handwritten Jai parser in Jai. The parser has not been tested on larger projects so there may be some serious bugs and stuff. Currently, it's able to parse itself including all the Jai modules used in it.
+Handwritten Jai parser in Jai.
+The parser has not been tested on larger projects, so there may be some serious bugs and stuff. Currently, it's able to parse itself including all the Jai modules used in it.
 
 The current plan for this parser is to provide information about Jai programs for [Jails](https://github.com/SogoCZE/Jails) and [Jai Autodoc](https://github.com/SogoCZE/jai_autodoc) together with information provided by the compiler.
 
 ## Try
 
-The `cmd` folder contains an example program that parses the entry file and follows all `#import` and `#load`. The program generates an `out` folder with JSON files each representing each parsed file.
+The `cmd` folder contains an example program that parses the entry file and follows all `#import` and `#load`.
+The program generates an `out` folder with JSON files each representing each parsed file.
 
 ### Example
 
@@ -58,10 +60,10 @@ Will generate:
       "deprecated_note": "",
       "flags": "0",
       "arguments": [
-        
+
       ],
       "returns": [
-        
+
       ],
       "modify_block": null,
       "body": {
@@ -112,12 +114,12 @@ Will generate:
                 "name": "get_command_line_arguments"
               },
               "arguments": [
-                
+
               ]
             },
             "backticked": false,
             "notes": [
-              
+
             ]
           },
           {
@@ -394,12 +396,12 @@ Will generate:
         ]
       },
       "notes": [
-        
+
       ]
     },
     "backticked": false,
     "notes": [
-      
+
     ]
   }
 ]
@@ -414,19 +416,28 @@ cd cmd
 jai build.jai && ./bin/jai_parser ../tests/example.jai
 ```
 
-## Dependencies
-The parser itself depends only on the modules included with the Jai compiler, but the CMD example has the following dependencies:
+The command uses the original eager lexer by default. To use the fast `Jai_Parser` lexer through the compatibility adapter, pass `--fast-parser` after the input file:
 
-- [Jason](https://github.com/rluba/jason) (for JSON export)
+```sh
+./bin/jai_parser ../tests/example.jai --fast-parser
+```
+
+## Dependencies
+Initialize the local module dependencies after cloning:
+
+```sh
+git submodule update --init --recursive
+```
+
+- [Jai_Parser](https://github.com/GufNZ/JaiModules-Jai_Parser) (for the fast lexer adapter)
+- [Jaison](https://github.com/rluba/jaison) (for JSON export)
 - [Tracy](https://github.com/rluba/jai-tracy) (when profiling)
 
 ## TODO:
 - Create automatic tests
-- Switch to Lexer from Jai Modules? 
-- Refactor parsing of compound and comma seperated stuff (it's very naive right now!)
+- Refactor parsing of compound and comma separated stuff (it's very naive right now!)
 - Remove unnecessary heap allocations
 - Measure performance with Tracy and improve it (it's probably quite slow now)
-- Refactor data structures (maybe use linked list etc)
+- Refactor data structures (maybe use linked list e.t.c.)
 - Rename stuff to their correct names (binary_operation vs binary_expression etc...)
-- Rename to Jaiser? 
-
+- Rename to Jaiser?
