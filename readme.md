@@ -423,9 +423,14 @@ The command uses the original eager lexer by default. To use the fast `Jai_Parse
 ```
 
 ## Dependencies
-The parser itself depends only on the modules included with the Jai compiler, but the CMD example has the following dependencies:
+Initialize the local module dependencies after cloning:
 
-- [Jason](https://github.com/rluba/jason) (for JSON export)
+```sh
+git submodule update --init --recursive
+```
+
+- [Jai_Parser](https://github.com/GufNZ/JaiModules-Jai_Parser) (for the fast lexer adapter)
+- [Jaison](https://github.com/rluba/jaison) (for JSON export)
 - [Tracy](https://github.com/rluba/jai-tracy) (when profiling)
 
 ## TODO:
