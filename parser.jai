@@ -310,8 +310,10 @@ Procedure :: struct {
     header_location: Node.Location;
 
     foreign_lib: string;
+    foreign_library: *Identifier;
     foreign_alias: string;
     elsewhere: string;
+    elsewhere_library: *Identifier;
     elsewhere_alias: string;
     intrinsic: string;
     intrinsic_is_string: bool;
@@ -1333,6 +1335,13 @@ delimited :: (parser: *Parser, open: Token.Kind, close: Token.Kind, separator: T
     return nodes;
 }
 
+delimited_arguments :: (parser: *Parser, parent: *Node) -> []*Node {
+    saved_inside_proc_args := parser.inside_proc_args;
+    parser.inside_proc_args = true;
+    defer parser.inside_proc_args = saved_inside_proc_args;
+    return delimited(parser, #char "(", #char ")", #char ",", parent);
+}
+
 parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, separator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
@@ -1716,6 +1725,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
 
     if is_token(parser.lexer, #char "(") {
         decl.type_inst = parse_procedure(parser, true);
+        if decl.type_inst decl.type_inst.parent = decl;
     } else {
 
         // Guard?
@@ -1867,7 +1877,9 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
         if !expression continue;
 
         return_value := New(Return_Value);
+        return_value.parent = parent;
         return_value.expression = expression;
+        expression.parent = return_value;
 
         if is_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
             eat_token(parser.lexer, .DIRECTIVE);
@@ -1944,6 +1956,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
             return parse_array_subscript(parser, comma_separated_expression);
         }
 
+        if is_token(parser.lexer, .BEGIN_ARRAY_LITERAL) || is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
+            return parse_array_or_struct_literal(parser, comma_separated_expression);
+        }
+
         return comma_separated_expression;
     }
 
@@ -1999,7 +2015,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.flags |= .COMPILER;
             case "elsewhere";
                 proc.flags |= .ELSEWHERE;
-                proc.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                library_token := eat_token(parser.lexer, .IDENTIFIER);
+                proc.elsewhere = library_token.string_value;
+                proc.elsewhere_library = parse_identifier(parser, library_token);
+                proc.elsewhere_library.parent = proc;
                 if is_token(parser.lexer, .STRING) {
                     proc.elsewhere_alias = eat_token(parser.lexer, .STRING).string_value;
                 }
@@ -2007,7 +2026,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.flags |= .FOREIGN;
 
                 if is_token(parser.lexer, .IDENTIFIER) {
-                    proc.foreign_lib = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                    library_token := eat_token(parser.lexer, .IDENTIFIER);
+                    proc.foreign_lib = library_token.string_value;
+                    proc.foreign_library = parse_identifier(parser, library_token);
+                    proc.foreign_library.parent = proc;
 
                     if is_token(parser.lexer, .STRING) {
                         proc.foreign_alias = eat_token(parser.lexer, .STRING).string_value;
@@ -2082,7 +2104,10 @@ parse_struct :: (parser: *Parser) -> *Struct {
     eat_token(parser.lexer, .KEYWORD_STRUCT);
 
     if is_token(parser.lexer, #char "(") {
+        saved_inside_proc_args := parser.inside_proc_args;
+        parser.inside_proc_args = true;
         _struct.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _struct);
+        parser.inside_proc_args = saved_inside_proc_args;
     }
 
     parse_struct_directive :: (parser: *Parser, _struct: *Struct) {
@@ -2091,6 +2116,7 @@ parse_struct :: (parser: *Parser) -> *Struct {
         if directive.string_value == {
             case "modify";
                 _struct.modify_block = parse_block(parser);
+                _struct.modify_block.parent = _struct;
             case "type_info_no_size_complaint";
                 _struct.flags |= .TYPE_INFO_NO_SIZE_COMPLAINT;
             case "type_info_procedures_are_void_pointers";
@@ -2155,7 +2181,10 @@ parse_union :: (parser: *Parser) -> *Union {
     eat_token(parser.lexer, .KEYWORD_UNION);
 
     if is_token(parser.lexer, #char "(") {
+        saved_inside_proc_args := parser.inside_proc_args;
+        parser.inside_proc_args = true;
         _union.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _union);
+        parser.inside_proc_args = saved_inside_proc_args;
     }
 
     notes: [..] *Note;
@@ -2284,13 +2313,12 @@ parse_block_or_dotless_struct_literal :: (parser: *Parser, parent: *Node) -> *No
         || parent.kind == .RETURN
         || parent.kind == .LITERAL
         || parent.kind == .PROCEDURE_CALL
-        || parent.kind == .DECLARATION && !parent.(*Declaration).const
+        || parent.kind == .DECLARATION && (!parent.(*Declaration).const || parent.(*Declaration).type_inst)
+        || parent.kind == .IF && parent.(*If).if_kind == .IFX && parent.(*If).then_keyword_used && !braces_contain_statements(parser.lexer)
     ) {
         eat_token(parser.lexer, #char "{");
 
         literal := New(Literal);
-        literal.value_type = .STRUCT;
-
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
         eat_token(parser.lexer, #char "}");
@@ -2304,6 +2332,32 @@ parse_block_or_dotless_struct_literal :: (parser: *Parser, parent: *Node) -> *No
     }
 
     return parse_block(parser, false);
+}
+
+braces_contain_statements :: (lexer: *Lexer) -> bool {
+    depth := 0;
+    for index: lexer.cursor..lexer.tokens.count-1 {
+        token := *lexer.tokens[index];
+        if token.kind == {
+            case #char "{"; #through;
+            case #char "("; #through;
+            case #char "["; #through;
+            case .BEGIN_STRUCT_LITERAL; #through;
+            case .BEGIN_ARRAY_LITERAL;
+                depth += 1;
+
+            case #char "}"; #through;
+            case #char ")"; #through;
+            case #char "]";
+                depth -= 1;
+                if depth <= 0 return false;
+
+            case #char ";";
+                if depth == 1 return true;
+        }
+    }
+
+    return false;
 }
 
 // {}
@@ -2574,11 +2628,11 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     directive_import.module = eat_token(parser.lexer, .STRING).string_value;
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.module_parameters = delimited_arguments(parser, directive_import);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.program_parameters = delimited_arguments(parser, directive_import);
     }
 
     return directive_import;
@@ -2631,6 +2685,7 @@ parse_directive_type :: (parser: *Parser) -> *Directive_Type {
 
     if is_token(parser.lexer, #char "(") {
         directive_type.expression = parse_procedure(parser, true);
+        if directive_type.expression directive_type.expression.parent = directive_type;
     } else {
         directive_type.expression = parse(parser, directive_type);
     }
@@ -2786,11 +2841,11 @@ parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Para
     directive_module_parameters := New(Directive_Module_Parameters);
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.module_parameters = delimited_arguments(parser, directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_module_parameters.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.program_parameters = delimited_arguments(parser, directive_module_parameters);
     }
 
     return directive_module_parameters;
@@ -3431,6 +3486,7 @@ parse_for :: (parser: *Parser) -> *Node {
 
     if maybe_eat_token(parser.lexer, #char ":") {
         _for.expansion = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
+        if _for.expansion _for.expansion.parent = _for;
     }
 
     modifier_found := true;
