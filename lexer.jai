@@ -1011,16 +1011,16 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) {
             if eat(#char "=") token.kind = .PLUS_EQUAL;
 
         case #char "-";
-        if next_char == #char ">" {
-            next(iterator);
-            token.kind = .ARROW_RIGHT; // ->
+            if next_char == #char ">" {
+                next(iterator);
+                token.kind = .ARROW_RIGHT; // ->
             } else if next_char == #char "=" {
                 next(iterator);
                 token.kind = .MINUS_EQUAL; // -=
             } else if next_char == #char "-" {
                 next(iterator);
                 token.kind = ifx eat(#char "-") then Token.Kind.TRIPLE_MINUS else .DOUBLE_MINUS; // --- or --
-        }
+            }
 
         case #char "%";
             if eat(#char "=") token.kind = .MOD_EQUAL;
@@ -1038,52 +1038,52 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) {
                     token.kind = ifx eat(#char "=") then Token.Kind.UNSIGNED_LEFT_SHIFT_ASSIGNMENT else .UNSIGNED_LEFT_SHIFT;
                 } else {
                     token.kind = ifx eat(#char "=") then Token.Kind.LEFT_SHIFT_ASSIGNMENT else .LEFT_SHIFT;
-        }
+                }
             } else if eat(#char "=") {
-        token.kind = .LESS_EQUAL;
-    }
+                token.kind = .LESS_EQUAL;
+            }
 
         case #char ">";
             if next_char == #char ">" {
-        next(iterator); // >
+                next(iterator); // >
                 if eat(#char ">") {
                     token.kind = ifx eat(#char "=") then Token.Kind.UNSIGNED_RIGHT_SHIFT_ASSIGNMENT else .UNSIGNED_RIGHT_SHIFT;
-            } else {
+                } else {
                     token.kind = ifx eat(#char "=") then Token.Kind.RIGHT_SHIFT_ASSIGNMENT else .RIGHT_SHIFT;
-            }
+                }
             } else if eat(#char "=") {
-        token.kind = .GREATER_EQUAL;
-    }
+                token.kind = .GREATER_EQUAL;
+            }
 
         case #char "&";
             if next_char == #char "=" {
-        next(iterator);
-        token.kind = .BITWISE_AND_ASSIGNMENT;
+                next(iterator);
+                token.kind = .BITWISE_AND_ASSIGNMENT;
             } else if next_char == #char "&" {
                 next(iterator);
                 token.kind = ifx eat(#char "=") then Token.Kind.LOGICAL_AND_ASSIGNMENT else .LOGICAL_AND;
-    }
+            }
 
         case #char "^";
             if eat(#char "=") token.kind = .BITWISE_XOR_ASSIGNMENT;
 
         case #char "|";
             if next_char == #char "=" {
-        next(iterator);
+                next(iterator);
                 token.kind = .PIPE_EQUAL;
             } else if next_char == #char "|" {
                 next(iterator);
                 token.kind = ifx eat(#char "=") then Token.Kind.LOGICAL_OR_ASSIGNMENT else .LOGICAL_OR;
-        }
+            }
 
         case #char "=";
-        if next_char == #char ">" {
-            next(iterator);
-            token.kind = .QUICK_LAMBDA;
+            if next_char == #char ">" {
+                next(iterator);
+                token.kind = .QUICK_LAMBDA;
             } else if next_char == #char "=" {
-            next(iterator);
-            token.kind = .IS_EQUAL;
-        }
+                next(iterator);
+                token.kind = .IS_EQUAL;
+            }
 
         case #char "!";
             if eat(#char "=") token.kind = .IS_NOT_EQUAL;
@@ -1092,43 +1092,43 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) {
             if eat(#char "$") token.kind = .DOUBLE_DOLLAR;
 
         case #char ".";
-        if next_char == #char "." {
-            next(iterator);
-            token.kind = .DOUBLE_DOT;
+            if next_char == #char "." {
+                next(iterator);
+                token.kind = .DOUBLE_DOT;
             } else if next_char == #char "{" {
-            next(iterator);
-            token.kind = .BEGIN_STRUCT_LITERAL;
+                next(iterator);
+                token.kind = .BEGIN_STRUCT_LITERAL;
             } else if next_char == #char "[" {
-            next(iterator);
-            token.kind = .BEGIN_ARRAY_LITERAL;
-        }
+                next(iterator);
+                token.kind = .BEGIN_ARRAY_LITERAL;
+            }
 
         case #char "(";
-        // Prefix dereference operator: (.*)
+            // Prefix dereference operator: (.*)
             if next_char == #char "." && peek(iterator, 2) == #char "*" && peek(iterator, 3) == #char ")" {
-            next(iterator); // eat '.'
-            next(iterator); // eat '*'
-            next(iterator); // eat ')'
-            token.kind = .PREFIX_DEREFERENCE;
-        }
+                next(iterator); // eat '.'
+                next(iterator); // eat '*'
+                next(iterator); // eat ')'
+                token.kind = .PREFIX_DEREFERENCE;
+            }
 
         case #char ",";
             if eat(#char ",") token.kind = .DOUBLE_COMMA;
 
         case #char ":";
-        // NOTE: For cases like test:   = 5;
+            // NOTE: For cases like test:   = 5;
             whitespace_found := skip_spaces(iterator);
-        // NOTE: For cases like: test :/*comment*/: () {}
-        comments_found := eat_comments(iterator, lexer);
+            // NOTE: For cases like: test :/*comment*/: () {}
+            comments_found := eat_comments(iterator, lexer);
             if comments_found || whitespace_found then next_char = peek(iterator);
 
-        if next_char == #char "=" {
-            next(iterator);
-            token.kind = .DECLARATION_AND_ASSIGN;
+            if next_char == #char "=" {
+                next(iterator);
+                token.kind = .DECLARATION_AND_ASSIGN;
             } else if next_char == #char ":" {
-            next(iterator);
-            token.kind = .CONSTANT_DECLARATION;
-        }
+                next(iterator);
+                token.kind = .CONSTANT_DECLARATION;
+            }
     }
 
     if token.kind == .UNKNOWN {

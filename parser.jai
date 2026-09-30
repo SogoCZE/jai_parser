@@ -3384,6 +3384,12 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         return binary_operation;
     }
 
+    if is_token(parser.lexer, token => token.kind == #char ")" || token.kind == #char "]" || token.kind == #char "}" || token.kind == #char "," || token.kind == #char ";") {
+        parser.lexer.has_syntax_errors = true;
+        set_end_location(binary_operation, op);
+        return binary_operation;
+    }
+
     right := parse(parser, binary_operation); // @TODO: anything?
 
     if right && right.kind == .BINARY_OPERATION {
