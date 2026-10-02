@@ -615,11 +615,11 @@ parse_comment :: (using iterator: *Iterator) -> Comment_Token {
 }
 
 parse_note_or_directive :: (using iterator: *Iterator, directive: bool, token: *Token) {
-    next(iterator); // Skip the "@"
-
     token.file = iterator.file;
     token.l0 = iterator.line;
     token.c0 = iterator.column;
+
+    next(iterator); // Skip the "@" or "#"
 
     token.kind = ifx directive then Token.Kind.DIRECTIVE else .NOTE;
     if directive {
