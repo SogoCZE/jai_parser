@@ -6,6 +6,7 @@ Parser :: struct(User_Data_Type: Type) {
     inside_proc_returns: bool;
     inside_proc_call: bool;
     inside_type_inst: bool;
+    inside_for_modifier: bool;
 
     depth: s64;
     depth_limit_reported: bool;
@@ -3361,6 +3362,10 @@ parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
         return left;
     }
 
+    if is_token(parser.lexer, .TIMES_EQUAL) && parser.inside_for_modifier {
+        return left;
+    }
+
     if is_token(parser.lexer, #char ".") {
         return parse_postfix(parser, left);
     }
@@ -3509,11 +3514,17 @@ parse_for :: (parser: *Parser) -> *Node {
                 _for.by_pointer = true;
             case .TIMES_EQUAL;
                 eat_token(parser.lexer);
+                was_inside := parser.inside_for_modifier;
+                parser.inside_for_modifier = true;
                 _for.by_pointer_condition = parse(parser, _for, true);
+                parser.inside_for_modifier = was_inside;
                 maybe_eat_token(parser.lexer, #char ",");
             case .LESS_EQUAL;
                 eat_token(parser.lexer);
+                was_inside := parser.inside_for_modifier;
+                parser.inside_for_modifier = true;
                 _for.reversed_condition = parse(parser, _for, true);
+                parser.inside_for_modifier = was_inside;
                 maybe_eat_token(parser.lexer, #char ",");
             case;
                 modifier_found = false;
