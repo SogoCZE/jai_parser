@@ -93,13 +93,9 @@ Token :: struct {
     kind: Kind = .UNKNOWN;
     number_kind: Number_Kind;
     backticked: bool;
+    float64_literal: bool;
 
-    file: string;
-
-    l0: int;
-    c0: int;
-    l1: int;
-    c1: int;
+    l0, c0, l1, c1: s32;
 
     // NOTE: string_value is separated from int and float value because for numbers we want to keep both representations - string represantation of a number is usefull for example in formatting to not remove underscores from literals.
     string_value: string;
@@ -134,6 +130,8 @@ Lexer :: struct {
     next_backticked: bool;
 
     has_syntax_errors: bool;
+    missing_token: Token;
+    file: string;
 }
 
 create_lexer :: (source: string, file: string) -> Lexer {
@@ -145,6 +143,7 @@ create_lexer :: (source: string, file: string) -> Lexer {
     iterator.end = text.data + text.count;
 
     lexer: Lexer;
+    lexer.file = file;
     array_reserve(*lexer.tokens, text.count / 5 + 16);
 
     while !end(*iterator) {
@@ -160,6 +159,10 @@ create_lexer :: (source: string, file: string) -> Lexer {
             lexer.next_backticked = false;
             token.backticked = true;
         }
+    }
+
+    if iterator.has_syntax_errors {
+        lexer.has_syntax_errors = true;
     }
 
     return lexer;
@@ -285,23 +288,30 @@ eat_token :: inline (using lexer: *Lexer) -> *Token {
     return *tokens[cursor-1];
 }
 
-EMPTY_TOKEN: Token;
-
 eat_token :: (lexer: *Lexer, kind: Token.Kind) -> *Token {
-    token := eat_token(lexer);
+    token := peek_token(lexer);
     if !token {
         lexer.has_syntax_errors = true;
         log_error("Null token! (expected '%')", token_kind_to_string(kind)); // @TODO: add caller_location or something?
-        EMPTY_TOKEN = .{};
-        return *EMPTY_TOKEN;
+        lexer.missing_token = .{kind = kind};
+        return *lexer.missing_token;
     }
 
     if token.kind != kind {
         lexer.has_syntax_errors = true;
-        log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), token.file, token.l0, token.c0); // @TODO: is this ok?
+        log_error("token '%' != required '%' (%:%:%)", token_kind_to_string(token.kind), token_kind_to_string(kind), lexer.file, token.l0, token.c0);
+
+        if is_closing_token(token) {
+            lexer.missing_token = .{kind = kind, l0 = token.l0, c0 = token.c0, l1 = token.l0, c1 = token.c0};
+            return *lexer.missing_token;
+        }
     }
 
-    return token;
+    return eat_token(lexer);
+}
+
+is_closing_token :: inline (token: *Token) -> bool {
+    return token && (token.kind == #char "}" || token.kind == #char ")" || token.kind == #char "]");
 }
 
 eat_all_upcoming_comments :: inline (lexer: *Lexer) {
@@ -355,6 +365,7 @@ Iterator :: struct {
     cursor: *u8;
     end: *u8;
     file: string;
+    has_syntax_errors: bool;
 }
 
 next :: inline (using iterator: *Iterator) -> u8 {
@@ -442,6 +453,29 @@ skip_spaces :: inline (using iterator: *Iterator) -> skipped: bool {
     return cursor != start;
 }
 
+mark_token_start :: inline (iterator: *Iterator, token: *Token) {
+    token.l0 = cast(s32) iterator.line;
+    token.c0 = cast(s32) iterator.column;
+}
+
+mark_token_end :: inline (iterator: *Iterator, token: *Token) {
+    token.l1 = cast(s32) iterator.line;
+    token.c1 = cast(s32) iterator.column;
+}
+
+skip_line_spaces :: inline (using iterator: *Iterator) {
+    start := cursor;
+    while cursor < end && cursor.* != #char "\n" && is_space_char(cursor.*) cursor += 1;
+    column += cursor - start;
+}
+
+skip_to_next_line :: inline (using iterator: *Iterator) {
+    start := cursor;
+    cursor = find_newline(cursor, end);
+    column += cursor - start;
+    if cursor < end next(iterator);
+}
+
 find_newline :: (start: *u8, end: *u8) -> *u8 {
     ONES :: 0x0101_0101_0101_0101;
     HIGH :: 0x8080_8080_8080_8080;
@@ -506,6 +540,11 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) -> Token
         return .TOKEN;
     }
 
+    if char == #char "#" && peek(iterator, 2) == #char "!" && iterator.column == 0 {
+        skip_to_next_line(iterator);
+        return .NONE;
+    }
+
     // Directives
     if char == #char "#" && is_identifier_char(peek(iterator, 2)) {
         parse_note_or_directive(iterator, true, token);
@@ -525,24 +564,16 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) -> Token
         return .TOKEN;
     }
 
-    has_sign: bool;
-    if (char == #char "+" || char == #char "-") && lexer.tokens.count > 1 {
-        previous_token := *lexer.tokens[lexer.tokens.count - 2]; // The last one is the slot being filled.
-        if is_operator(previous_token) || previous_token.kind == .DECLARATION_AND_ASSIGN {
-        has_sign = true;
-        char = peek(iterator, 2);
-    }
-    }
 
     // .40
     if char == #char "." && peek(iterator, 2) >= #char "0" && peek(iterator, 2) <= #char "9" {
-        parse_number(iterator, true, has_sign, token);
+        parse_number(iterator, true, token);
         return .TOKEN;
     }
 
     // Numbers
     if char >= #char "0" && char <= #char "9" {
-        parse_number(iterator, false, has_sign, token);
+        parse_number(iterator, false, token);
         return .TOKEN;
     }
 
@@ -560,9 +591,7 @@ parse_next_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) -> Token
 
 parse_comment :: (using iterator: *Iterator) -> Comment_Token {
     token: Comment_Token;
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+    mark_token_start(iterator, *token);
 
     // Skip the first //
     next(iterator);
@@ -573,26 +602,32 @@ parse_comment :: (using iterator: *Iterator) -> Comment_Token {
     content_end := cursor;
 
     if multiline {
-    nested_comment: int;
+        nested_comment: int;
+        terminated := false;
 
         while cursor < end {
-        char := next(iterator);
+            char := next(iterator);
 
             if char == #char "/" && peek(iterator) == #char "*" {
+                next(iterator);
                 nested_comment += 1;
-            }
-
-            if char == #char "*" && peek(iterator) == #char "/" {
+            } else if char == #char "*" && peek(iterator) == #char "/" {
                 if nested_comment == 0 {
                     content_end = cursor - 1; // Without the "*".
                     next(iterator); // We remove end "/"
+                    terminated = true;
                     break;
                 }
 
+                next(iterator);
                 nested_comment -= 1;
             }
 
             content_end = cursor;
+        }
+
+        if !terminated {
+            iterator.has_syntax_errors = true;
         }
     } else {
         line_start := cursor;
@@ -604,8 +639,7 @@ parse_comment :: (using iterator: *Iterator) -> Comment_Token {
         }
 
     token.string_value = text_from(content_start, content_end);
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, *token);
 
     if ends_with(token.string_value, "\r") {
         token.string_value.count -= 1;
@@ -615,9 +649,7 @@ parse_comment :: (using iterator: *Iterator) -> Comment_Token {
 }
 
 parse_note_or_directive :: (using iterator: *Iterator, directive: bool, token: *Token) {
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+    mark_token_start(iterator, token);
 
     next(iterator); // Skip the "@" or "#"
 
@@ -638,19 +670,17 @@ parse_note_or_directive :: (using iterator: *Iterator, directive: bool, token: *
             token.string_value = join("\"", string_token.string_value, "\"");
         } else {
             start := cursor;
-            while cursor < end && !is_space_char(cursor.*) next(iterator);
+
+            while cursor < end && !is_space_char(cursor.*) && cursor.* != #char ";" next(iterator);
             token.string_value = text_from(start, cursor);
         }
     }
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, token);
 }
 
 parse_identifier :: (using iterator: *Iterator, token: *Token) {
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+    mark_token_start(iterator, token);
 
     start := cursor;
     while cursor < end && is_identifier_or_digit(cursor.*) cursor += 1;
@@ -692,8 +722,7 @@ parse_identifier :: (using iterator: *Iterator, token: *Token) {
     token.kind = keyword_kind_from_identifier(identifier);
     token.string_value = identifier;
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, token);
 }
 
 is_keyword :: inline (kind: Token.Kind) -> bool {
@@ -746,9 +775,7 @@ keyword_kind_from_identifier :: (identifier: string) -> Token.Kind {
 
 parse_string :: (using iterator: *Iterator, token: *Token) {
     token.kind = .STRING;
-    token.file = iterator.file;
-    token.l0 = iterator.line;
-    token.c0 = iterator.column;
+    mark_token_start(iterator, token);
 
     next(iterator); // We skip the first "
 
@@ -756,9 +783,14 @@ parse_string :: (using iterator: *Iterator, token: *Token) {
     start := cursor;
     content_end := cursor;
     while cursor < end {
+        if cursor.* == #char "\n" {
+            iterator.has_syntax_errors = true;
+            break;
+        }
+
         char := next(iterator);
         if char == #char "\\" {
-            if cursor < end {
+            if cursor < end && cursor.* != #char "\n" {
                 next(iterator);
                 content_end = cursor;
             }
@@ -769,8 +801,7 @@ parse_string :: (using iterator: *Iterator, token: *Token) {
         content_end = cursor;
     }
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, token);
     token.string_value = text_from(start, content_end);
 }
 
@@ -786,11 +817,8 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
         } else if peek(iterator, 1) == #char "\\" && peek(iterator, 2) == #char "%" {
             token: Token;
             token.kind = .IDENTIFIER;
-            token.file = iterator.file;
-            token.l0 = iterator.line;
-            token.c0 = iterator.column;
-            token.l1 = token.l0;
-            token.c1 = token.c0;
+            mark_token_start(iterator, *token);
+            mark_token_end(iterator, *token);
             token.string_value = "\\%";
             array_add(*lexer.tokens, token);
             next(iterator);
@@ -815,61 +843,53 @@ parse_here_string :: (using iterator: *Iterator, lexer: *Lexer) {
         return;
     }
 
+    while cursor < end {
+        char := next(iterator);
+        if char == #char "\n" break;
+        if !is_space_char(char) lexer.has_syntax_errors = true;
+    }
+
     string_token: Token;
     string_token.kind = .STRING;
-    string_token.file = iterator.file;
-    string_token.l0 = iterator.line;
-    string_token.c0 = iterator.column;
+    mark_token_start(iterator, *string_token);
 
     start := cursor;
-    content_end := cursor;
+    content_end := end;
+    terminated := false;
 
-    while true {
-        before := cursor;
-        char := next(iterator);
+    while cursor < end {
+        line_start := cursor;
+        skip_line_spaces(iterator);
 
-        if char == 0 {
-            log_error("Unexpected end of file inside #string");
-            content_end = before;
+        rest := text_from(cursor, end);
+        if begins_with(rest, here_identifier) && (rest.count == here_identifier.count || !is_identifier_or_digit(rest[here_identifier.count])) {
+            content_end = line_start;
+            cursor += here_identifier.count;
+            column += here_identifier.count;
+            terminated = true;
             break;
         }
 
-        if char == here_identifier[0] {
-            ok := true;
-            for 1..here_identifier.count-1 {
-                if peek(iterator, it) == here_identifier[it] continue;
-
-                ok = false;
-                break;
-            }
-
-            if ok {
-                content_end = before;
-                for 1..here_identifier.count-1 next(iterator); // eat and
-                break;
-            }
-        }
+        skip_to_next_line(iterator);
     }
 
-    string_token.l1 = iterator.line;
-    string_token.c1 = iterator.column;
+    if !terminated {
+        log_error("Unexpected end of file inside #string (%:%:%)", iterator.file, here_identifier_token.l0, here_identifier_token.c0);
+        lexer.has_syntax_errors = true;
+    }
+
+    mark_token_end(iterator, *string_token);
     string_token.string_value = text_from(start, content_end);
 
     array_add(*lexer.tokens, string_token);
 }
 
-parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool, token: *Token) {
-    token.l0 = iterator.line;
-    token.file = iterator.file;
-    token.c0 = iterator.column;
+parse_number :: (using iterator: *Iterator, from_dot: bool, token: *Token) {
+    mark_token_start(iterator, token);
     token.kind = .NUMBER;
 
     kind: Number_Kind = .UNKNOWN;
     start := cursor;
-
-    if has_sign {
-        next(iterator); // skip the sign
-    }
 
     if from_dot {
         kind = .FLOAT;
@@ -877,7 +897,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool, toke
     }
 
     if !from_dot && peek(iterator) == #char "0" {
-        next_char := peek(iterator, 2);
+        next_char := peek(iterator, 2) | 0x20;
         if next_char == {
             case #char "x"; kind = .HEX_INT;
             case #char "h"; kind = .HEX_FLOAT;
@@ -929,7 +949,7 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool, toke
 
         skip_digits(iterator, is_int_char);
 
-        if peek(iterator) == #char "e" {
+        if (peek(iterator) | 0x20) == #char "e" {
             kind = .SCIENTIFIC_FLOAT;
             next(iterator);
             sign := peek(iterator);
@@ -945,55 +965,90 @@ parse_number :: (using iterator: *Iterator, from_dot: bool, has_sign: bool, toke
     token.string_value = number_value;
     token.number_kind = kind;
 
-    // The value without "_" separators, on the stack for normal literals.
-    stack_buffer: [128]u8;
-    without_underscores: string;
-    without_underscores.data = ifx number_value.count <= stack_buffer.count then stack_buffer.data else cast(*u8) talloc(number_value.count);
-    for 0..number_value.count-1 {
-        char := number_value[it];
-        if char == #char "_" continue;
-        without_underscores.data[without_underscores.count] = char;
-        without_underscores.count += 1;
-    }
-
     if kind == .FLOAT || kind == .SCIENTIFIC_FLOAT {
-        token.float_value = string_to_float(without_underscores);
+        stack_buffer: [128]u8;
+        digits: string;
+        digits.data = ifx number_value.count <= stack_buffer.count then stack_buffer.data else cast(*u8) talloc(number_value.count);
+        for number_value {
+            if it == #char "_" continue;
+            digits.data[digits.count] = it;
+            digits.count += 1;
+        }
+
+        token.float_value = string_to_float64(digits);
+        token.float64_literal = significant_digits(digits) > 7 || !fits_float32(token.float_value);
     } else {
-        base := 10;
+        base: u64 = 10;
+        digits_start := 0;
         if kind == {
             case .HEX_FLOAT; #through;
-            case .HEX_INT; base = 16;
-            case .BINARY; base = 2;
+            case .HEX_INT; base = 16; digits_start = 2; // 0x, 0h
+            case .BINARY;  base = 2;  digits_start = 2; // 0b
         }
 
-        if kind != .INT {
-            advance(*without_underscores, 2); // Skip 0x, 0h or 0b
-            sign_to_set := ifx kind == .HEX_FLOAT then #char "+" else number_value[0];
-            // NOTE: If the number had a sing the skip above won't skip everything we need. For example -0xFF after the skip will become xFF. But because we know that there was a sign in the original string we can replace the 'x' with it so in the end we get: -FF.
-            if has_sign {
-                without_underscores[0] = sign_to_set;
+        value: u64;
+        digit_count := 0;
+        for i: digits_start..number_value.count-1 {
+            char := number_value[i];
+            if char == #char "_" continue;
+
+            digit: u64 = ifx char <= #char "9" then cast(u64) (char - #char "0") else cast(u64) ((char | 0x20) - #char "a" + 10);
+            value = value * base + digit;
+            digit_count += 1;
+        }
+
+        token.integer_value = cast,no_check(int) value;
+
+        if kind == .HEX_FLOAT {
+            if digit_count <= 8 {
+                bits32 := cast,trunc(u32) value;
+                token.float_value = (cast(*float32) *bits32).*;
+            } else {
+                token.float64_literal = true;
             }
-        }
-
-        // NOTE: We're also parsing HEX_FLOAT here because string_to_float doesn't do that. Because the float is in hex format we can parse it in the same way as an integer and then just treat the bits as a float.
-        token.integer_value = string_to_int(without_underscores, base);
-
-        // NOTE: For HEX_FLOAT if it was negative we need to negate the number after parsing because if we pass a negated hex string into string_to_int it changes the bit layout.
-        // For example -0xFF becomes 0xffffffffffffff01 which is correct for integers but not for our hack with hex floats. For hex floats we want the bits to be the same as the literal so we always parse it as a positive number and negate at the end.
-        sign := number_value[0];
-        if kind == .HEX_FLOAT && has_sign && sign == #char "-" {
-            token.float_value *= -1;
         }
     }
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, token);
+}
+
+significant_digits :: (number: string) -> int {
+    end := number.count;
+    exponent := find_index_from_left(number, #char "e");
+    if exponent < 0 exponent = find_index_from_left(number, #char "E");
+    if exponent >= 0 end = exponent;
+
+    if find_index_from_left(number, #char ".") >= 0 {
+        while end > 0 && number[end - 1] == #char "0" end -= 1;
+    }
+
+    count := 0;
+    leading := true;
+    for 0..end-1 {
+        char := number[it];
+        if char < #char "0" || char > #char "9" continue;
+        if leading && char == #char "0" continue;
+        leading = false;
+        count += 1;
+    }
+
+    return count;
+}
+
+fits_float32 :: (value: float64) -> bool {
+    SMALLEST_NORMAL_FLOAT32 :: 1.17549435e-38;
+    LARGEST_FLOAT32         :: 3.40282347e+38;
+
+    magnitude := ifx value < 0 then -value else value;
+    if magnitude == 0 || magnitude - magnitude != 0 {
+        return true;
+    }
+
+    return magnitude >= SMALLEST_NORMAL_FLOAT32 && magnitude <= LARGEST_FLOAT32;
 }
 
 parse_char_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) {
-    token.l0 = iterator.line;
-    token.file = iterator.file;
-    token.c0 = iterator.column;
+    mark_token_start(iterator, token);
 
     char_start := iterator.cursor;
     char := next(iterator);
@@ -1137,6 +1192,5 @@ parse_char_token :: (iterator: *Iterator, lexer: *Lexer, token: *Token) {
 
     token.string_value = text_from(char_start, iterator.cursor);
 
-    token.l1 = iterator.line;
-    token.c1 = iterator.column;
+    mark_token_end(iterator, token);
 }
