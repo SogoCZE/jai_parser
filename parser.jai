@@ -1987,6 +1987,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
 
     proc := New(Procedure);
 
+    proc.location = header_location;
     proc.arguments = members;
     for proc.arguments it.parent = proc;
 
@@ -2103,6 +2104,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         proc.notes = notes;
     }
 
+    set_end_location(parser, proc, peek_token(parser.lexer, -1));
     return proc;
 }
 
