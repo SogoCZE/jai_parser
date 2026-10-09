@@ -20,6 +20,7 @@ TRACY_PROFILE :: false;
 
     if release {
         set_optimization(*options, .VERY_OPTIMIZED);
+        options.stack_trace = false;
     }
 
     tracy: *Metaprogram_Plugin;

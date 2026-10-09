@@ -6,7 +6,19 @@ Parser :: struct(User_Data_Type: Type) {
     inside_proc_returns: bool;
     inside_proc_call: bool;
     inside_type_inst: bool;
+    inside_for_modifier: bool;
+
+    depth: s64;
+    depth_limit_reported: bool;
+
+    min_precedence: Precedence = .LOWEST;
+    operand_precedence: Precedence = .LOWEST;
+
+    left_closing_token: *Token;
 }
+
+MAX_PARSE_DEPTH :: 1000;
+DUMMY_PARENT_NODE: Node;
 
 Node :: struct {
 
@@ -304,8 +316,10 @@ Procedure :: struct {
     header_location: Node.Location;
 
     foreign_lib: string;
+    foreign_library: *Identifier;
     foreign_alias: string;
     elsewhere: string;
+    elsewhere_library: *Identifier;
     elsewhere_alias: string;
     intrinsic: string;
     intrinsic_is_string: bool;
@@ -493,6 +507,7 @@ Literal :: struct {
     }
 
     value_type: Value_Type;
+    float64_literal: bool;
 
     // NOTE: _string is separated from the union for the same reason as in Token. See the note there.
     _string:  string;
@@ -568,69 +583,92 @@ _Operator :: enum u8 {
     ARRAY_SUBSCRIPT_ASSIGNMENT; // []=
 }
 
-convert_operator_to_level :: (op: _Operator) -> u8 {
+Precedence :: enum s32 {
+    LOWEST;
+    ASSIGNMENT;
+    RANGE;
+    LOGICAL_OR;
+    LOGICAL_AND;
+    COMPARISON;
+    ADDITIVE;
+    MODULO;
+    MULTIPLICATIVE;
+    BITWISE;
+    SIGN;
+    POINTER;
+    DEREFERENCE;
+    MEMBER;
+    ENUM_MEMBER;
+}
+
+binary_precedence :: (op: _Operator) -> Precedence {
     if op == {
-        case .DOT; return 16;
-        case .ARRAY_SUBSCRIPT; return 16;
-        case .ARRAY_SUBSCRIPT_ADDRESS; return 16;
-        case .ARRAY_SUBSCRIPT_ASSIGNMENT; return 16;
+        case .DOT; return .MEMBER;
 
-        case .NEGATE;
-        case .BITWISE_NOT;
-            return 15;
+        case .BITWISE_AND; #through;
+        case .BITWISE_XOR; #through;
+        case .PIPE; #through;
+        case .BITWISE_NOT; #through;
+        case .LEFT_SHIFT; #through;
+        case .RIGHT_SHIFT; #through;
+        case .UNSIGNED_LEFT_SHIFT; #through;
+        case .UNSIGNED_RIGHT_SHIFT;
+            return .BITWISE;
 
-        case .MULTIPLICATION; return 14;
-        case .DIVISION; return 14;
-        case .MODULO; return 14;
+        case .MULTIPLICATION; #through;
+        case .DIVISION;
+            return .MULTIPLICATIVE;
 
-        case .ADDITION; return 13;
-        case .SUBTRACTION; return 13;
+        case .MODULO; return .MODULO;
 
-        case .LEFT_SHIFT; return 12;
-        case .RIGHT_SHIFT; return 12;
-        case .UNSIGNED_LEFT_SHIFT; return 12;
-        case .UNSIGNED_RIGHT_SHIFT; return 12;
+        case .ADDITION; #through;
+        case .SUBTRACTION;
+            return .ADDITIVE;
 
-        case .LESS; return 11;
-        case .GREATER; return 11;
-        case .LESS_EQUAL; return 11;
-        case .GREATER_EQUAL; return 11;
+        case .LESS; #through;
+        case .GREATER; #through;
+        case .LESS_EQUAL; #through;
+        case .GREATER_EQUAL; #through;
+        case .IS_EQUAL; #through;
+        case .IS_NOT_EQUAL;
+            return .COMPARISON;
 
-        case .IS_EQUAL; return 10;
-        case .IS_NOT_EQUAL; return 10;
+        case .LOGICAL_AND; return .LOGICAL_AND;
+        case .LOGICAL_OR; return .LOGICAL_OR;
+        case .RANGE; return .RANGE;
 
-        case .BITWISE_AND; return 9;
-
-        case .BITWISE_XOR; return 8;
-
-        case .PIPE; return 7;
-
-        case .LOGICAL_AND; return 6;
-        case .LOGICAL_OR; return 5;
-
-        case .ASSIGN;
-        case .BITWISE_AND_ASSIGNMENT;
-        case .BITWISE_XOR_ASSIGNMENT;
-        case .PIPE_EQUAL;
-        case .PLUS_EQUAL;
-        case .MINUS_EQUAL;
-        case .MOD_EQUAL;
-        case .DIV_EQUAL;
-        case .TIMES_EQUAL;
-        case .LOGICAL_AND_ASSIGNMENT;
-        case .LOGICAL_OR_ASSIGNMENT;
-        case .LEFT_SHIFT_ASSIGNMENT;
-        case .RIGHT_SHIFT_ASSIGNMENT;
-        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT;
+        case .ASSIGN; #through;
+        case .BITWISE_AND_ASSIGNMENT; #through;
+        case .BITWISE_XOR_ASSIGNMENT; #through;
+        case .PIPE_EQUAL; #through;
+        case .PLUS_EQUAL; #through;
+        case .MINUS_EQUAL; #through;
+        case .MOD_EQUAL; #through;
+        case .DIV_EQUAL; #through;
+        case .TIMES_EQUAL; #through;
+        case .LOGICAL_AND_ASSIGNMENT; #through;
+        case .LOGICAL_OR_ASSIGNMENT; #through;
+        case .LEFT_SHIFT_ASSIGNMENT; #through;
+        case .RIGHT_SHIFT_ASSIGNMENT; #through;
+        case .UNSIGNED_RIGHT_SHIFT_ASSIGNMENT; #through;
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
-            return 4;
-
-        case .RANGE; return 3;
-
-        case .INVALID; return 0;
+            return .ASSIGNMENT;
     }
 
-    return 0;
+    return .LOWEST;
+}
+
+unary_precedence :: (op: Unary_Operation.Operation) -> Precedence {
+    if op == {
+        case .NEGATE; return .ADDITIVE;
+        case .POINTER; #through;
+        case .BITWISE_NOT;
+            return .POINTER;
+        case .POINTER_DEREFERENCE; return .DEREFERENCE;
+        case .DOT; return .ENUM_MEMBER;
+    }
+
+    return .SIGN; // + - and ..
 }
 
 Binary_Operation :: struct {
@@ -990,11 +1028,33 @@ Inline_Assembly :: struct {
 parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node {
     current_token := peek_token(parser.lexer);
 
+    parser.depth += 1;
+    defer parser.depth -= 1;
+
+    if parser.depth > MAX_PARSE_DEPTH {
+        if !parser.depth_limit_reported {
+            parser.depth_limit_reported = true;
+            if current_token {
+                log_error("Parser: maximum nesting depth (%) exceeded at %:%:%", MAX_PARSE_DEPTH, parser.lexer.file, current_token.l0, current_token.c0);
+            } else {
+                log_error("Parser: maximum nesting depth (%) exceeded at end of file", MAX_PARSE_DEPTH);
+            }
+        }
+        parser.lexer.has_syntax_errors = true;
+        eat_token(parser.lexer);
+        return null;
+    }
+
+    saved_min_precedence := parser.min_precedence;
+    parser.min_precedence = parser.operand_precedence;
+    parser.operand_precedence = .LOWEST;
+    defer parser.min_precedence = saved_min_precedence;
+
     base_node := parse_node(parser, parent);
     if !base_node return null;
     base_node.parent = parent;
 
-    set_start_location(base_node, current_token);
+    set_start_location(parser, base_node, current_token);
 
     can_contain_comma_separated_expression :: (kind: Node.Kind) -> bool {
         if kind == .BLOCK return true;
@@ -1121,8 +1181,8 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
                     item.item_kind = default;
                 }
 
-                set_start_location(item, node);
-                set_end_location(item, node);
+                set_start_location(parser, item, node);
+                set_end_location(parser, item, node);
 
                 node.parent = item;
                 item.expression = node;
@@ -1173,8 +1233,8 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
 
             compound_declaration.type_inst.parent = compound_declaration;
 
-            set_start_location(compound_declaration, base_node);
-            set_end_location(compound_declaration, peek_token(parser.lexer, -1));
+            set_start_location(parser, compound_declaration, base_node);
+            set_end_location(parser, compound_declaration, peek_token(parser.lexer, -1));
             parser.node_visit(compound_declaration, parser.user_data);
 
             return compound_declaration;
@@ -1201,8 +1261,8 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
                 binary_operation.right.parent = binary_operation;
             }
 
-            set_start_location(binary_operation, base_node);
-            set_end_location(binary_operation, peek_token(parser.lexer, -1));
+            set_start_location(parser, binary_operation, base_node);
+            set_end_location(parser, binary_operation, peek_token(parser.lexer, -1));
             parser.node_visit(binary_operation, parser.user_data);
 
             return binary_operation;
@@ -1210,15 +1270,15 @@ parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node 
 
         comma_separated_expression.parent = parent;
 
-        set_start_location(comma_separated_expression, base_node);
-        set_end_location(comma_separated_expression, peek_token(parser.lexer, -1));
+        set_start_location(parser, comma_separated_expression, base_node);
+        set_end_location(parser, comma_separated_expression, peek_token(parser.lexer, -1));
         parser.node_visit(comma_separated_expression, parser.user_data);
 
         return comma_separated_expression;
     }
 
     parser.node_visit(base_node, parser.user_data);
-    set_end_location(base_node, peek_token(parser.lexer, -1));
+    set_end_location(parser, base_node, peek_token(parser.lexer, -1));
 
     return base_node;
 }
@@ -1236,53 +1296,49 @@ parse_token_array :: (parser: *Parser, to: *[..] *Node, from: [..]Token) {
     local_parser: #run get_type_from_pointer_type(type_of(parser)); // @TODO: is this ok?
     local_parser.node_visit = parser.node_visit;
     local_parser.user_data = parser.user_data;
+    local_parser.depth = parser.depth;
     local_parser.lexer = New(Lexer);
     local_parser.lexer.tokens = from;
+    local_parser.lexer.file = parser.lexer.file;
 
     while !end(local_parser.lexer) {
-        node := parse(*local_parser, *(Node.{})); // @TODO: Parent hack!
+        node := parse(*local_parser, *DUMMY_PARENT_NODE); // @TODO: Parent hack!
         if !node continue;
         array_add(to, node);
     }
 }
 
 
-set_start_location :: (using node: *Node, token: *Token) {
+set_start_location :: (parser: *Parser, node: *Node, token: *Token) {
+    set_start_location(parser, *node.location, token);
+}
+
+set_start_location :: (parser: *Parser, location: *Node.Location, token: *Token) {
     if !token return;
-    location.file = token.file;
+    location.file = parser.lexer.file;
     location.l0 = token.l0;
     location.c0 = token.c0;
 }
 
-set_start_location :: (location: *Node.Location, token: *Token) {
-    if !token return;
-    location.file = token.file;
-    location.l0 = token.l0;
-    location.c0 = token.c0;
-}
-
-set_start_location :: (using node: *Node, from_node: *Node) {
+set_start_location :: (parser: *Parser, using node: *Node, from_node: *Node) {
     if !from_node return;
     location.file = from_node.location.file;
     location.l0 = from_node.location.l0;
     location.c0 = from_node.location.c0;
 }
 
-set_end_location :: (using node: *Node, token: *Token) {
+set_end_location :: (parser: *Parser, node: *Node, token: *Token) {
+    set_end_location(parser, *node.location, token);
+}
+
+set_end_location :: (parser: *Parser, location: *Node.Location, token: *Token) {
     if !token return;
-    location.file = token.file;
+    location.file = parser.lexer.file;
     location.l1 = token.l1;
     location.c1 = token.c1;
 }
 
-set_end_location :: (location: *Node.Location, token: *Token) {
-    if !token return;
-    location.file = token.file;
-    location.l1 = token.l1;
-    location.c1 = token.c1;
-}
-
-set_end_location :: (using node: *Node, from_node: *Node) {
+set_end_location :: (parser: *Parser, using node: *Node, from_node: *Node) {
     if !from_node return;
     location.file = from_node.location.file;
     location.l1 = from_node.location.l1;
@@ -1295,7 +1351,7 @@ delimited :: (parser: *Parser, open: Token.Kind, close: Token.Kind, separator: T
     eat_token(parser.lexer, open);
 
     while !end(parser.lexer) {
-        if is_token(parser.lexer, close) break;
+        if is_closing_token(peek_token(parser.lexer)) break; // Its own or one of an enclosing construct.
 
         if separator != 0 && is_token(parser.lexer, separator) {
             eat_token(parser.lexer, separator);
@@ -1314,11 +1370,19 @@ delimited :: (parser: *Parser, open: Token.Kind, close: Token.Kind, separator: T
     return nodes;
 }
 
+delimited_arguments :: (parser: *Parser, parent: *Node) -> []*Node {
+    saved_inside_proc_args := parser.inside_proc_args;
+    parser.inside_proc_args = true;
+    defer parser.inside_proc_args = saved_inside_proc_args;
+    return delimited(parser, #char "(", #char ")", #char ",", parent);
+}
+
 parse_until :: (parser: *Parser, stop: (token: *Token) -> bool, separator: Token.Kind = 0, parent: *Node) -> []*Node {
     nodes: [..]*Node;
 
     while !end(parser.lexer) {
-        if !peek_token(parser.lexer) || stop(peek_token(parser.lexer)) break;
+        token := peek_token(parser.lexer);
+        if !token || stop(token) || is_closing_token(token) break;
 
         if separator != 0 && is_token(parser.lexer, separator) {
             eat_token(parser.lexer, separator);
@@ -1368,7 +1432,7 @@ create_operator_from_token :: (using token: Token) -> _Operator {
         case .LOGICAL_AND;                        return .LOGICAL_AND;
         case .LOGICAL_AND_ASSIGNMENT;             return .LOGICAL_AND_ASSIGNMENT;
         case .LOGICAL_OR;                         return .LOGICAL_OR;
-        case .LOGICAL_OR_ASSIGNMENT;              return .LOGICAL_OR;
+        case .LOGICAL_OR_ASSIGNMENT;              return .LOGICAL_OR_ASSIGNMENT;
         case .IS_EQUAL;                           return .IS_EQUAL;
         case .IS_NOT_EQUAL;                       return .IS_NOT_EQUAL;
         case .DOUBLE_DOT;                         return .RANGE;
@@ -1383,7 +1447,7 @@ create_operator_from_token :: (using token: Token) -> _Operator {
         case .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;     return .UNSIGNED_LEFT_SHIFT_ASSIGNMENT;
     }
 
-    log_error(tprint("Invalid operator '%' %:%:%.", token_kind_to_string(kind), file, l0, c0));
+    log_error(tprint("Invalid operator '%' %:%.", token_kind_to_string(kind), l0, c0));
 
     return .INVALID;
 }
@@ -1449,8 +1513,8 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
         return parse_procedure(parser);
     }
 
-    // Inline
-    if is_token(parser.lexer, .KEYWORD_INLINE) {
+    // inline, no_inline
+    if is_token(parser.lexer, .KEYWORD_INLINE) || is_token(parser.lexer, .KEYWORD_NO_INLINE) {
         return parse_inline(parser);
     }
 
@@ -1613,7 +1677,12 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
         return parse_comment(parser);
     }
 
-    // Skip other
+    token := peek_token(parser.lexer);
+    if is_closing_token(token) && parser.left_closing_token != token {
+        parser.left_closing_token = token;
+        return null;
+    }
+
     eat_token(parser.lexer);
 
     return null;
@@ -1697,6 +1766,7 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
 
     if is_token(parser.lexer, #char "(") {
         decl.type_inst = parse_procedure(parser, true);
+        if decl.type_inst decl.type_inst.parent = decl;
     } else {
 
         // Guard?
@@ -1848,7 +1918,9 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
         if !expression continue;
 
         return_value := New(Return_Value);
+        return_value.parent = parent;
         return_value.expression = expression;
+        expression.parent = return_value;
 
         if is_token(parser.lexer, t => t.kind == .DIRECTIVE && t.string_value == "must") {
             eat_token(parser.lexer, .DIRECTIVE);
@@ -1872,7 +1944,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
 
 parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
     header_location: Node.Location;
-    set_start_location(*header_location, peek_token(parser.lexer));
+    set_start_location(parser, *header_location, peek_token(parser.lexer));
 
     // @TODO: This is kinda hack... Maybe do this in some other better way!
     inside_proc_args_was_already_set := parser.inside_proc_args;
@@ -1880,7 +1952,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         parser.inside_proc_args = true;
     }
 
-    members := delimited(parser, #char "(", #char ")", #char ",", *(Node.{})); // @TODO: Parent hack!?
+    members := delimited(parser, #char "(", #char ")", #char ",", *DUMMY_PARENT_NODE); // @TODO: Parent hack!?
 
     if !inside_proc_args_was_already_set {
         parser.inside_proc_args = false;
@@ -1898,38 +1970,29 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         return false;
     }
 
+    // Quick lambda: (a, b) => a + b, also without arguments () => x.
+    if !force_procedure && is_token(parser.lexer, .QUICK_LAMBDA) && (members.count == 0 || !is_procedure_args(members[0].kind)) {
+        return parse_quick_lambda(parser, members);
+    }
+
     // @TODO: this is kinda messy? We probably want to do this in some other way...
     if !force_procedure && members.count > 0 && !is_procedure_args(members[0].kind) {
-
-        // Quick Lambda
-        if is_token(parser.lexer, .QUICK_LAMBDA) {
-            return parse_quick_lambda(parser, members);
-        }
 
         // Comma Separated Expression @TODO: maybe move this somewhere else?
         comma_separated_expression := New(Comma_Separated_Expression);
         comma_separated_expression.surrounded_with_parens = true;
         comma_separated_expression.location = header_location;
-        set_end_location(*comma_separated_expression.location, peek_token(parser.lexer, -1));
+        set_end_location(parser, *comma_separated_expression.location, peek_token(parser.lexer, -1));
 
         comma_separated_expression.members = members;
         for comma_separated_expression.members it.parent = comma_separated_expression;
 
-        // Binary operation eg: ((10+10) - (20+5))
-        if is_operator(peek_token(parser.lexer)) {
-            return parse_binary_operation(parser, comma_separated_expression);
-        }
-
-        // Array Subscript after Comma Separated Expression eg: *(<<arr)[it]
-        if is_token(parser.lexer, #char "[") {
-            return parse_array_subscript(parser, comma_separated_expression);
-        }
-
-        return comma_separated_expression;
+        return parse_postfix_operators(parser, comma_separated_expression);
     }
 
     proc := New(Procedure);
 
+    proc.location = header_location;
     proc.arguments = members;
     for proc.arguments it.parent = proc;
 
@@ -1945,7 +2008,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         proc.returns = returns;
     }
 
-    set_end_location(*header_location, peek_token(parser.lexer, -1));
+    set_end_location(parser, *header_location, peek_token(parser.lexer, -1));
     proc.header_location = header_location;
 
     parse_proc_directive :: (parser: *Parser, proc: *Procedure) {
@@ -1980,7 +2043,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.flags |= .COMPILER;
             case "elsewhere";
                 proc.flags |= .ELSEWHERE;
-                proc.elsewhere = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                library_token := eat_token(parser.lexer, .IDENTIFIER);
+                proc.elsewhere = library_token.string_value;
+                proc.elsewhere_library = parse_identifier(parser, library_token);
+                proc.elsewhere_library.parent = proc;
                 if is_token(parser.lexer, .STRING) {
                     proc.elsewhere_alias = eat_token(parser.lexer, .STRING).string_value;
                 }
@@ -1988,7 +2054,10 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
                 proc.flags |= .FOREIGN;
 
                 if is_token(parser.lexer, .IDENTIFIER) {
-                    proc.foreign_lib = eat_token(parser.lexer, .IDENTIFIER).string_value;
+                    library_token := eat_token(parser.lexer, .IDENTIFIER);
+                    proc.foreign_lib = library_token.string_value;
+                    proc.foreign_library = parse_identifier(parser, library_token);
+                    proc.foreign_library.parent = proc;
 
                     if is_token(parser.lexer, .STRING) {
                         proc.foreign_alias = eat_token(parser.lexer, .STRING).string_value;
@@ -2040,6 +2109,7 @@ parse_procedure :: (parser: *Parser, force_procedure := false) -> *Node {
         proc.notes = notes;
     }
 
+    set_end_location(parser, proc, peek_token(parser.lexer, -1));
     return proc;
 }
 
@@ -2063,7 +2133,10 @@ parse_struct :: (parser: *Parser) -> *Struct {
     eat_token(parser.lexer, .KEYWORD_STRUCT);
 
     if is_token(parser.lexer, #char "(") {
+        saved_inside_proc_args := parser.inside_proc_args;
+        parser.inside_proc_args = true;
         _struct.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _struct);
+        parser.inside_proc_args = saved_inside_proc_args;
     }
 
     parse_struct_directive :: (parser: *Parser, _struct: *Struct) {
@@ -2072,6 +2145,7 @@ parse_struct :: (parser: *Parser) -> *Struct {
         if directive.string_value == {
             case "modify";
                 _struct.modify_block = parse_block(parser);
+                _struct.modify_block.parent = _struct;
             case "type_info_no_size_complaint";
                 _struct.flags |= .TYPE_INFO_NO_SIZE_COMPLAINT;
             case "type_info_procedures_are_void_pointers";
@@ -2109,7 +2183,7 @@ parse_struct :: (parser: *Parser) -> *Struct {
     } else {
         token := peek_token(parser.lexer);
         if token {
-            log_error("Exprected struct body! %:%:%", token.file, token.l0, token.c0);
+            log_error("Exprected struct body! %:%:%", parser.lexer.file, token.l0, token.c0);
         } else {
             log_error("Exprected struct body! (token is null)");
         }
@@ -2136,7 +2210,10 @@ parse_union :: (parser: *Parser) -> *Union {
     eat_token(parser.lexer, .KEYWORD_UNION);
 
     if is_token(parser.lexer, #char "(") {
+        saved_inside_proc_args := parser.inside_proc_args;
+        parser.inside_proc_args = true;
         _union.polymorphic_arguments = delimited(parser, #char "(", #char ")", #char ",", _union);
+        parser.inside_proc_args = saved_inside_proc_args;
     }
 
     notes: [..] *Note;
@@ -2156,8 +2233,8 @@ parse_union :: (parser: *Parser) -> *Union {
         // NOTE: The block parsing here is done manually instead of calling parse_block because the union block can contain the tagged union bindings (.TYPE ,, value: int;). Instead of adding special handling  of ',,' inside other parsing procedures we just do it here.
         block := New(Block);
         block_nodes: [..]*Node;
-        set_start_location(block, peek_token(parser.lexer));
-        
+        set_start_location(parser, block, peek_token(parser.lexer));
+
         eat_token(parser.lexer, #char "{");
 
         while !end(parser.lexer) {
@@ -2172,8 +2249,8 @@ parse_union :: (parser: *Parser) -> *Union {
                 binding.parent = block;
                 binding.tag = node;
                 binding.member = parse(parser, binding);
-                set_start_location(binding, binding.tag);
-                set_end_location(binding, binding.member);
+                set_start_location(parser, binding, binding.tag);
+                set_end_location(parser, binding, binding.member);
                 array_add(*block_nodes, binding);
             } else {
                 array_add(*block_nodes, node);
@@ -2183,7 +2260,7 @@ parse_union :: (parser: *Parser) -> *Union {
         }
 
         maybe_eat_token(parser.lexer, #char "}");
-        set_end_location(block, peek_token(parser.lexer, -1));
+        set_end_location(parser, block, peek_token(parser.lexer, -1));
         parser.node_visit(block, parser.user_data);
 
         block.members = block_nodes;
@@ -2194,7 +2271,7 @@ parse_union :: (parser: *Parser) -> *Union {
     } else {
         token := peek_token(parser.lexer);
         if token {
-            log_error("Exprected union body! %:%:%", token.file, token.l0, token.c0);
+            log_error("Exprected union body! %:%:%", parser.lexer.file, token.l0, token.c0);
         } else {
             log_error("Exprected union body! (token is null)");
         }
@@ -2231,10 +2308,11 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
         parse_notes(parser, _enum, *notes);
     }
 
-    // Specified directive
-    if is_token(parser.lexer, token => token.kind == .DIRECTIVE && token.string_value == "specified") {
-        eat_token(parser.lexer, .DIRECTIVE);
-        _enum.specified = true;
+    // #specified and #complete, in any order.
+    while is_token(parser.lexer, token => token.kind == .DIRECTIVE && (token.string_value == "specified" || token.string_value == "complete")) {
+        if eat_token(parser.lexer, .DIRECTIVE).string_value == "specified" {
+            _enum.specified = true;
+        }
     }
 
     // Body
@@ -2244,7 +2322,7 @@ parse_enum :: (parser: *Parser, is_enum_flags: bool) -> *Enum {
     } else {
         token := peek_token(parser.lexer);
         if token {
-            log_error("Exprected enum body! %:%:%", token.file, token.l0, token.c0);
+            log_error("Exprected enum body! %:%:%", parser.lexer.file, token.l0, token.c0);
         } else {
             log_error("Exprected enum body! (token is null)");
         }
@@ -2265,13 +2343,12 @@ parse_block_or_dotless_struct_literal :: (parser: *Parser, parent: *Node) -> *No
         || parent.kind == .RETURN
         || parent.kind == .LITERAL
         || parent.kind == .PROCEDURE_CALL
-        || parent.kind == .DECLARATION && !parent.(*Declaration).const
+        || parent.kind == .DECLARATION && (!parent.(*Declaration).const || parent.(*Declaration).type_inst)
+        || parent.kind == .IF && parent.(*If).if_kind == .IFX && parent.(*If).then_keyword_used && !braces_contain_statements(parser.lexer)
     ) {
         eat_token(parser.lexer, #char "{");
 
         literal := New(Literal);
-        literal.value_type = .STRUCT;
-
         literal.value_type = .STRUCT;
         literal.values.struct_literal_info.body = parse_until(parser, token => token.kind == #char "}", #char ",", parent=literal);
         eat_token(parser.lexer, #char "}");
@@ -2287,13 +2364,39 @@ parse_block_or_dotless_struct_literal :: (parser: *Parser, parent: *Node) -> *No
     return parse_block(parser, false);
 }
 
+braces_contain_statements :: (lexer: *Lexer) -> bool {
+    depth := 0;
+    for index: lexer.cursor..lexer.tokens.count-1 {
+        token := *lexer.tokens[index];
+        if token.kind == {
+            case #char "{"; #through;
+            case #char "("; #through;
+            case #char "["; #through;
+            case .BEGIN_STRUCT_LITERAL; #through;
+            case .BEGIN_ARRAY_LITERAL;
+                depth += 1;
+
+            case #char "}"; #through;
+            case #char ")"; #through;
+            case #char "]";
+                depth -= 1;
+                if depth <= 0 return false;
+
+            case #char ";";
+                if depth == 1 return true;
+        }
+    }
+
+    return false;
+}
+
 // {}
 parse_block :: (parser: *Parser, call_node_visit := true, no_aoc := false) -> *Block {
     block := New(Block);
     block.no_aoc = no_aoc;
-    set_start_location(block, peek_token(parser.lexer));
+    set_start_location(parser, block, peek_token(parser.lexer));
     block.members = delimited(parser, #char "{", #char "}", parent=block);
-    set_end_location(block, peek_token(parser.lexer, -1));
+    set_end_location(parser, block, peek_token(parser.lexer, -1));
 
     if call_node_visit parser.node_visit(block, parser.user_data);
 
@@ -2307,7 +2410,7 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
     procedure.parent = proc_call;
     parser.node_visit(proc_call.procedure, parser.user_data);
 
-    set_start_location(proc_call, procedure);
+    set_start_location(parser, proc_call, procedure);
 
     if procedure.kind == .IDENTIFIER {
         proc_call.backticked = (cast(*Identifier)procedure).backticked;
@@ -2334,27 +2437,9 @@ parse_procedure_call :: (parser: *Parser, procedure: *Node) -> *Node {
 
     // NOTE: We're setting the proc_call location here just in case we go into one of the ifs below.
     // If we go there without setting the location the location will remain set to 0 because we'll return a different node to the caller and the code in the 'parse' fucntion will set the location for that new node.
-    set_end_location(proc_call, peek_token(parser.lexer, -1));
-    // Array Subscript generate_array()[0]
-    if is_token(parser.lexer, #char "[") {
-        return parse_array_subscript(parser, proc_call);
-    }
+    set_end_location(parser, proc_call, peek_token(parser.lexer, -1));
 
-    // Procedure Call generate_proc()();
-    if is_token(parser.lexer, #char "(") {
-        return parse_procedure_call(parser, proc_call);
-    }
-
-    // Binary operation
-    if is_operator(peek_token(parser.lexer)) && !parser.inside_type_inst {
-        return parse_binary_operation(parser, proc_call);
-    }
-
-    if is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
-         return parse_array_or_struct_literal(parser, proc_call);
-    }
-
-    return proc_call;
+    return parse_postfix_operators(parser, proc_call, binary = !parser.inside_type_inst);
 }
 
 // #run
@@ -2414,8 +2499,7 @@ parse_directive :: (parser: *Parser) -> *Node {
     }
 
     // @TODO: Unknown directive?
-    eat_token(parser.lexer);
-    log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, directive_token.file, directive_token.l0, directive_token.c0);
+    log_error("Unknown directive #% (%:%:%)!", directive_token.string_value, parser.lexer.file, directive_token.l0, directive_token.c0);
 
     return null;
 }
@@ -2433,7 +2517,12 @@ parse_directive_string :: (parser: *Parser) -> *Directive_String {
         }
     }
 
-    identifier := eat_token(parser.lexer, .IDENTIFIER);
+    identifier: *Token;
+    if is_token(parser.lexer, token => token.kind == .IDENTIFIER || is_keyword(token.kind)) {
+        identifier = eat_token(parser.lexer);
+    } else {
+        identifier = eat_token(parser.lexer, .IDENTIFIER); // Reports the syntax error.
+    }
     if !identifier {
         log_error("Exprected identifier after #string");
         return null;
@@ -2551,11 +2640,11 @@ parse_directive_import :: (parser: *Parser) -> *Directive_Import {
     directive_import.module = eat_token(parser.lexer, .STRING).string_value;
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.module_parameters = delimited_arguments(parser, directive_import);
     }
 
     if is_token(parser.lexer, #char "(") {
-        directive_import.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_import);
+        directive_import.program_parameters = delimited_arguments(parser, directive_import);
     }
 
     return directive_import;
@@ -2608,6 +2697,7 @@ parse_directive_type :: (parser: *Parser) -> *Directive_Type {
 
     if is_token(parser.lexer, #char "(") {
         directive_type.expression = parse_procedure(parser, true);
+        if directive_type.expression directive_type.expression.parent = directive_type;
     } else {
         directive_type.expression = parse(parser, directive_type);
     }
@@ -2703,25 +2793,20 @@ parse_directive_insert :: (parser: *Parser) -> *Directive_Insert {
     }
 
     if maybe_eat_token(parser.lexer, #char "(") {
-        while !is_token(parser.lexer, #char ")") {
+        while !end(parser.lexer) && !is_token(parser.lexer, #char ")") {
             if maybe_eat_token(parser.lexer, .KEYWORD_BREAK) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_break = parse(parser, directive_insert);
-            }
-
-            if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
+            } else if maybe_eat_token(parser.lexer, .KEYWORD_CONTINUE) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_continue = parse(parser, directive_insert);
-
-            }
-
-            if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
+            } else if maybe_eat_token(parser.lexer, .KEYWORD_REMOVE) {
                 eat_token(parser.lexer, #char "=");
                 directive_insert.for_expansion_remove = parse(parser, directive_insert);
-
+            } else if !maybe_eat_token(parser.lexer, #char ",") {
+                // Unexpected token (e.g. `#insert(x)`), skip it so we always make progress and never loop forever.
+                eat_token(parser.lexer);
             }
-
-            maybe_eat_token(parser.lexer, #char ",");
         }
         maybe_eat_token(parser.lexer, #char ")");
     }
@@ -2769,12 +2854,12 @@ parse_directive_module_parameters :: (parser: *Parser) -> *Directive_Module_Para
 
     if is_token(parser.lexer, #char "(") {
         directive_module_parameters.has_module_parameters = true;
-        directive_module_parameters.module_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.module_parameters = delimited_arguments(parser, directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "(") {
         directive_module_parameters.has_program_parameters = true;
-        directive_module_parameters.program_parameters = delimited(parser, #char "(", #char ")", #char ",", directive_module_parameters);
+        directive_module_parameters.program_parameters = delimited_arguments(parser, directive_module_parameters);
     }
 
     if is_token(parser.lexer, #char "{") {
@@ -2948,10 +3033,10 @@ parse_directive_scope :: (parser: *Parser, scope_kind: Directive_Scope.Scope_Kin
 
 parse_identifier :: (parser: *Parser, ident_token: *Token) -> *Identifier {
     identifier := New(Identifier);
-    set_start_location(identifier, ident_token);
+    set_start_location(parser, identifier, ident_token);
     identifier.name = ident_token.string_value;
     identifier.backticked = ident_token.backticked;
-    set_end_location(identifier, peek_token(parser.lexer, -1));
+    set_end_location(parser, identifier, peek_token(parser.lexer, -1));
     return identifier;
 }
 
@@ -2981,24 +3066,19 @@ parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
         }
     }
 
-    // Binary operation
-    if is_operator(peek_token(parser.lexer)) {
-        // NOTE: See the note about setting the location in parse_literal
-        if type {
-            set_start_location(literal, type);
-        } else {
-            if literal.value_type == {
-                case .ARRAY;
-                    set_start_location(literal, array_begin_token);
-                case .STRUCT;
-                    set_start_location(literal, struct_begin_token);
-            }
+    if type {
+        set_start_location(parser, literal, type);
+    } else {
+        if literal.value_type == {
+            case .ARRAY;
+                set_start_location(parser, literal, array_begin_token);
+            case .STRUCT;
+                set_start_location(parser, literal, struct_begin_token);
         }
-        set_end_location(literal, peek_token(parser.lexer, -1));
-        return parse_binary_operation(parser, literal);
     }
+    set_end_location(parser, literal, peek_token(parser.lexer, -1));
 
-    return literal;
+    return parse_postfix_operators(parser, literal);
 }
 
 parse_literal :: (parser: *Parser) -> *Node {
@@ -3022,6 +3102,7 @@ parse_literal :: (parser: *Parser) -> *Node {
             if kind == .FLOAT || kind == .HEX_FLOAT || kind == .SCIENTIFIC_FLOAT {
                 literal.value_type = .FLOAT;
                 literal._float = base_literal.float_value;
+                literal.float64_literal = base_literal.float64_literal;
             } else {
                 literal.value_type = .INT;
                 literal._int = base_literal.integer_value;
@@ -3031,8 +3112,8 @@ parse_literal :: (parser: *Parser) -> *Node {
     // Binary operation
     if is_operator(peek_token(parser.lexer)) {
         // NOTE: If we're going to parse a binary operation we need to set the 'left' side location here because the 'base_node' in 'parse' will be set to the binary operation node and the code that sets the location will skip this literal.
-        set_start_location(literal, base_literal);
-        set_end_location(literal, peek_token(parser.lexer, -1));
+        set_start_location(parser, literal, base_literal);
+        set_end_location(parser, literal, peek_token(parser.lexer, -1));
         return parse_binary_operation(parser, literal);
     }
 
@@ -3045,7 +3126,7 @@ parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
     array_subscript.expression.parent = array_subscript;
     parser.node_visit(array_subscript.expression, parser.user_data);
 
-    set_start_location(array_subscript, expression);
+    set_start_location(parser, array_subscript, expression);
 
     eat_token(parser.lexer, #char "[");
 
@@ -3054,19 +3135,29 @@ parse_array_subscript :: (parser: *Parser, expression: *Node) -> *Node {
     }
 
     end_token := eat_token(parser.lexer, #char "]");
-    set_end_location(array_subscript, end_token);
+    set_end_location(parser, array_subscript, end_token);
 
-    // Binary operation
-    if is_operator(peek_token(parser.lexer)) {
-        return parse_binary_operation(parser, array_subscript);
-    }
+    return parse_postfix_operators(parser, array_subscript);
+}
 
-    // Another Array Subscript
+parse_postfix_operators :: (parser: *Parser, node: *Node, binary := true) -> *Node {
     if is_token(parser.lexer, #char "[") {
-        return parse_array_subscript(parser, array_subscript);
+        return parse_array_subscript(parser, node);
     }
 
-    return array_subscript;
+    if is_token(parser.lexer, #char "(") {
+        return parse_procedure_call(parser, node);
+    }
+
+    if is_token(parser.lexer, .BEGIN_ARRAY_LITERAL) || is_token(parser.lexer, .BEGIN_STRUCT_LITERAL) {
+        return parse_array_or_struct_literal(parser, node);
+    }
+
+    if binary && is_operator(peek_token(parser.lexer)) {
+        return parse_binary_operation(parser, node);
+    }
+
+    return node;
 }
 
 parse_array_type :: (parser: *Parser) -> *Array_Type {
@@ -3146,40 +3237,21 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
         case #char "!";             unary_operation.operation = .NEGATE;
         case #char "~";             unary_operation.operation = .BITWISE_NOT;
         case .DOUBLE_DOT;           unary_operation.operation = .ELLIPSIS;
-        case .LEFT_SHIFT; #through;           
-        case .PREFIX_DEREFERENCE;   
+        case .LEFT_SHIFT; #through;
+        case .PREFIX_DEREFERENCE;
             unary_operation.operation = .POINTER_DEREFERENCE;
             unary_operation.is_prefix_dereference = true;
     }
 
-    expression := parse(parser, unary_operation);
-    if expression && expression.kind == .BINARY_OPERATION {
-        binary_op := cast(*Binary_Operation) expression;
+    parser.operand_precedence = unary_precedence(unary_operation.operation);
+    unary_operation.expression = parse(parser, unary_operation);
+    set_end_location(parser, unary_operation, peek_token(parser.lexer, -1));
 
-        if binary_op.operation != .DOT {
-            unary_operation.expression = binary_op.left;
-            binary_op.left.parent = unary_operation;
-            unary_operation.parent = binary_op;
-
-            binary_op.left = unary_operation;
-
-            return binary_op;
-        }
-    }
-
-    unary_operation.expression = expression;
-
-    // @TODO: Is this necessary?
-    // Binary operation
-    // if is_operator(peek_token(parser.lexer)) {
-    //     return parse_binary_operation(parser, unary_operation);
-    // }
-
-    return unary_operation;
+    return parse_binary_operation(parser, unary_operation);
 }
 
 // dot binary operation, postfix pointer defer, posfix cast
-parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
+parse_postfix :: (parser: *Parser, left: *Node) -> *Node {
     initial_left_parent := left.parent;
 
     binary_operation := New(Binary_Operation);
@@ -3189,7 +3261,7 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
     binary_operation.left.parent = binary_operation;
     parser.node_visit(binary_operation.left, parser.user_data);
 
-    set_start_location(binary_operation, left);
+    set_start_location(parser, binary_operation, left);
 
     dot_token := eat_token(parser.lexer, #char ".");
 
@@ -3201,10 +3273,8 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
         unary_operation.expression = left;
         binary_operation.left.parent = unary_operation;
 
-        set_start_location(unary_operation, left);
-        set_end_location(unary_operation, peek_token(parser.lexer, -1));
-
-        free(binary_operation);
+        set_start_location(parser, unary_operation, left);
+        set_end_location(parser, unary_operation, peek_token(parser.lexer, -1));
 
         // Binary operation
         if is_operator(peek_token(parser.lexer)) && (!is_token(parser.lexer, #char "=") || !is_token(parser.lexer, #char ",", 1)) {
@@ -3221,7 +3291,6 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
 
     // NOTE: Postfix cast: a.(*int)
     if is_token(parser.lexer, #char "(") {
-        free(binary_operation);
         _cast := parse_cast(parser, false, left);
         _cast.parent = initial_left_parent;
         return _cast;
@@ -3234,16 +3303,25 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
 
     right_side_token := peek_token(parser.lexer);
 
+    // Nothing after the '.' (e.g. `if !home.` at the end of the file while editing).
+    if !right_side_token {
+        set_end_location(parser, binary_operation, dot_token);
+        return binary_operation;
+    }
+
+    saved_min_precedence := parser.min_precedence;
+    parser.min_precedence = .MEMBER;
+
     // right side
     if right_side_token.kind == .IDENTIFIER {
         ident_token := eat_token(parser.lexer, .IDENTIFIER);
         ident := parse_identifier(parser, ident_token);
-        set_start_location(ident, ident_token);
-        set_end_location(ident, peek_token(parser.lexer, -1));
+        set_start_location(parser, ident, ident_token);
+        set_end_location(parser, ident, peek_token(parser.lexer, -1));
 
         next_token := peek_token(parser.lexer);
         if next_token && next_token.kind == #char "." {
-            binary_operation.right = parse_postfix(parser, ident, true);
+            binary_operation.right = parse_postfix(parser, ident);
         } else if next_token && next_token.kind == #char "[" {
             binary_operation.right = parse_array_subscript(parser, ident);
         } else if next_token && next_token.kind == #char "(" {
@@ -3255,93 +3333,89 @@ parse_postfix :: (parser: *Parser, left: *Node, inside_dot := false) -> *Node {
         }
 
         if binary_operation.right != ident {
-            set_start_location(binary_operation.right, next_token);
-            set_end_location(binary_operation.right, peek_token(parser.lexer, -1));
+            set_start_location(parser, binary_operation.right, next_token);
+            set_end_location(parser, binary_operation.right, peek_token(parser.lexer, -1));
         }
     } else if right_side_token.kind == .DIRECTIVE && right_side_token.string_value == "insert" {
         eat_token(parser.lexer, .DIRECTIVE);
         binary_operation.right = parse_directive_insert(parser);
-        set_start_location(binary_operation.right, right_side_token);
-        set_end_location(binary_operation.right, peek_token(parser.lexer, -1));
+        set_start_location(parser, binary_operation.right, right_side_token);
+        set_end_location(parser, binary_operation.right, peek_token(parser.lexer, -1));
     }
+
+    parser.min_precedence = saved_min_precedence;
 
     if binary_operation.right {
         binary_operation.right.parent = binary_operation;
-        set_end_location(binary_operation, binary_operation.right);
+        set_end_location(parser, binary_operation, binary_operation.right);
         parser.node_visit(binary_operation.right, parser.user_data);
     } else {
-        set_end_location(binary_operation, dot_token);
+        set_end_location(parser, binary_operation, dot_token);
     }
 
-    if !inside_dot && is_operator(peek_token(parser.lexer)) {
-        return parse_binary_operation(parser, binary_operation);
-    }
-
-    return binary_operation;
+    return parse_binary_operation(parser, binary_operation);
 }
 
 parse_binary_operation :: (parser: *Parser, left: *Node) -> *Node {
-    // Array or Struct literal
-    // if is_token(parser.lexer, #char ".") && is_token(parser.lexer, token => token.kind == #char "[" || token.kind == #char "{", 1) {
-    //     return parse_array_or_struct_literal(parser, left);
-    // }
+    result := left;
 
-    // NOTE: For cases like this: a :: (proc: (b: int) -> bool = null, c: int = 0) we don't want the 'bool = null' to parse as a binary operation.
-    if is_token(parser.lexer, #char "=") && parser.inside_proc_returns {
-        return left;
-    }
+    while true {
+        if is_token(parser.lexer, #char "=") && parser.inside_proc_returns {
+            return result;
+        }
 
-    if is_token(parser.lexer, #char ".") {
-        return parse_postfix(parser, left);
-    }
+        if is_token(parser.lexer, .TIMES_EQUAL) && parser.inside_for_modifier {
+            return result;
+        }
 
-    initial_left_parent := left.parent;
+        if is_token(parser.lexer, #char ".") {
+            return parse_postfix(parser, result);
+        }
 
-    binary_operation := New(Binary_Operation);
+        op := peek_token(parser.lexer);
+        if !is_operator(op) {
+            return result;
+        }
 
-    binary_operation.left = left;
-    binary_operation.left.parent = binary_operation;
-    parser.node_visit(binary_operation.left, parser.user_data);
+        operation := create_operator_from_token(op);
+        precedence := binary_precedence(operation);
+        if precedence <= parser.min_precedence {
+            return result;
+        }
 
-    set_start_location(binary_operation, left);
+        eat_token(parser.lexer);
 
-    op := eat_token(parser.lexer);
-    assert(is_operator(op));
-    binary_operation.operation = create_operator_from_token(op);
+        binary_operation := New(Binary_Operation);
+        binary_operation.operation = operation;
+        binary_operation.left = result;
+        binary_operation.parent = result.parent;
+        result.parent = binary_operation;
+        parser.node_visit(result, parser.user_data);
+        set_start_location(parser, binary_operation, result);
+        result = binary_operation;
 
-    // NOTE: In 'if a == {' don't parse the block
-    if is_token(parser.lexer, #char "{") && binary_operation.operation == .IS_EQUAL {
-        return binary_operation;
-    }
+        if is_token(parser.lexer, #char "{") && operation == .IS_EQUAL {
+            set_end_location(parser, binary_operation, op);
+            return result;
+        }
 
-    right := parse(parser, binary_operation); // @TODO: anything?
+        if is_token(parser.lexer, token => token.kind == #char ")" || token.kind == #char "]" || token.kind == #char "}" || token.kind == #char "," || token.kind == #char ";") {
+            parser.lexer.has_syntax_errors = true;
+            set_end_location(parser, binary_operation, op);
+            return result;
+        }
 
-    if right && right.kind == .BINARY_OPERATION {
-        other_binary_op := cast(*Binary_Operation) right;
+        parser.operand_precedence = precedence;
+        binary_operation.right = parse(parser, binary_operation);
 
-        a_op_level := convert_operator_to_level(binary_operation.operation);
-        b_op_level := convert_operator_to_level(other_binary_op.operation);
-
-        // Swap
-        if a_op_level > b_op_level {
-            binary_operation.right = other_binary_op.left;
-            other_binary_op.left.parent = binary_operation;
-
-            other_binary_op.left = binary_operation;
-            binary_operation.parent = other_binary_op;
-
-            set_end_location(binary_operation, binary_operation.right);
-            set_start_location(other_binary_op, other_binary_op.left);
-            set_end_location(other_binary_op, other_binary_op.right);
-
-            return other_binary_op;
+        if binary_operation.right {
+            set_end_location(parser, binary_operation, binary_operation.right);
+        } else {
+            set_end_location(parser, binary_operation, op);
         }
     }
 
-    binary_operation.right = right;
-
-    set_end_location(binary_operation, binary_operation.right);
-    return binary_operation;
+    return result;
 }
 
 parse_return :: (parser: *Parser, parent_is_code := false) -> *Node {
@@ -3408,6 +3482,7 @@ parse_for :: (parser: *Parser) -> *Node {
 
     // This is temporary and will go away with future compiler betas (for #v2 ..)
     token := peek_token(parser.lexer);
+    if !token return _for; // `for` at the end of the file.
     if token.kind == .DIRECTIVE && token.string_value == "v2" {
         eat_token(parser.lexer, .DIRECTIVE);
         _for.is_v2 = true;
@@ -3415,12 +3490,14 @@ parse_for :: (parser: *Parser) -> *Node {
 
     if maybe_eat_token(parser.lexer, #char ":") {
         _for.expansion = parse_identifier(parser, eat_token(parser.lexer, .IDENTIFIER));
+        if _for.expansion _for.expansion.parent = _for;
     }
 
     modifier_found := true;
     while modifier_found {
         // TODO: Handle multiple modifiers of the same type and report errors if there are any.
         token := peek_token(parser.lexer);
+        if !token break;
         if token.kind == {
             case #char "<";
                 eat_token(parser.lexer);
@@ -3430,11 +3507,17 @@ parse_for :: (parser: *Parser) -> *Node {
                 _for.by_pointer = true;
             case .TIMES_EQUAL;
                 eat_token(parser.lexer);
+                was_inside := parser.inside_for_modifier;
+                parser.inside_for_modifier = true;
                 _for.by_pointer_condition = parse(parser, _for, true);
+                parser.inside_for_modifier = was_inside;
                 maybe_eat_token(parser.lexer, #char ",");
             case .LESS_EQUAL;
                 eat_token(parser.lexer);
+                was_inside := parser.inside_for_modifier;
+                parser.inside_for_modifier = true;
                 _for.reversed_condition = parse(parser, _for, true);
+                parser.inside_for_modifier = was_inside;
                 maybe_eat_token(parser.lexer, #char ",");
             case;
                 modifier_found = false;
@@ -3529,7 +3612,10 @@ parse_if :: (parser: *Parser, kind: If.If_Kind = .UNKNOWN, compile_time := false
         }
 
         // NOTE: In ifs without blocks statements need the semicolon. For example: if true then print("true"); else print("false");
-        maybe_eat_token(parser.lexer, #char ";");
+        // An ifx is an expression, the semicolon after it ends the enclosing statement (return ifx a then b;).
+        if _if.if_kind != .IFX {
+            maybe_eat_token(parser.lexer, #char ";");
+        }
 
         else_found, else_token := maybe_eat_token(parser.lexer, .KEYWORD_ELSE);
         if else_found {
@@ -3638,9 +3724,9 @@ parse_cast :: (parser: *Parser, auto: bool = false, expression: *Node = null) ->
     _cast.auto = auto;
 
     if expression {
-        set_start_location(_cast, expression);
+        set_start_location(parser, _cast, expression);
     } else {
-        set_start_location(_cast, peek_token(parser.lexer));
+        set_start_location(parser, _cast, peek_token(parser.lexer));
     }
 
     if !expression {
@@ -3676,25 +3762,19 @@ parse_cast :: (parser: *Parser, auto: bool = false, expression: *Node = null) ->
     }
 
     if !_cast.postfix && !_cast.function_style {
+        parser.operand_precedence = .MULTIPLICATIVE;
         _cast.expression = parse(parser, _cast);
     }
 
     // NOTE: For cases like a.(*int).* or cast(*int, a).* or a := b.(float) * 0.5 etc.
-    if _cast.postfix || _cast.function_style {
-        // Binary operation
-        if is_operator(peek_token(parser.lexer)) {
-            set_end_location(_cast, peek_token(parser.lexer));
-            return parse_binary_operation(parser, _cast);
-        }
-    }
-
-    return _cast;
+    set_end_location(parser, _cast, peek_token(parser.lexer, -1));
+    return parse_binary_operation(parser, _cast);
 }
 
 parse_inline :: (parser: *Parser) -> *Node {
-    eat_token(parser.lexer, .KEYWORD_INLINE);
+    inlined := eat_token(parser.lexer).kind == .KEYWORD_INLINE;
     next_node := parse(parser, null);
-    if !next_node return null;
+    if !next_node || !inlined return next_node;
 
     if next_node.kind == .PROCEDURE {
         (cast(*Procedure) next_node).flags |= .INLINE;
@@ -3737,6 +3817,12 @@ parse_operator_overload :: (parser: *Parser) -> *Node {
     op := eat_token(parser.lexer);
     // assert(is_operator(op));
 
+    if !op {
+        log_error("Expected an operator after 'operator' but reached the end of the file.");
+        parser.lexer.has_syntax_errors = true;
+        return operator_overload;
+    }
+
     // operator *[] ::
     if op.kind == #char "*" && maybe_eat_token(parser.lexer, #char "[") {
         eat_token(parser.lexer, #char "]");
@@ -3776,13 +3862,16 @@ parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     }
 
     block_start := eat_token(parser.lexer, #char "{");
-    while !is_token(parser.lexer, #char "}") eat_token(parser.lexer);
+    while !end(parser.lexer) && !is_token(parser.lexer, #char "}") eat_token(parser.lexer);
     block_end := eat_token(parser.lexer, #char "}");
 
     start_string := block_start.string_value.data;
     end_string := block_end.string_value.data;
-    inline_assembly.body.data = start_string;
-    inline_assembly.body.count = end_string - start_string + 1; // NOTE: +1 to include the '}'.
+
+    if block_start.kind == #char "{" && block_end.kind == #char "}" && start_string && end_string && end_string >= start_string {
+        inline_assembly.body.data = start_string;
+        inline_assembly.body.count = end_string - start_string + 1;
+    }
 
     return inline_assembly;
 }
@@ -3797,8 +3886,8 @@ parse_note :: (parser: *Parser, parent: *Node) -> *Note {
     note.value = note_token.string_value;
     note.parent = parent;
 
-    set_start_location(note, note_token);
-    set_end_location(note, note_token);
+    set_start_location(parser, note, note_token);
+    set_end_location(parser, note, note_token);
 
     return note;
 }
