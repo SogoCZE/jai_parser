@@ -17,7 +17,7 @@ create_lexer_from_jai_parser :: (source: string, file: string) -> Lexer {
 	while true {
 		fast_token := Fast_Lexer.peek_next_token(*fast);
 		if fast_token.type == .END_OF_INPUT {
-			consume_trivia(*state, fast_token.trailing_trivia);
+			consume_trivia(*state, fast_token.preceding_trivia);
 			break;
 		}
 

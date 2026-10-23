@@ -188,7 +188,7 @@ main :: () {
 
 #load "json_export.jai";
 
-#import,dir "../../../jai_parser";
+#import,dir "../../../Jai_parser";
 
 File_Module :: #import "File";
 #import "File_Utilities";

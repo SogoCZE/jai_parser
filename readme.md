@@ -5,6 +5,23 @@ The parser has not been tested on larger projects, so there may be some serious 
 
 The current plan for this parser is to provide information about Jai programs for [Jails](https://github.com/SogoCZE/Jails) and [Jai Autodoc](https://github.com/SogoCZE/jai_autodoc) together with information provided by the compiler.
 
+## Deferred Fast-Lexer Compatibility
+
+Recorded 2026-10-21.
+The `Jai_Parser` lexer conventions below are intentional; any required emulation of the legacy lexer's conventions belongs in `lexer_adapter.jai`.
+Adapter compatibility changes are deferred, not part of the removal of the redundant `trailing_trivia` field.
+
+- The legacy `parse_char_token` consumes whitespace after `:` while checking for `:=` or `::`.  In `value: int;`, its colon spans zero-based columns `[5, 7)` with spelling `": "`; the adapter currently reports `[5, 6)` and `":"`, leaving the space as trivia.
+- The legacy `parse_comment` consumes a line comment's terminating newline before recording its endpoint.  For `"// tail\n"`, its endpoint is zero-based `(line=1, column=0)`; the adapter's endpoint is `(line=0, column=7)`, excluding the newline.
+
+These differences are separate from EOF trivia handling.
+EOF now carries the final whitespace/comments in `preceding_trivia`, and the adapter consumes that field without changing its public token/comment record shapes.
+The new `tests/lexer_adapter_trivia.jai` compares legacy and adapter records and currently fails on token endpoints; that strict comparison is not yet a passing regression test or evidence that removing `trailing_trivia` changed output.
+After endpoint handling, colon spelling also differs and must not be hidden by simply skipping endpoint assertions.
+
+- [ ] Review which legacy span/spelling conventions require adapter emulation, keeping the underlying lexer's token-only spans and comment endpoints unchanged.
+- [ ] Separate explicit expected adapter-output tests from legacy-compatibility tests, covering colon whitespace/spelling, line-comment newlines and final EOF trivia; do not silently suppress mismatches.
+
 ## Try
 
 The `cmd` folder contains an example program that parses the entry file and follows all `#import` and `#load`.
@@ -423,7 +440,7 @@ The command uses the original eager lexer by default. To use the fast `Jai_Parse
 ```
 
 ## Dependencies
-Initialize the local module dependencies after cloning:
+Initialise the local module dependencies after cloning:
 
 ```sh
 git submodule update --init --recursive

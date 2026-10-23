@@ -1,0 +1,1 @@
+{"rule":"EN_A_VS_AN","sentence":"^\\QThe program generates an \\E(?:Dummy|Ina|Jimmy-|Dummy-|Maniquí-|Maniquíes-|Atrapa-|Dummy\\+|Dummy's\\+)[0-9]+\\Q folder with JSON files each representing each parsed file.\\E$"}
