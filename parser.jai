@@ -3252,6 +3252,10 @@ parse_unary_operation :: (parser: *Parser) -> *Node {
     unary_operation.expression = parse(parser, unary_operation);
     set_end_location(parser, unary_operation, peek_token(parser.lexer, -1));
 
+    if parser.inside_type_inst && !is_token(parser.lexer, #char ".") {
+        return unary_operation;
+    }
+
     return parse_binary_operation(parser, unary_operation);
 }
 
