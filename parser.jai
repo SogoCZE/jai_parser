@@ -1836,8 +1836,12 @@ parse_type_instantiation :: (parser: *Parser, ident_token: *Token, first_operato
         }
     }
 
-    // NOTE: Notes in declarations are after the semicolon
-    maybe_eat_token(parser.lexer, #char ";");
+    // NOTE: Notes in declarations are after the semicolon.
+    // A named return value (`f: (a: int) -> valid: bool;`) leaves the semicolon to the statement it's in,
+    // else the returns would go on through the following statements.
+    if !parser.inside_proc_returns {
+        maybe_eat_token(parser.lexer, #char ";");
+    }
 
     // Notes
     if is_token(parser.lexer, .NOTE) {
@@ -1900,6 +1904,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
     starts_with_bracket := maybe_eat_token(parser.lexer, #char "(");
     returns: [..]*Return_Value;
 
+    inside_proc_returns_before := parser.inside_proc_returns;
     parser.inside_proc_returns = true;
 
     is_returns_end_token :: (token: *Token) -> bool {
@@ -1937,7 +1942,7 @@ parse_procedure_returns :: (parser: *Parser, parent: *Node) -> [..]*Return_Value
 
     if starts_with_bracket maybe_eat_token(parser.lexer, #char ")");
 
-    parser.inside_proc_returns = false;
+    parser.inside_proc_returns = inside_proc_returns_before;
 
     return returns, starts_with_bracket;
 }
