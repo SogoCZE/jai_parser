@@ -1023,6 +1023,7 @@ Inline_Assembly :: struct {
 
     expression: *Node;
     body: string; // @TODO: @InComplete: We currently don't parse content of inline assembly blocks.
+    no_barrier: bool; // #asm,no_barrier
 }
 
 parse :: (parser: *Parser, parent: *Node, no_comma_separated := false) -> *Node {
@@ -1667,8 +1668,12 @@ parse_node :: (parser: *Parser, parent: *Node) -> *Node {
    		return parse_block_or_dotless_struct_literal(parser, parent);
     }
 
-    // Array_Type
+    // Array_Type or dotless array literal
     if is_token(parser.lexer, #char "[") {
+        if is_dotless_array_literal(parser.lexer) {
+            return parse_array_or_struct_literal(parser, null);
+        }
+
         return parse_array_type(parser);
     }
 
@@ -2370,6 +2375,11 @@ parse_block_or_dotless_struct_literal :: (parser: *Parser, parent: *Node) -> *No
 }
 
 braces_contain_statements :: (lexer: *Lexer) -> bool {
+    index := top_level_token(lexer, token => token.kind == #char ";");
+    return index >= 0 && lexer.tokens[index].kind == #char ";";
+}
+
+top_level_token :: (lexer: *Lexer, matches: (token: *Token) -> bool) -> int {
     depth := 0;
     for index: lexer.cursor..lexer.tokens.count-1 {
         token := *lexer.tokens[index];
@@ -2385,11 +2395,77 @@ braces_contain_statements :: (lexer: *Lexer) -> bool {
             case #char ")"; #through;
             case #char "]";
                 depth -= 1;
-                if depth <= 0 return false;
+                if depth <= 0 {
+                    return index;
+                }
 
-            case #char ";";
-                if depth == 1 return true;
+            case;
+                if depth == 1 && matches(token) {
+                    return index;
+                }
         }
+    }
+
+    return -1;
+}
+
+is_dotless_array_literal :: (lexer: *Lexer) -> bool {
+    if is_token(lexer, .DOUBLE_DOT, 1) && is_token(lexer, #char "]", 2) {
+        return false;
+    }
+
+    index := top_level_token(lexer, token => token.kind == #char "," || token.kind == #char ";");
+    if index < 0 {
+        return false;
+    }
+
+    kind := lexer.tokens[index].kind;
+    if kind == #char "," {
+        return true;
+    }
+
+    if kind != #char "]" {
+        return false;
+    }
+
+    next := index + 1;
+    return next >= lexer.tokens.count || !starts_expression(lexer.tokens[next].kind);
+}
+
+starts_expression :: (kind: Token.Kind) -> bool {
+    if kind == {
+        case .IDENTIFIER; #through;
+        case .NUMBER; #through;
+        case .STRING; #through;
+        case .DIRECTIVE; #through;
+        case .BEGIN_STRUCT_LITERAL; #through;
+        case .BEGIN_ARRAY_LITERAL; #through;
+        case #char "("; #through;
+        case #char "["; #through;
+        case #char "{"; #through;
+        case #char "$"; #through;
+        case #char "+"; #through;
+        case #char "-"; #through;
+        case #char "."; #through;
+        case #char "*"; #through;
+        case #char "!"; #through;
+        case #char "~"; #through;
+        case .DOUBLE_DOT; #through;
+        case .LEFT_SHIFT; #through;
+        case .PREFIX_DEREFERENCE; #through;
+        case .KEYWORD_STRUCT; #through;
+        case .KEYWORD_UNION; #through;
+        case .KEYWORD_ENUM; #through;
+        case .KEYWORD_ENUM_FLAGS; #through;
+        case .KEYWORD_INTERFACE; #through;
+        case .KEYWORD_IFX; #through;
+        case .KEYWORD_CAST; #through;
+        case .KEYWORD_AUTO_CAST; #through;
+        case .KEYWORD_INLINE; #through;
+        case .KEYWORD_NO_INLINE; #through;
+        case .KEYWORD_TRUE; #through;
+        case .KEYWORD_FALSE;
+            return true;
     }
 
     return false;
@@ -3052,7 +3128,8 @@ parse_array_or_struct_literal :: (parser: *Parser, type: *Node) -> *Node {
         parser.node_visit(type, parser.user_data);
     }
 
-    _, array_begin_token := maybe_eat_token(parser.lexer, .BEGIN_ARRAY_LITERAL);
+    // `[` only when the caller saw a dotless array literal.
+    _, array_begin_token := maybe_eat_token(parser.lexer, token => token.kind == .BEGIN_ARRAY_LITERAL || token.kind == #char "[");
     struct_begin_token: *Token;
 
     if array_begin_token {
@@ -3865,6 +3942,13 @@ parse_operator_overload :: (parser: *Parser) -> *Node {
 // @TODO: We want catch the ASM block probably at lexer level not in parser. (useless tokens being created)
 parse_inline_assembly :: (parser: *Parser) -> *Inline_Assembly {
     inline_assembly := New(Inline_Assembly);
+
+    if maybe_eat_token(parser.lexer, #char ",") {
+        ok, modifier_token := maybe_eat_token(parser.lexer, .IDENTIFIER);
+        if ok && modifier_token.string_value == "no_barrier" {
+            inline_assembly.no_barrier = true;
+        }
+    }
 
     if !is_token(parser.lexer, #char "{") {
         inline_assembly.expression = parse(parser, inline_assembly);
